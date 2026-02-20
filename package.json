@@ -5,8 +5,9 @@
   "type": "module",
   "scripts": {
     "build": "tsc",
-    "auth": "npx ts-node lib/google-auth.ts",
-    "mcp:calendar": "npx ts-node mcp/google-calendar/index.ts"
+    "auth": "node --loader ts-node/esm lib/google-auth.ts",
+    "auth:list": "node --loader ts-node/esm lib/google-auth.ts --list",
+    "mcp:calendar": "node --loader ts-node/esm mcp/google-calendar/index.ts"
   },
   "keywords": [
     "productivity",
