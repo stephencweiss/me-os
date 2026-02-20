@@ -1,0 +1,13 @@
+{
+  "1": { "name": "Lavender", "meaning": "1:1s / People" },
+  "2": { "name": "Sage", "meaning": "Deep Work / Focus" },
+  "3": { "name": "Grape", "meaning": "Meetings" },
+  "4": { "name": "Flamingo", "meaning": "Blocked / Waiting" },
+  "5": { "name": "Banana", "meaning": "Admin / Ops" },
+  "6": { "name": "Tangerine", "meaning": "External" },
+  "7": { "name": "Peacock", "meaning": "Learning" },
+  "8": { "name": "Graphite", "meaning": "Personal" },
+  "9": { "name": "Blueberry", "meaning": "Unassigned" },
+  "10": { "name": "Basil", "meaning": "Unassigned" },
+  "11": { "name": "Tomato", "meaning": "Urgent / Deadlines" }
+}
