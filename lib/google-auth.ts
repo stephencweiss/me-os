@@ -7,8 +7,17 @@ import { URL } from "url";
 
 const SCOPES = ["https://www.googleapis.com/auth/calendar"];
 const CONFIG_DIR = path.join(process.cwd(), "config");
-const CREDENTIALS_PATH = path.join(CONFIG_DIR, "credentials.json");
-const TOKENS_PATH = path.join(CONFIG_DIR, "tokens.json");
+
+// Default account can be overridden via GOOGLE_ACCOUNT env var
+const DEFAULT_ACCOUNT = process.env.GOOGLE_ACCOUNT || "personal";
+
+function getCredentialsPath(account: string): string {
+  return path.join(CONFIG_DIR, `credentials-${account}.json`);
+}
+
+function getTokensPath(account: string): string {
+  return path.join(CONFIG_DIR, `tokens-${account}.json`);
+}
 
 interface Credentials {
   installed?: {
@@ -31,31 +40,34 @@ interface Tokens {
   expiry_date: number;
 }
 
-function loadCredentials(): Credentials {
-  if (!fs.existsSync(CREDENTIALS_PATH)) {
+function loadCredentials(account: string): Credentials {
+  const credPath = getCredentialsPath(account);
+  if (!fs.existsSync(credPath)) {
     throw new Error(
-      `Credentials file not found at ${CREDENTIALS_PATH}.\n` +
+      `Credentials file not found at ${credPath}.\n` +
         "Please download OAuth2 credentials from Google Cloud Console:\n" +
         "1. Go to https://console.cloud.google.com/apis/credentials\n" +
         "2. Create OAuth 2.0 Client ID (Desktop app)\n" +
-        "3. Download JSON and save as config/credentials.json"
+        `3. Download JSON and save as config/credentials-${account}.json`
     );
   }
-  const content = fs.readFileSync(CREDENTIALS_PATH, "utf-8");
+  const content = fs.readFileSync(credPath, "utf-8");
   return JSON.parse(content);
 }
 
-function loadTokens(): Tokens | null {
-  if (!fs.existsSync(TOKENS_PATH)) {
+function loadTokens(account: string): Tokens | null {
+  const tokensPath = getTokensPath(account);
+  if (!fs.existsSync(tokensPath)) {
     return null;
   }
-  const content = fs.readFileSync(TOKENS_PATH, "utf-8");
+  const content = fs.readFileSync(tokensPath, "utf-8");
   return JSON.parse(content);
 }
 
-function saveTokens(tokens: Tokens): void {
-  fs.writeFileSync(TOKENS_PATH, JSON.stringify(tokens, null, 2));
-  console.log("Tokens saved to", TOKENS_PATH);
+function saveTokens(tokens: Tokens, account: string): void {
+  const tokensPath = getTokensPath(account);
+  fs.writeFileSync(tokensPath, JSON.stringify(tokens, null, 2));
+  console.log("Tokens saved to", tokensPath);
 }
 
 function createOAuth2Client(credentials: Credentials): OAuth2Client {
@@ -122,16 +134,17 @@ async function getNewTokens(oAuth2Client: OAuth2Client): Promise<Tokens> {
   });
 }
 
-export async function getAuthenticatedClient(): Promise<OAuth2Client> {
-  const credentials = loadCredentials();
+export async function getAuthenticatedClient(account: string = DEFAULT_ACCOUNT): Promise<OAuth2Client> {
+  console.log(`Using Google account: ${account}`);
+  const credentials = loadCredentials(account);
   const oAuth2Client = createOAuth2Client(credentials);
 
-  let tokens = loadTokens();
+  let tokens = loadTokens(account);
 
   if (!tokens) {
     console.log("No tokens found, starting OAuth flow...");
     tokens = await getNewTokens(oAuth2Client);
-    saveTokens(tokens);
+    saveTokens(tokens, account);
   }
 
   oAuth2Client.setCredentials(tokens);
@@ -140,7 +153,7 @@ export async function getAuthenticatedClient(): Promise<OAuth2Client> {
   if (tokens.expiry_date && tokens.expiry_date < Date.now()) {
     console.log("Token expired, refreshing...");
     const { credentials: newTokens } = await oAuth2Client.refreshAccessToken();
-    saveTokens(newTokens as Tokens);
+    saveTokens(newTokens as Tokens, account);
     oAuth2Client.setCredentials(newTokens);
   }
 
@@ -151,10 +164,33 @@ export function getCalendarClient(auth: OAuth2Client) {
   return google.calendar({ version: "v3", auth });
 }
 
+// List available accounts
+export function listAvailableAccounts(): string[] {
+  if (!fs.existsSync(CONFIG_DIR)) return [];
+  return fs.readdirSync(CONFIG_DIR)
+    .filter(f => f.startsWith("credentials-") && f.endsWith(".json"))
+    .map(f => f.replace("credentials-", "").replace(".json", ""));
+}
+
 // Run auth flow if executed directly
 if (import.meta.url === `file://${process.argv[1]}`) {
-  console.log("Starting Google Calendar authentication...\n");
-  getAuthenticatedClient()
+  const account = process.argv[2] || DEFAULT_ACCOUNT;
+
+  if (process.argv[2] === "--list") {
+    const accounts = listAvailableAccounts();
+    console.log("Available accounts:");
+    accounts.forEach(a => console.log(`  - ${a}`));
+    if (accounts.length === 0) {
+      console.log("  (none found - add credentials-<name>.json to config/)");
+    }
+    process.exit(0);
+  }
+
+  console.log(`Starting Google Calendar authentication for account: ${account}\n`);
+  console.log("Usage: npm run auth [account-name]");
+  console.log("       npm run auth --list\n");
+
+  getAuthenticatedClient(account)
     .then((client) => {
       console.log("\nAuthentication successful!");
       console.log("You can now use the calendar MCP server.");
