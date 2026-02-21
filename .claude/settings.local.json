@@ -3,7 +3,11 @@
     "allow": [
       "Bash(mkdir:*)",
       "Bash(npm run build:*)",
-      "Bash(npm run auth:list:*)"
+      "Bash(npm run auth:list:*)",
+      "Bash(npm run auth:*)",
+      "Bash(cat:*)",
+      "Bash(node --loader ts-node/esm:*)"
     ]
-  }
+  },
+  "enableAllProjectMcpServers": true
 }

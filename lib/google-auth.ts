@@ -70,19 +70,33 @@ function saveTokens(tokens: Tokens, account: string): void {
   console.log("Tokens saved to", tokensPath);
 }
 
-function createOAuth2Client(credentials: Credentials): OAuth2Client {
+interface OAuth2Config {
+  client: OAuth2Client;
+  redirectUri: string;
+  port: number;
+}
+
+function createOAuth2Client(credentials: Credentials): OAuth2Config {
   const config = credentials.installed || credentials.web;
   if (!config) {
     throw new Error("Invalid credentials format");
   }
-  return new google.auth.OAuth2(
-    config.client_id,
-    config.client_secret,
-    config.redirect_uris[0]
-  );
+  const redirectUri = config.redirect_uris[0];
+  const url = new URL(redirectUri);
+  const port = url.port ? parseInt(url.port) : 80;
+
+  return {
+    client: new google.auth.OAuth2(
+      config.client_id,
+      config.client_secret,
+      redirectUri
+    ),
+    redirectUri,
+    port,
+  };
 }
 
-async function getNewTokens(oAuth2Client: OAuth2Client): Promise<Tokens> {
+async function getNewTokens(oAuth2Client: OAuth2Client, port: number): Promise<Tokens> {
   const authUrl = oAuth2Client.generateAuthUrl({
     access_type: "offline",
     scope: SCOPES,
@@ -97,7 +111,7 @@ async function getNewTokens(oAuth2Client: OAuth2Client): Promise<Tokens> {
     const server = http.createServer(async (req, res) => {
       try {
         if (req.url?.startsWith("/oauth2callback") || req.url?.startsWith("/?")) {
-          const url = new URL(req.url, "http://localhost:3000");
+          const url = new URL(req.url, `http://localhost:${port}`);
           const code = url.searchParams.get("code");
 
           if (!code) {
@@ -124,8 +138,8 @@ async function getNewTokens(oAuth2Client: OAuth2Client): Promise<Tokens> {
       }
     });
 
-    server.listen(3000, () => {
-      console.log("Listening on http://localhost:3000 for OAuth callback...");
+    server.listen(port, () => {
+      console.log(`Listening on http://localhost:${port} for OAuth callback...`);
       // Open browser automatically on macOS
       import("child_process").then(({ exec }) => {
         exec(`open "${authUrl}"`);
@@ -137,13 +151,13 @@ async function getNewTokens(oAuth2Client: OAuth2Client): Promise<Tokens> {
 export async function getAuthenticatedClient(account: string = DEFAULT_ACCOUNT): Promise<OAuth2Client> {
   console.log(`Using Google account: ${account}`);
   const credentials = loadCredentials(account);
-  const oAuth2Client = createOAuth2Client(credentials);
+  const { client: oAuth2Client, port } = createOAuth2Client(credentials);
 
   let tokens = loadTokens(account);
 
   if (!tokens) {
     console.log("No tokens found, starting OAuth flow...");
-    tokens = await getNewTokens(oAuth2Client);
+    tokens = await getNewTokens(oAuth2Client, port);
     saveTokens(tokens, account);
   }
 
