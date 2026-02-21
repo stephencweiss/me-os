@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "google-calendar": {
+      "command": "node",
+      "args": ["--loader", "ts-node/esm", "mcp/google-calendar/index.ts"],
+      "cwd": "/Users/sweiss/code/me-os",
+      "env": {
+        "GOOGLE_ACCOUNT": "personal"
+      }
+    }
+  }
+}
