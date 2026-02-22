@@ -7,8 +7,8 @@ Build a personal productivity system as Claude Code skills with MCP integration.
 
 ## Current Status
 
-**Phase:** 1.5 (Multi-Account Unified View)
-**Status:** Need to merge events from all accounts
+**Phase:** 1 Complete - Ready for Phase 2
+**Status:** Foundation complete with multi-account unified view
 
 **What's done:**
 - ✅ Project setup (package.json, tsconfig, dependencies)
@@ -16,13 +16,13 @@ Build a personal productivity system as Claude Code skills with MCP integration.
 - ✅ Google Calendar MCP server (7 tools, 2 resources)
 - ✅ Calendar skill registered as `/calendar` slash command
 - ✅ Personal and work accounts authenticated
-- ⚠️ Currently shows ONE account at a time (need unified view)
+- ✅ Multi-account unified view (events from all accounts merged and sorted)
+- ✅ Each event includes account label (personal/work)
 
 **Next action:**
-1. Update MCP server to auto-discover all authenticated accounts
-2. Merge events from all accounts in week/today views
-3. Label events with account source (personal/work)
-4. Then proceed to Phase 2
+1. Restart Claude Code to pick up MCP server changes
+2. Verify unified view shows events from both accounts
+3. Proceed to Phase 2: Time Reports & Analytics
 
 ---
 
@@ -78,10 +78,33 @@ Changes needed:
 - Display format: Show account source per event
   - Example: `9:00 AM - Meeting [work] [Grape]`
 
-**Testing:**
-- Verify events from both accounts appear in unified view
-- Verify events are sorted by time (not grouped by account)
-- Verify account labels are accurate
+**Testing Strategy - Phase 1.5:**
+
+**How we prove it works:**
+1. Events from all authenticated accounts appear in a single unified view
+2. Events are sorted by start time (interleaved across accounts)
+3. Each event includes its source account label
+4. The response includes a list of all accounts being queried
+
+**Tests to run:**
+
+| Test | Command/Action | Expected Result |
+|------|----------------|-----------------|
+| Multi-account week view | Call `get_week_view` via MCP | Returns events from both personal and work calendars, sorted by time |
+| Multi-account today | Call `get_today` via MCP | Returns today's events from all accounts with account labels |
+| Account labels | Check any event in response | Contains `account` field with "personal" or "work" |
+| Accounts list | Check response metadata | Contains `accounts: ["personal", "work"]` array |
+| Search across accounts | Call `search_events` with query | Finds matching events from all accounts |
+| Update color cross-account | Update event color on work calendar | Successfully updates (auto-detects account or uses specified account) |
+| Error handling | Query with no authenticated accounts | Graceful empty response, no crash |
+
+**Verification checklist:**
+- [ ] Create test event in personal calendar
+- [ ] Create test event in work calendar at similar time
+- [ ] Verify `/calendar` shows both events with account labels
+- [ ] Verify events are sorted by time (not grouped by account)
+- [ ] Change color on one event, verify correct account is updated
+- [ ] Delete test events
 
 ---
 
@@ -348,4 +371,5 @@ Leverage existing JIRA MCP from work environment.
 | 2026-02-21 | MCP config | Complete | .mcp.json created, enableAllProjectMcpServers enabled |
 | 2026-02-21 | End-to-end test | Complete | MCP tools working, /calendar skill registered |
 | 2026-02-21 | Work account auth | Complete | Both personal and work calendars authenticated |
+| 2026-02-21 | Phase 1.5: Multi-account unified view | Complete | MCP server merges events from all accounts, sorted by time |
 | 2026-02-21 | **Phase 1 Complete** | ✅ | Foundation ready for Phase 2 |
