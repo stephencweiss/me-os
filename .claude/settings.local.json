@@ -6,7 +6,8 @@
       "Bash(npm run auth:list:*)",
       "Bash(npm run auth:*)",
       "Bash(cat:*)",
-      "Bash(node --loader ts-node/esm:*)"
+      "Bash(node --loader ts-node/esm:*)",
+      "mcp__google-calendar__get_week_view"
     ]
   },
   "enableAllProjectMcpServers": true
