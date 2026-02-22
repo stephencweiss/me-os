@@ -7,22 +7,22 @@ Build a personal productivity system as Claude Code skills with MCP integration.
 
 ## Current Status
 
-**Phase:** 1 COMPLETE - Ready for Phase 2
-**Status:** All Phase 1 tasks finished
+**Phase:** 1.5 (Multi-Account Unified View)
+**Status:** Need to merge events from all accounts
 
 **What's done:**
 - ✅ Project setup (package.json, tsconfig, dependencies)
 - ✅ Google auth helper with multi-account support (personal/work)
 - ✅ Google Calendar MCP server (7 tools, 2 resources)
 - ✅ Calendar skill registered as `/calendar` slash command
-- ✅ Personal account authenticated and tested
-- ✅ MCP server configured and working
-- ✅ End-to-end test passed (fetched week's events)
+- ✅ Personal and work accounts authenticated
+- ⚠️ Currently shows ONE account at a time (need unified view)
 
 **Next action:**
-1. Start Phase 2: Time Reports & Analytics
-2. Build time analysis library (gap calculation, color grouping)
-3. Create `/time-report` skill
+1. Update MCP server to auto-discover all authenticated accounts
+2. Merge events from all accounts in week/today views
+3. Label events with account source (personal/work)
+4. Then proceed to Phase 2
 
 ---
 
@@ -63,7 +63,29 @@ Skill file: `skills/calendar/skill.md`
 - `/calendar today` - Today's schedule
 - `/calendar color <event> <color>` - Change event color
 
-### 1.5 Testing Strategy - Phase 1
+### 1.5 Multi-Account Unified View
+**Added:** To see all calendars (personal + work) simultaneously
+
+Changes needed:
+- `lib/google-auth.ts`: Add `getAllAuthenticatedClients()` function
+  - Auto-discover all `tokens-*.json` files in config/
+  - Return array of authenticated clients with account names
+- `mcp/google-calendar/index.ts`: Update tools to merge events
+  - `get_week_view`: Fetch from all accounts, merge and sort by time
+  - `get_today`: Same - merge events from all accounts
+  - `get_events`: Add optional `account` filter, default to all
+  - Add `account` field to each event in response
+- Display format: Show account source per event
+  - Example: `9:00 AM - Meeting [work] [Grape]`
+
+**Testing:**
+- Verify events from both accounts appear in unified view
+- Verify events are sorted by time (not grouped by account)
+- Verify account labels are accurate
+
+---
+
+### 1.6 Testing Strategy - Phase 1
 
 **How we prove it works:**
 1. OAuth flow completes and tokens are stored/refreshed correctly
