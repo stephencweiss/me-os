@@ -1,16 +1,17 @@
 ---
 name: calendar
-description: View and manage your Google Calendar. Use for week-at-a-glance views, event color management, and schedule queries.
+description: View and manage your Google Calendar. Use for week-at-a-glance views, event color management, and schedule queries. Shows events from ALL authenticated accounts (personal + work).
 ---
 
 # /calendar - Calendar View and Management
 
 View your Google Calendar and manage event colors with semantic meaning.
+**Multi-account support**: Shows events from all authenticated Google accounts (personal + work) in a unified view.
 
 ## Usage
 
-- `/calendar` - Show this week's events grouped by day with colors
-- `/calendar today` - Show today's schedule
+- `/calendar` - Show this week's events grouped by day with colors (all accounts)
+- `/calendar today` - Show today's schedule (all accounts)
 - `/calendar color "<event>" <color>` - Change an event's color
 
 ## Available Colors
@@ -54,14 +55,16 @@ When the user invokes this skill:
 
 ```
 Week of Feb 17, 2025
+Accounts: personal, work
 
 **Monday, Feb 17**
-- 9:00 AM - 10:00 AM: Team Standup [Grape - Meetings]
-- 2:00 PM - 3:00 PM: 1:1 with Alice [Lavender - 1:1s]
+- 9:00 AM - 10:00 AM: Team Standup [work] [Grape - Meetings]
+- 2:00 PM - 3:00 PM: 1:1 with Alice [work] [Lavender - 1:1s]
+- 6:00 PM - 7:00 PM: Dinner with friends [personal] [Graphite - Personal]
 
 **Tuesday, Feb 18**
-- 10:00 AM - 12:00 PM: Deep Work Block [Sage - Focus]
-- 3:00 PM - 4:00 PM: External Partner Call [Tangerine - External]
+- 10:00 AM - 12:00 PM: Deep Work Block [work] [Sage - Focus]
+- 3:00 PM - 4:00 PM: External Partner Call [work] [Tangerine - External]
 
 **Wednesday, Feb 19**
 (No events)

@@ -178,12 +178,45 @@ export function getCalendarClient(auth: OAuth2Client) {
   return google.calendar({ version: "v3", auth });
 }
 
-// List available accounts
+// List available accounts (have credentials)
 export function listAvailableAccounts(): string[] {
   if (!fs.existsSync(CONFIG_DIR)) return [];
   return fs.readdirSync(CONFIG_DIR)
     .filter(f => f.startsWith("credentials-") && f.endsWith(".json"))
     .map(f => f.replace("credentials-", "").replace(".json", ""));
+}
+
+// List authenticated accounts (have tokens)
+export function listAuthenticatedAccounts(): string[] {
+  if (!fs.existsSync(CONFIG_DIR)) return [];
+  return fs.readdirSync(CONFIG_DIR)
+    .filter(f => f.startsWith("tokens-") && f.endsWith(".json"))
+    .map(f => f.replace("tokens-", "").replace(".json", ""));
+}
+
+// Get all authenticated clients for multi-account views
+export interface AuthenticatedAccount {
+  account: string;
+  client: OAuth2Client;
+  calendar: ReturnType<typeof google.calendar>;
+}
+
+export async function getAllAuthenticatedClients(): Promise<AuthenticatedAccount[]> {
+  const accounts = listAuthenticatedAccounts();
+  const clients: AuthenticatedAccount[] = [];
+
+  for (const account of accounts) {
+    try {
+      const client = await getAuthenticatedClient(account);
+      const calendar = getCalendarClient(client);
+      clients.push({ account, client, calendar });
+    } catch (err) {
+      console.error(`Failed to load account ${account}:`, err);
+      // Continue with other accounts
+    }
+  }
+
+  return clients;
 }
 
 // Run auth flow if executed directly

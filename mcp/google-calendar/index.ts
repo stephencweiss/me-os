@@ -7,7 +7,12 @@ import {
   ListResourcesRequestSchema,
   ReadResourceRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
-import { getAuthenticatedClient, getCalendarClient } from "../../lib/google-auth.js";
+import {
+  getAllAuthenticatedClients,
+  getAuthenticatedClient,
+  getCalendarClient,
+  AuthenticatedAccount
+} from "../../lib/google-auth.js";
 import { calendar_v3 } from "googleapis";
 import * as fs from "fs";
 import * as path from "path";
@@ -33,23 +38,34 @@ const GOOGLE_CALENDAR_COLORS: Record<string, string> = {
   "11": "Tomato",
 };
 
-let calendarClient: calendar_v3.Calendar | null = null;
+// Cache for authenticated clients
+let cachedClients: AuthenticatedAccount[] | null = null;
 
-async function getClient(): Promise<calendar_v3.Calendar> {
-  if (!calendarClient) {
-    const auth = await getAuthenticatedClient();
-    calendarClient = getCalendarClient(auth);
+async function getClients(): Promise<AuthenticatedAccount[]> {
+  if (!cachedClients) {
+    cachedClients = await getAllAuthenticatedClients();
   }
-  return calendarClient;
+  return cachedClients;
 }
 
-function formatEvent(event: calendar_v3.Schema$Event): object {
+// Get a specific account's calendar client
+async function getClientForAccount(account: string): Promise<calendar_v3.Calendar> {
+  const clients = await getClients();
+  const found = clients.find(c => c.account === account);
+  if (!found) {
+    throw new Error(`Account not found: ${account}. Available: ${clients.map(c => c.account).join(", ")}`);
+  }
+  return found.calendar;
+}
+
+function formatEvent(event: calendar_v3.Schema$Event, account: string): object {
   const colorId = event.colorId || "default";
   const colorName = colorId === "default" ? "Default" : GOOGLE_CALENDAR_COLORS[colorId] || colorId;
   const colorMeaning = colorDefinitions[colorId]?.meaning || "";
 
   return {
     id: event.id,
+    account,
     summary: event.summary || "(No title)",
     start: event.start?.dateTime || event.start?.date,
     end: event.end?.dateTime || event.end?.date,
@@ -61,6 +77,42 @@ function formatEvent(event: calendar_v3.Schema$Event): object {
     status: event.status,
     htmlLink: event.htmlLink,
   };
+}
+
+// Fetch events from all accounts and merge
+async function fetchEventsFromAllAccounts(
+  timeMin: string,
+  timeMax: string,
+  query?: string
+): Promise<object[]> {
+  const clients = await getClients();
+  const allEvents: object[] = [];
+
+  for (const { account, calendar } of clients) {
+    try {
+      const response = await calendar.events.list({
+        calendarId: "primary",
+        timeMin,
+        timeMax,
+        q: query,
+        singleEvents: true,
+        orderBy: "startTime",
+      });
+      const events = response.data.items?.map(e => formatEvent(e, account)) || [];
+      allEvents.push(...events);
+    } catch (err) {
+      console.error(`Failed to fetch events for ${account}:`, err);
+    }
+  }
+
+  // Sort by start time
+  allEvents.sort((a: any, b: any) => {
+    const aTime = new Date(a.start).getTime();
+    const bTime = new Date(b.start).getTime();
+    return aTime - bTime;
+  });
+
+  return allEvents;
 }
 
 function getWeekBounds(): { start: Date; end: Date } {
@@ -227,43 +279,46 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
 // Handle tool calls
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
   const { name, arguments: args } = request.params;
-  const calendar = await getClient();
 
   try {
     switch (name) {
       case "list_calendars": {
-        const response = await calendar.calendarList.list();
-        const calendars = response.data.items?.map((cal) => ({
-          id: cal.id,
-          summary: cal.summary,
-          primary: cal.primary,
-          backgroundColor: cal.backgroundColor,
-          accessRole: cal.accessRole,
-        }));
+        // List calendars from all accounts
+        const clients = await getClients();
+        const allCalendars: object[] = [];
+
+        for (const { account, calendar } of clients) {
+          const response = await calendar.calendarList.list();
+          const calendars = response.data.items?.map((cal) => ({
+            account,
+            id: cal.id,
+            summary: cal.summary,
+            primary: cal.primary,
+            backgroundColor: cal.backgroundColor,
+            accessRole: cal.accessRole,
+          })) || [];
+          allCalendars.push(...calendars);
+        }
+
         return {
           content: [
             {
               type: "text",
-              text: JSON.stringify(calendars, null, 2),
+              text: JSON.stringify(allCalendars, null, 2),
             },
           ],
         };
       }
 
       case "get_events": {
-        const { startDate, endDate, calendarId = "primary" } = args as {
+        const { startDate, endDate } = args as {
           startDate: string;
           endDate: string;
-          calendarId?: string;
         };
-        const response = await calendar.events.list({
-          calendarId,
-          timeMin: new Date(startDate).toISOString(),
-          timeMax: new Date(endDate).toISOString(),
-          singleEvents: true,
-          orderBy: "startTime",
-        });
-        const events = response.data.items?.map(formatEvent) || [];
+        const events = await fetchEventsFromAllAccounts(
+          new Date(startDate).toISOString(),
+          new Date(endDate).toISOString()
+        );
         return {
           content: [
             {
@@ -275,17 +330,11 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       case "get_week_view": {
-        const { calendarId = "primary" } = args as { calendarId?: string };
         const { start, end } = getWeekBounds();
-        const response = await calendar.events.list({
-          calendarId,
-          timeMin: start.toISOString(),
-          timeMax: end.toISOString(),
-          singleEvents: true,
-          orderBy: "startTime",
-        });
-
-        const events = response.data.items?.map(formatEvent) || [];
+        const events = await fetchEventsFromAllAccounts(
+          start.toISOString(),
+          end.toISOString()
+        );
 
         // Group by day
         const byDay: Record<string, object[]> = {};
@@ -300,6 +349,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           byDay[dayKey].push(event);
         }
 
+        const clients = await getClients();
         return {
           content: [
             {
@@ -307,6 +357,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
               text: JSON.stringify(
                 {
                   weekOf: start.toLocaleDateString(),
+                  accounts: clients.map(c => c.account),
                   eventsByDay: byDay,
                   totalEvents: events.length,
                 },
@@ -319,16 +370,12 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       case "get_today": {
-        const { calendarId = "primary" } = args as { calendarId?: string };
         const { start, end } = getTodayBounds();
-        const response = await calendar.events.list({
-          calendarId,
-          timeMin: start.toISOString(),
-          timeMax: end.toISOString(),
-          singleEvents: true,
-          orderBy: "startTime",
-        });
-        const events = response.data.items?.map(formatEvent) || [];
+        const events = await fetchEventsFromAllAccounts(
+          start.toISOString(),
+          end.toISOString()
+        );
+        const clients = await getClients();
         return {
           content: [
             {
@@ -336,6 +383,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
               text: JSON.stringify(
                 {
                   date: start.toLocaleDateString(),
+                  accounts: clients.map(c => c.account),
                   events,
                   totalEvents: events.length,
                 },
@@ -348,10 +396,11 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       case "update_event_color": {
-        const { eventId, colorId, calendarId = "primary" } = args as {
+        const { eventId, colorId, calendarId = "primary", account } = args as {
           eventId: string;
           colorId: string;
           calendarId?: string;
+          account?: string;
         };
 
         // Resolve color name to ID if needed
@@ -375,6 +424,36 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           }
         }
 
+        // Get the appropriate account's calendar
+        const clients = await getClients();
+        let targetAccount = account;
+
+        // If no account specified, try to find the event in any account
+        if (!targetAccount) {
+          for (const { account: acct, calendar } of clients) {
+            try {
+              await calendar.events.get({ calendarId, eventId });
+              targetAccount = acct;
+              break;
+            } catch {
+              // Event not found in this account, continue
+            }
+          }
+        }
+
+        if (!targetAccount) {
+          return {
+            content: [
+              {
+                type: "text",
+                text: `Event not found in any account. Please specify the account parameter.`,
+              },
+            ],
+            isError: true,
+          };
+        }
+
+        const calendar = await getClientForAccount(targetAccount);
         const response = await calendar.events.patch({
           calendarId,
           eventId,
@@ -390,7 +469,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
               text: JSON.stringify(
                 {
                   success: true,
-                  event: formatEvent(response.data),
+                  account: targetAccount,
+                  event: formatEvent(response.data, targetAccount),
                 },
                 null,
                 2
@@ -419,11 +499,10 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       case "search_events": {
-        const { query, startDate, endDate, calendarId = "primary" } = args as {
+        const { query, startDate, endDate } = args as {
           query: string;
           startDate?: string;
           endDate?: string;
-          calendarId?: string;
         };
 
         // Default to searching current month if no dates provided
@@ -437,16 +516,12 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           end.setMonth(end.getMonth() + 1);
         }
 
-        const response = await calendar.events.list({
-          calendarId,
-          timeMin: start.toISOString(),
-          timeMax: end.toISOString(),
-          q: query,
-          singleEvents: true,
-          orderBy: "startTime",
-        });
+        const events = await fetchEventsFromAllAccounts(
+          start.toISOString(),
+          end.toISOString(),
+          query
+        );
 
-        const events = response.data.items?.map(formatEvent) || [];
         return {
           content: [
             {
@@ -507,25 +582,25 @@ server.setRequestHandler(ListResourcesRequestSchema, async () => {
 // Read resources
 server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
   const { uri } = request.params;
-  const calendar = await getClient();
 
   try {
     if (uri === "calendar://today") {
       const { start, end } = getTodayBounds();
-      const response = await calendar.events.list({
-        calendarId: "primary",
-        timeMin: start.toISOString(),
-        timeMax: end.toISOString(),
-        singleEvents: true,
-        orderBy: "startTime",
-      });
-      const events = response.data.items?.map(formatEvent) || [];
+      const events = await fetchEventsFromAllAccounts(
+        start.toISOString(),
+        end.toISOString()
+      );
+      const clients = await getClients();
       return {
         contents: [
           {
             uri,
             mimeType: "application/json",
-            text: JSON.stringify({ date: start.toLocaleDateString(), events }, null, 2),
+            text: JSON.stringify({
+              date: start.toLocaleDateString(),
+              accounts: clients.map(c => c.account),
+              events
+            }, null, 2),
           },
         ],
       };
@@ -533,20 +608,21 @@ server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
 
     if (uri === "calendar://week") {
       const { start, end } = getWeekBounds();
-      const response = await calendar.events.list({
-        calendarId: "primary",
-        timeMin: start.toISOString(),
-        timeMax: end.toISOString(),
-        singleEvents: true,
-        orderBy: "startTime",
-      });
-      const events = response.data.items?.map(formatEvent) || [];
+      const events = await fetchEventsFromAllAccounts(
+        start.toISOString(),
+        end.toISOString()
+      );
+      const clients = await getClients();
       return {
         contents: [
           {
             uri,
             mimeType: "application/json",
-            text: JSON.stringify({ weekOf: start.toLocaleDateString(), events }, null, 2),
+            text: JSON.stringify({
+              weekOf: start.toLocaleDateString(),
+              accounts: clients.map(c => c.account),
+              events
+            }, null, 2),
           },
         ],
       };
