@@ -1,3 +1,8 @@
+---
+name: calendar
+description: View and manage your Google Calendar. Use for week-at-a-glance views, event color management, and schedule queries.
+---
+
 # /calendar - Calendar View and Management
 
 View your Google Calendar and manage event colors with semantic meaning.
@@ -48,7 +53,7 @@ When the user invokes this skill:
 ## Example Output
 
 ```
-📅 Week of Feb 17, 2025
+Week of Feb 17, 2025
 
 **Monday, Feb 17**
 - 9:00 AM - 10:00 AM: Team Standup [Grape - Meetings]
