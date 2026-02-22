@@ -3,6 +3,28 @@
 ## Overview
 Build a personal productivity system as Claude Code skills with MCP integration. TypeScript/Node.js stack, Google Calendar as primary calendar provider.
 
+---
+
+## Current Status
+
+**Phase:** 1 (Foundation & Google Calendar Integration)
+**Status:** Almost complete - needs restart and end-to-end test
+
+**What's done:**
+- ✅ Project setup (package.json, tsconfig, dependencies)
+- ✅ Google auth helper with multi-account support (personal/work)
+- ✅ Google Calendar MCP server (7 tools, 2 resources)
+- ✅ Calendar skill definition (`/calendar`)
+- ✅ Personal account authenticated and tested
+- ✅ MCP server configured in `.mcp.json`
+
+**Next action:**
+1. Restart Claude Code to load the MCP server
+2. Test `/calendar` skill end-to-end
+3. Mark Phase 1 complete and commit
+
+---
+
 ## Phase 1: Foundation & Google Calendar Integration
 
 ### 1.1 Project Setup
@@ -297,3 +319,8 @@ Leverage existing JIRA MCP from work environment.
 | 2026-02-20 | Phase 1.4: Calendar MCP server | Complete | mcp/google-calendar/index.ts - 7 tools, 2 resources |
 | 2026-02-20 | Phase 1.5: Calendar skill | Complete | skills/calendar/skill.md - /calendar command |
 | 2026-02-20 | Phase 1.6: Build verification | Complete | npm install + tsc compile successful |
+| 2026-02-21 | Multi-account support | Complete | credentials-{account}.json pattern, GOOGLE_ACCOUNT env var |
+| 2026-02-21 | Personal account auth | Complete | OAuth flow working, tokens saved |
+| 2026-02-21 | Calendar API test | Complete | scripts/test-calendar.ts verified API access |
+| 2026-02-21 | MCP config | Complete | .mcp.json created, enableAllProjectMcpServers enabled |
+| 2026-02-21 | End-to-end test | Pending | Restart Claude Code, test /calendar skill |
