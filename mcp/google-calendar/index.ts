@@ -375,6 +375,72 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           required: ["eventId"],
         },
       },
+      {
+        name: "update_event_time",
+        description: "Move/reschedule an event to a new time",
+        inputSchema: {
+          type: "object",
+          properties: {
+            eventId: {
+              type: "string",
+              description: "The event ID to update",
+            },
+            newStart: {
+              type: "string",
+              description: "New start time in ISO format (e.g., 2026-02-23T09:00:00)",
+            },
+            newEnd: {
+              type: "string",
+              description: "New end time in ISO format (e.g., 2026-02-23T10:00:00)",
+            },
+            account: {
+              type: "string",
+              description: "Which account the event is on. Auto-detected if not specified.",
+            },
+            calendarId: {
+              type: "string",
+              description: "Calendar ID (default: primary)",
+              default: "primary",
+            },
+            sendUpdates: {
+              type: "string",
+              description: "Whether to send notifications: 'all' (notify attendees), 'none' (silent). Default: 'all'",
+              enum: ["all", "none"],
+              default: "all",
+            },
+          },
+          required: ["eventId", "newStart", "newEnd"],
+        },
+      },
+      {
+        name: "delete_event",
+        description: "Delete a calendar event",
+        inputSchema: {
+          type: "object",
+          properties: {
+            eventId: {
+              type: "string",
+              description: "The event ID to delete",
+            },
+            account: {
+              type: "string",
+              description: "Which account the event is on. Auto-detected if not specified.",
+            },
+            calendarId: {
+              type: "string",
+              description: "Calendar ID (default: primary)",
+              default: "primary",
+            },
+            sendUpdates: {
+              type: "string",
+              description: "Whether to send notifications: 'all' (notify attendees), 'none' (silent). Default: 'all'",
+              enum: ["all", "none"],
+              default: "all",
+            },
+          },
+          required: ["eventId"],
+        },
+      },
     ],
   };
 });
@@ -986,6 +1052,177 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                 message: `Declined event: ${event.summary}`,
                 sendUpdates,
                 event: formatEvent(response.data, targetAccount),
+              }, null, 2),
+            },
+          ],
+        };
+      }
+
+      case "update_event_time": {
+        const {
+          eventId,
+          newStart,
+          newEnd,
+          account,
+          calendarId = "primary",
+          sendUpdates = "all",
+        } = args as {
+          eventId: string;
+          newStart: string;
+          newEnd: string;
+          account?: string;
+          calendarId?: string;
+          sendUpdates?: "all" | "none";
+        };
+
+        const clients = await getClients();
+        let targetAccount = account;
+        let targetCalendar: calendar_v3.Calendar | null = null;
+        let existingEvent: calendar_v3.Schema$Event | null = null;
+
+        // Find the event if account not specified
+        if (!targetAccount) {
+          for (const { account: acct, calendar } of clients) {
+            try {
+              const response = await calendar.events.get({ calendarId, eventId });
+              existingEvent = response.data;
+              targetAccount = acct;
+              targetCalendar = calendar;
+              break;
+            } catch {
+              // Event not found in this account, continue
+            }
+          }
+        } else {
+          targetCalendar = await getClientForAccount(targetAccount);
+          const response = await targetCalendar.events.get({ calendarId, eventId });
+          existingEvent = response.data;
+        }
+
+        if (!targetAccount || !targetCalendar || !existingEvent) {
+          return {
+            content: [
+              {
+                type: "text",
+                text: "Event not found in any account. Please specify the account parameter.",
+              },
+            ],
+            isError: true,
+          };
+        }
+
+        // Update the event with new times
+        const startDate = new Date(newStart);
+        const endDate = new Date(newEnd);
+
+        const response = await targetCalendar.events.patch({
+          calendarId,
+          eventId,
+          sendUpdates,
+          requestBody: {
+            start: {
+              dateTime: startDate.toISOString(),
+              timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+            },
+            end: {
+              dateTime: endDate.toISOString(),
+              timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+            },
+          },
+        });
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify({
+                success: true,
+                account: targetAccount,
+                action: "rescheduled",
+                oldStart: existingEvent.start?.dateTime || existingEvent.start?.date,
+                oldEnd: existingEvent.end?.dateTime || existingEvent.end?.date,
+                newStart: newStart,
+                newEnd: newEnd,
+                sendUpdates,
+                event: formatEvent(response.data, targetAccount),
+              }, null, 2),
+            },
+          ],
+        };
+      }
+
+      case "delete_event": {
+        const {
+          eventId,
+          account,
+          calendarId = "primary",
+          sendUpdates = "all",
+        } = args as {
+          eventId: string;
+          account?: string;
+          calendarId?: string;
+          sendUpdates?: "all" | "none";
+        };
+
+        const clients = await getClients();
+        let targetAccount = account;
+        let targetCalendar: calendar_v3.Calendar | null = null;
+        let existingEvent: calendar_v3.Schema$Event | null = null;
+
+        // Find the event if account not specified
+        if (!targetAccount) {
+          for (const { account: acct, calendar } of clients) {
+            try {
+              const response = await calendar.events.get({ calendarId, eventId });
+              existingEvent = response.data;
+              targetAccount = acct;
+              targetCalendar = calendar;
+              break;
+            } catch {
+              // Event not found in this account, continue
+            }
+          }
+        } else {
+          targetCalendar = await getClientForAccount(targetAccount);
+          const response = await targetCalendar.events.get({ calendarId, eventId });
+          existingEvent = response.data;
+        }
+
+        if (!targetAccount || !targetCalendar || !existingEvent) {
+          return {
+            content: [
+              {
+                type: "text",
+                text: "Event not found in any account. Please specify the account parameter.",
+              },
+            ],
+            isError: true,
+          };
+        }
+
+        // Delete the event
+        await targetCalendar.events.delete({
+          calendarId,
+          eventId,
+          sendUpdates,
+        });
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify({
+                success: true,
+                account: targetAccount,
+                action: "deleted",
+                message: `Deleted event: ${existingEvent.summary}`,
+                sendUpdates,
+                deletedEvent: {
+                  id: existingEvent.id,
+                  summary: existingEvent.summary,
+                  start: existingEvent.start?.dateTime || existingEvent.start?.date,
+                  end: existingEvent.end?.dateTime || existingEvent.end?.date,
+                },
               }, null, 2),
             },
           ],
