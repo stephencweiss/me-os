@@ -567,3 +567,105 @@ export function identifyMovableEvents(
     );
   });
 }
+
+// ============================================
+// Optimization Scoring
+// ============================================
+
+export interface OptimizationScore {
+  goalAchievement: number; // 0-1, % of goal time scheduled
+  averageBlockMinutes: number; // Average session length
+  preferenceAlignment: number; // 0-1, how well times match preferences
+}
+
+/**
+ * Score an optimization result based on goal achievement, block quality, and preference alignment.
+ *
+ * @param goals The goals to measure against
+ * @param proposed The proposed events
+ * @returns Score metrics
+ */
+export function scoreOptimization(
+  goals: TimeGoal[],
+  proposed: ProposedEvent[]
+): OptimizationScore {
+  if (goals.length === 0) {
+    return {
+      goalAchievement: 0,
+      averageBlockMinutes: 0,
+      preferenceAlignment: 0,
+    };
+  }
+
+  // Calculate goal achievement: sum of (achieved / target) for each goal
+  const goalScores: number[] = [];
+  for (const goal of goals) {
+    const goalEvents = proposed.filter((p) => p.goalId === goal.id);
+    const achievedMinutes = goalEvents.reduce(
+      (sum, e) => sum + e.durationMinutes,
+      0
+    );
+    const achievement = Math.min(achievedMinutes / goal.totalMinutes, 1);
+    goalScores.push(achievement);
+  }
+  const goalAchievement =
+    goalScores.reduce((sum, s) => sum + s, 0) / goals.length;
+
+  // Calculate average block length
+  const averageBlockMinutes =
+    proposed.length > 0
+      ? proposed.reduce((sum, e) => sum + e.durationMinutes, 0) / proposed.length
+      : 0;
+
+  // Calculate preference alignment
+  let preferenceScores: number[] = [];
+  for (const goal of goals) {
+    if (!goal.preferredTimes?.dayPart) {
+      // No preference = neutral (1.0)
+      continue;
+    }
+
+    const goalEvents = proposed.filter((p) => p.goalId === goal.id);
+    for (const event of goalEvents) {
+      const hour = event.start.getHours();
+      const score = getDayPartMatchScore(hour, goal.preferredTimes.dayPart);
+      preferenceScores.push(score);
+    }
+  }
+
+  const preferenceAlignment =
+    preferenceScores.length > 0
+      ? preferenceScores.reduce((sum, s) => sum + s, 0) / preferenceScores.length
+      : 0;
+
+  return {
+    goalAchievement,
+    averageBlockMinutes,
+    preferenceAlignment,
+  };
+}
+
+/**
+ * Score how well an hour matches a day part preference (0-1 scale).
+ */
+function getDayPartMatchScore(
+  hour: number,
+  dayPart: "morning" | "afternoon" | "evening"
+): number {
+  switch (dayPart) {
+    case "morning":
+      if (hour >= 6 && hour < 12) return 1; // Perfect match
+      if (hour >= 5 && hour < 13) return 0.5; // Close
+      return 0;
+    case "afternoon":
+      if (hour >= 12 && hour < 18) return 1; // Perfect match
+      if (hour >= 11 && hour < 19) return 0.5; // Close
+      return 0;
+    case "evening":
+      if (hour >= 18 && hour < 22) return 1; // Perfect match
+      if (hour >= 17 && hour < 23) return 0.5; // Close
+      return 0;
+    default:
+      return 0;
+  }
+}
