@@ -7,28 +7,25 @@ Build a personal productivity system as Claude Code skills with MCP integration.
 
 ## Current Status
 
-**Phase:** 2.5 In Progress - Calendar Manager
-**Status:** Building active calendar management features
+**Phase:** 2.5 Complete - Calendar Manager
+**Status:** Ready for Phase 3
 
 **What's done:**
 - ✅ Project setup (package.json, tsconfig, dependencies)
 - ✅ Google auth helper with multi-account support (personal/work)
-- ✅ Google Calendar MCP server (7 tools, 2 resources)
+- ✅ Google Calendar MCP server (9 tools, 2 resources)
 - ✅ Calendar skill registered as `/calendar` slash command
 - ✅ Personal and work accounts authenticated
 - ✅ Multi-account unified view (events from all accounts merged and sorted)
 - ✅ Time analysis library with gap detection, color grouping, overlap merging
 - ✅ `/time-report` skill with interactive labeling and gap categorization
 - ✅ Standalone weekly report script (scripts/weekly-report.ts)
-
-**In Progress:**
-- 🔄 Phase 2.5: Calendar Manager skill
+- ✅ Calendar manager library with overlap detection, categorization, flex slots
+- ✅ `/calendar-manager` skill for conflict resolution and flex time blocking
+- ✅ 39 unit tests passing
 
 **Next action:**
-1. Create `lib/calendar-manager.ts` with overlap detection (TDD)
-2. Add MCP tools: `create_event`, `update_event_status`
-3. Create `/calendar-manager` skill
-4. Proceed to Phase 3: One-on-One Management (when ready)
+1. Phase 3: One-on-One Management (when ready)
 
 ---
 
@@ -483,3 +480,11 @@ Leverage existing JIRA MCP from work environment.
 | 2026-02-22 | **Phase 2 Complete** | ✅ | Time reports and analytics ready |
 | 2026-02-22 | Phase 2.5: Planning | Complete | Created plan for calendar-manager skill |
 | 2026-02-22 | Phase 2.5.1: Main plan update | Complete | Added Phase 2.5 section to implementation plan |
+| 2026-02-22 | Phase 2.5.2: Overlap detection | Complete | TDD - 14 tests + buildOverlapGroups implementation |
+| 2026-02-22 | Phase 2.5.3: Categorization | Complete | TDD - 12 tests + suggestCategory, findUnlabeledEvents |
+| 2026-02-22 | Phase 2.5.4: Flex slots | Complete | TDD - 13 tests + calculateFlexSlots (6am-10pm waking hours) |
+| 2026-02-22 | Phase 2.5.5: MCP tools | Complete | Added create_event and update_event_status tools |
+| 2026-02-22 | Phase 2.5.6: Config files | Complete | config/calendar-manager.json, updated colors.json |
+| 2026-02-22 | Phase 2.5.7: Skill file | Complete | .claude/skills/calendar-manager/SKILL.md |
+| 2026-02-22 | Phase 2.5.8: Time-report integration | Complete | Added isRecurring, recurringEventId to CalendarEvent |
+| 2026-02-22 | **Phase 2.5 Complete** | ✅ | Calendar manager ready with 39 passing tests |
