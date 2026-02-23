@@ -12,7 +12,8 @@
       "mcp__google-calendar__search_events",
       "mcp__google-calendar__update_event_color",
       "mcp__google-calendar__list_calendars",
-      "Bash(npm test:*)"
+      "Bash(npm test:*)",
+      "Bash(npx tsc:*)"
     ]
   },
   "enableAllProjectMcpServers": true,
