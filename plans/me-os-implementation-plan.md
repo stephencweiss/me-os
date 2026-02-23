@@ -7,8 +7,8 @@ Build a personal productivity system as Claude Code skills with MCP integration.
 
 ## Current Status
 
-**Phase:** 2.5 Complete - Calendar Manager
-**Status:** Ready for Phase 3
+**Phase:** 3 In Progress - Calendar Optimizer
+**Status:** Building goal-based calendar optimization
 
 **What's done:**
 - ✅ Project setup (package.json, tsconfig, dependencies)
@@ -24,8 +24,14 @@ Build a personal productivity system as Claude Code skills with MCP integration.
 - ✅ `/calendar-manager` skill for conflict resolution and flex time blocking
 - ✅ 39 unit tests passing
 
+**In Progress:**
+- 🔄 Phase 3: Calendar Optimizer skill
+
 **Next action:**
-1. Phase 3: One-on-One Management (when ready)
+1. Create `lib/calendar-optimizer.ts` with goal parsing and slot allocation (TDD)
+2. Add MCP tools: `update_event_time`, `delete_event`
+3. Create `/calendar-optimizer` skill
+4. Proceed to Phase 4: One-on-One Management (when ready)
 
 ---
 
@@ -293,16 +299,108 @@ Commands:
 
 ---
 
-## Phase 3: One-on-One Management
+## Phase 3: Calendar Optimizer
 
-### 3.1 Voice Transcription
+Goal-based calendar optimization to help achieve weekly objectives.
+
+### 3.1 Calendar Optimizer Library
+**Location**: `lib/calendar-optimizer.ts`
+
+Functions:
+- `parseGoalsFromText(text)` - Parse natural language goals into structured format
+- `loadRecurringGoals(configPath)` - Load recurring goals from config
+- `saveRecurringGoal(goal, configPath)` - Add/update a recurring goal
+- `removeRecurringGoal(goalId, configPath)` - Delete a recurring goal
+- `analyzeCurrentSchedule(events, goals)` - Analyze schedule vs. goals
+- `findSlotsForGoal(goal, gaps)` - Find optimal slots respecting min/max constraints
+- `identifyMovableEvents(events)` - Find flexible events that can be rescheduled
+- `suggestEventMoves(events, goals)` - Suggest moves to create larger focus blocks
+- `optimizeSchedule(events, goals)` - Full optimization with proposals
+- `scoreOptimization(before, after)` - Score improvement metrics
+
+### 3.2 New MCP Tools
+**Location**: `mcp/google-calendar/index.ts`
+
+- `update_event_time` - Move/reschedule events
+  - Parameters: eventId, newStart, newEnd, account
+- `delete_event` - Delete events (for cleanup)
+  - Parameters: eventId, account
+
+### 3.3 Calendar Optimizer Skill
+**Location**: `.claude/skills/calendar-optimizer/`
+
+Commands:
+- `/calendar-optimizer` - Analyze week with recurring goals
+- `/calendar-optimizer <goals text>` - Ad-hoc goals for this session
+- `/calendar-optimizer status` - Show goal progress vs. schedule
+- `/calendar-optimizer apply` - Apply last proposed changes
+- `/calendar-optimizer add-goal` - Interactive wizard to add recurring goal
+- `/calendar-optimizer goals` - List/edit/remove recurring goals
+
+### 3.4 Configuration
+**Location**: `config/optimization-goals.json`
+
+```json
+{
+  "recurringGoals": [
+    {
+      "id": "writing",
+      "name": "Writing time",
+      "totalMinutes": 240,
+      "minSessionMinutes": 60,
+      "maxSessionMinutes": 120,
+      "colorId": "2",
+      "priority": 1,
+      "preferredTimes": { "dayPart": "morning" }
+    }
+  ],
+  "constraints": {
+    "noMeetingsBefore": 9,
+    "maxMeetingsPerDay": 5,
+    "preferContiguousFocus": true,
+    "minFocusBlockMinutes": 90
+  },
+  "movableEventPatterns": ["sync", "1:1", "check-in"]
+}
+```
+
+### 3.5 Testing Strategy - Phase 3
+
+**Unit Tests** (`tests/calendar-optimizer.test.ts`):
+
+| Test | Expected |
+|------|----------|
+| Parse "4 hours of writing time" | TimeGoal with totalMinutes=240 |
+| Parse "workout 3x this week" | TimeGoal with sessionsPerWeek=3 |
+| Load recurring goals from config | Returns array of TimeGoals |
+| Save new recurring goal | Updates config file |
+| Allocate 2h goal in 3h gap | Single 2h session proposed |
+| Allocate 4h goal across multiple gaps | Multiple sessions respecting min/max |
+| Identify movable 1:1s | Returns events matching patterns |
+| Exclude external meetings from movable | Not returned |
+
+**Manual Tests**:
+
+| Test | Expected |
+|------|----------|
+| `/calendar-optimizer` | Shows optimization proposal |
+| `/calendar-optimizer add-goal` | Interactive wizard, saves to config |
+| `/calendar-optimizer goals` | Lists goals, edit/remove works |
+| `/calendar-optimizer status` | Shows goal progress |
+| Approve changes | Events created via create_event |
+
+---
+
+## Phase 4: One-on-One Management
+
+### 4.1 Voice Transcription
 **Location**: `lib/transcription.ts`
 
 - Use Claude's audio capabilities or Whisper API
 - Accept audio file path, return transcript
 - Store raw audio in `data/audio/` (gitignored)
 
-### 3.2 One-on-One Skill
+### 4.2 One-on-One Skill
 **Location**: `skills/one-on-one/`
 
 Skill file: `skills/one-on-one/skill.md`
@@ -315,11 +413,11 @@ Data storage: `data/one-on-ones/<name>/`
 - `YYYY-MM-DD-raw.md` - Raw transcript
 - `YYYY-MM-DD-summary.md` - Structured summary
 
-### 3.3 Export Integrations (Future)
+### 4.3 Export Integrations (Future)
 - Google Docs API for document creation
 - Lattice API for feedback submission (requires Lattice API access)
 
-### 3.4 Testing Strategy - Phase 3
+### 4.4 Testing Strategy - Phase 4
 
 **How we prove it works:**
 1. Audio transcription produces readable, accurate text
@@ -347,19 +445,19 @@ Data storage: `data/one-on-ones/<name>/`
 
 ---
 
-## Phase 4: Project Dashboard
+## Phase 5: Project Dashboard
 
-### 4.1 JIRA Integration
+### 5.1 JIRA Integration
 Leverage existing JIRA MCP from work environment.
 
-### 4.2 Project Dashboard Skill
+### 5.2 Project Dashboard Skill
 **Location**: `skills/project-dash/`
 
 - `/project-dash` - Overview of active projects
 - `/project-dash <project>` - Deep dive on specific project
 - `/project-dash changes` - Recent ticket status changes
 
-### 4.3 Testing Strategy - Phase 4
+### 5.3 Testing Strategy - Phase 5
 
 **How we prove it works:**
 1. JIRA MCP connection works and returns project data
@@ -429,11 +527,18 @@ Leverage existing JIRA MCP from work environment.
 - `data/calendar-decisions/` (directory)
 
 ### Phase 3
+- `lib/calendar-optimizer.ts`
+- `tests/calendar-optimizer.test.ts`
+- `.claude/skills/calendar-optimizer/SKILL.md`
+- `config/optimization-goals.json`
+- `data/optimization-proposals/` (directory)
+
+### Phase 4
 - `lib/transcription.ts`
 - `skills/one-on-one/skill.md`
 - `data/` directory structure
 
-### Phase 4
+### Phase 5
 - `skills/project-dash/skill.md`
 
 ---
@@ -488,3 +593,5 @@ Leverage existing JIRA MCP from work environment.
 | 2026-02-22 | Phase 2.5.7: Skill file | Complete | .claude/skills/calendar-manager/SKILL.md |
 | 2026-02-22 | Phase 2.5.8: Time-report integration | Complete | Added isRecurring, recurringEventId to CalendarEvent |
 | 2026-02-22 | **Phase 2.5 Complete** | ✅ | Calendar manager ready with 39 passing tests |
+| 2026-02-23 | Phase 3: Planning | Complete | Created plan for calendar-optimizer skill |
+| 2026-02-23 | Phase 3.1: Main plan update | Complete | Added Phase 3 section, renumbered phases 4 & 5 |
