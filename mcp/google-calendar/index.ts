@@ -346,6 +346,35 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           required: ["eventId", "status"],
         },
       },
+      {
+        name: "decline_event",
+        description: "Smart decline: If you're an attendee, declines the invitation. If you're the organizer with active attendees, declines but keeps the event. If you're the organizer with no active attendees, deletes the event.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            eventId: {
+              type: "string",
+              description: "The event ID to decline",
+            },
+            calendarId: {
+              type: "string",
+              description: "Calendar ID (default: primary)",
+              default: "primary",
+            },
+            sendUpdates: {
+              type: "string",
+              description: "Whether to send notifications: 'all' (notify organizer), 'none' (silent). Default: 'all'",
+              enum: ["all", "none"],
+              default: "all",
+            },
+            account: {
+              type: "string",
+              description: "Which account to use (personal/work). Auto-detected if not specified.",
+            },
+          },
+          required: ["eventId"],
+        },
+      },
     ],
   };
 });
@@ -775,6 +804,189 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                 null,
                 2
               ),
+            },
+          ],
+        };
+      }
+
+      case "decline_event": {
+        const {
+          eventId,
+          calendarId = "primary",
+          sendUpdates = "all",
+          account,
+        } = args as {
+          eventId: string;
+          calendarId?: string;
+          sendUpdates?: "all" | "none";
+          account?: string;
+        };
+
+        const clients = await getClients();
+        let targetAccount = account;
+        let targetCalendar: calendar_v3.Calendar | null = null;
+        let event: calendar_v3.Schema$Event | null = null;
+
+        // Find the event and determine which account owns it
+        if (targetAccount) {
+          targetCalendar = await getClientForAccount(targetAccount);
+          const response = await targetCalendar.events.get({ calendarId, eventId });
+          event = response.data;
+        } else {
+          for (const { account: acct, calendar } of clients) {
+            try {
+              const response = await calendar.events.get({ calendarId, eventId });
+              event = response.data;
+              targetAccount = acct;
+              targetCalendar = calendar;
+              break;
+            } catch {
+              // Event not found in this account, continue
+            }
+          }
+        }
+
+        if (!event || !targetCalendar || !targetAccount) {
+          return {
+            content: [
+              {
+                type: "text",
+                text: "Event not found in any account. Please specify the account parameter.",
+              },
+            ],
+            isError: true,
+          };
+        }
+
+        // Get the authenticated user's email for this account
+        const calendarListResponse = await targetCalendar.calendarList.get({ calendarId: "primary" });
+        const userEmail = calendarListResponse.data.id || "";
+
+        // Get attendees list
+        const attendees = event.attendees || [];
+        const selfAttendee = attendees.find(
+          (a) => a.email?.toLowerCase() === userEmail.toLowerCase() || a.self === true
+        );
+
+        // Check if user is the organizer
+        const isOrganizer = event.organizer?.self === true ||
+                            event.organizer?.email?.toLowerCase() === userEmail.toLowerCase();
+
+        // Check if there are other attendees (excluding self)
+        const otherAttendees = attendees.filter(
+          (a) => a.email?.toLowerCase() !== userEmail.toLowerCase() && a.self !== true
+        );
+
+        // Check if any other attendees are still "active" (not declined)
+        const activeAttendees = otherAttendees.filter(
+          (a) => a.responseStatus !== "declined"
+        );
+        const hasActiveAttendees = activeAttendees.length > 0;
+
+        if (isOrganizer && !hasActiveAttendees) {
+          // User is organizer with no other attendees OR all have declined - delete the event
+          await targetCalendar.events.delete({
+            calendarId,
+            eventId,
+            sendUpdates,
+          });
+
+          return {
+            content: [
+              {
+                type: "text",
+                text: JSON.stringify({
+                  success: true,
+                  account: targetAccount,
+                  action: "deleted",
+                  message: `Deleted event: ${event.summary} (no active attendees remaining)`,
+                  sendUpdates,
+                }, null, 2),
+              },
+            ],
+          };
+        }
+
+        // If organizer with active attendees, decline our own attendance
+        if (isOrganizer && hasActiveAttendees) {
+          let organizerAttendee = attendees.find(
+            (a) => a.email?.toLowerCase() === userEmail.toLowerCase() || a.self === true
+          );
+
+          if (!organizerAttendee) {
+            // Add organizer as an attendee so we can decline
+            organizerAttendee = { email: userEmail, responseStatus: "declined" };
+            attendees.push(organizerAttendee);
+          } else {
+            organizerAttendee.responseStatus = "declined";
+          }
+
+          const response = await targetCalendar.events.patch({
+            calendarId,
+            eventId,
+            sendUpdates,
+            requestBody: { attendees },
+          });
+
+          return {
+            content: [
+              {
+                type: "text",
+                text: JSON.stringify({
+                  success: true,
+                  account: targetAccount,
+                  action: "declined",
+                  message: `Declined event: ${event.summary} (you were the organizer, event continues for ${activeAttendees.length} active attendee(s))`,
+                  sendUpdates,
+                  event: formatEvent(response.data, targetAccount),
+                }, null, 2),
+              },
+            ],
+          };
+        }
+
+        if (!selfAttendee) {
+          // User is not an attendee and not the organizer - edge case
+          return {
+            content: [
+              {
+                type: "text",
+                text: JSON.stringify({
+                  success: false,
+                  error: "You are not an attendee or organizer of this event.",
+                  event: formatEvent(event, targetAccount),
+                }, null, 2),
+              },
+            ],
+            isError: true,
+          };
+        }
+
+        // Update the response status to declined
+        selfAttendee.responseStatus = "declined";
+
+        // Patch the event with updated attendees
+        const response = await targetCalendar.events.patch({
+          calendarId,
+          eventId,
+          sendUpdates,
+          requestBody: {
+            attendees,
+          },
+        });
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify({
+                success: true,
+                account: targetAccount,
+                action: "declined",
+                message: `Declined event: ${event.summary}`,
+                sendUpdates,
+                event: formatEvent(response.data, targetAccount),
+              }, null, 2),
             },
           ],
         };
