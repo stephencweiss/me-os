@@ -1,0 +1,35 @@
+{
+  "recurringGoals": [
+    {
+      "id": "writing",
+      "name": "Writing time",
+      "totalMinutes": 240,
+      "minSessionMinutes": 60,
+      "maxSessionMinutes": 120,
+      "colorId": "2",
+      "priority": 1,
+      "preferredTimes": { "dayPart": "morning" }
+    },
+    {
+      "id": "workout",
+      "name": "Workout",
+      "totalMinutes": 135,
+      "minSessionMinutes": 45,
+      "maxSessionMinutes": 45,
+      "sessionsPerWeek": 3,
+      "colorId": "8",
+      "priority": 2
+    }
+  ],
+  "constraints": {
+    "noMeetingsBefore": 9,
+    "maxMeetingsPerDay": 5,
+    "preferContiguousFocus": true,
+    "minFocusBlockMinutes": 90
+  },
+  "movableEventPatterns": [
+    "sync",
+    "1:1",
+    "check-in"
+  ]
+}
