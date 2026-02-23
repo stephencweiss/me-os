@@ -272,6 +272,80 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           required: ["query"],
         },
       },
+      {
+        name: "create_event",
+        description: "Create a new calendar event (for flex time blocking or manual events)",
+        inputSchema: {
+          type: "object",
+          properties: {
+            summary: {
+              type: "string",
+              description: "Event title/summary",
+            },
+            start: {
+              type: "string",
+              description: "Start time in ISO format (e.g., 2026-02-23T09:00:00)",
+            },
+            end: {
+              type: "string",
+              description: "End time in ISO format (e.g., 2026-02-23T10:00:00)",
+            },
+            colorId: {
+              type: "string",
+              description: "Color ID (1-11) or color name. Default is Blueberry (9) for flex events.",
+              default: "9",
+            },
+            visibility: {
+              type: "string",
+              enum: ["default", "public", "private", "confidential"],
+              description: "Event visibility. Use 'private' for flex events.",
+              default: "private",
+            },
+            account: {
+              type: "string",
+              description: "Which account to create the event on (e.g., 'personal', 'work'). Required.",
+            },
+            description: {
+              type: "string",
+              description: "Event description (optional)",
+            },
+            calendarId: {
+              type: "string",
+              description: "Calendar ID (default: primary)",
+              default: "primary",
+            },
+          },
+          required: ["summary", "start", "end", "account"],
+        },
+      },
+      {
+        name: "update_event_status",
+        description: "Update RSVP status for an event (accept, decline, or tentative)",
+        inputSchema: {
+          type: "object",
+          properties: {
+            eventId: {
+              type: "string",
+              description: "The event ID to update",
+            },
+            status: {
+              type: "string",
+              enum: ["accepted", "declined", "tentative", "needsAction"],
+              description: "The RSVP status to set",
+            },
+            account: {
+              type: "string",
+              description: "Which account the event is on. If not provided, will search all accounts.",
+            },
+            calendarId: {
+              type: "string",
+              description: "Calendar ID (default: primary)",
+              default: "primary",
+            },
+          },
+          required: ["eventId", "status"],
+        },
+      },
     ],
   };
 });
@@ -531,6 +605,172 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                   query,
                   results: events,
                   count: events.length,
+                },
+                null,
+                2
+              ),
+            },
+          ],
+        };
+      }
+
+      case "create_event": {
+        const {
+          summary,
+          start,
+          end,
+          colorId = "9",
+          visibility = "private",
+          account,
+          description,
+          calendarId = "primary",
+        } = args as {
+          summary: string;
+          start: string;
+          end: string;
+          colorId?: string;
+          visibility?: string;
+          account: string;
+          description?: string;
+          calendarId?: string;
+        };
+
+        // Resolve color name to ID if needed
+        let resolvedColorId = colorId;
+        if (isNaN(parseInt(colorId))) {
+          const colorEntry = Object.entries(GOOGLE_CALENDAR_COLORS).find(
+            ([_, name]) => name.toLowerCase() === colorId.toLowerCase()
+          );
+          if (colorEntry) {
+            resolvedColorId = colorEntry[0];
+          }
+        }
+
+        const calendar = await getClientForAccount(account);
+
+        // Determine timezone from start date or use local
+        const startDate = new Date(start);
+        const endDate = new Date(end);
+
+        const response = await calendar.events.insert({
+          calendarId,
+          requestBody: {
+            summary,
+            description,
+            start: {
+              dateTime: startDate.toISOString(),
+              timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+            },
+            end: {
+              dateTime: endDate.toISOString(),
+              timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+            },
+            colorId: resolvedColorId,
+            visibility,
+          },
+        });
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify(
+                {
+                  success: true,
+                  account,
+                  event: formatEvent(response.data, account),
+                },
+                null,
+                2
+              ),
+            },
+          ],
+        };
+      }
+
+      case "update_event_status": {
+        const { eventId, status, account, calendarId = "primary" } = args as {
+          eventId: string;
+          status: "accepted" | "declined" | "tentative" | "needsAction";
+          account?: string;
+          calendarId?: string;
+        };
+
+        const clients = await getClients();
+        let targetAccount = account;
+        let targetCalendar: calendar_v3.Calendar | null = null;
+        let existingEvent: calendar_v3.Schema$Event | null = null;
+
+        // Find the event and get the user's email for this account
+        if (!targetAccount) {
+          for (const { account: acct, calendar } of clients) {
+            try {
+              const eventResponse = await calendar.events.get({
+                calendarId,
+                eventId,
+              });
+              existingEvent = eventResponse.data;
+              targetAccount = acct;
+              targetCalendar = calendar;
+              break;
+            } catch {
+              // Event not found in this account, continue
+            }
+          }
+        } else {
+          targetCalendar = await getClientForAccount(targetAccount);
+          const eventResponse = await targetCalendar.events.get({
+            calendarId,
+            eventId,
+          });
+          existingEvent = eventResponse.data;
+        }
+
+        if (!targetAccount || !targetCalendar || !existingEvent) {
+          return {
+            content: [
+              {
+                type: "text",
+                text: `Event not found in any account. Please specify the account parameter.`,
+              },
+            ],
+            isError: true,
+          };
+        }
+
+        // Get the user's email for this account
+        const calendarList = await targetCalendar.calendarList.get({
+          calendarId: "primary",
+        });
+        const userEmail = calendarList.data.id;
+
+        // Update the attendee status
+        const updatedAttendees = existingEvent.attendees?.map((attendee) => {
+          if (attendee.self || attendee.email === userEmail) {
+            return { ...attendee, responseStatus: status };
+          }
+          return attendee;
+        });
+
+        // If no attendees list (user is organizer), just update the event
+        const response = await targetCalendar.events.patch({
+          calendarId,
+          eventId,
+          requestBody: {
+            attendees: updatedAttendees || undefined,
+          },
+        });
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify(
+                {
+                  success: true,
+                  account: targetAccount,
+                  newStatus: status,
+                  event: formatEvent(response.data, targetAccount),
                 },
                 null,
                 2
