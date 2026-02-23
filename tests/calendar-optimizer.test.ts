@@ -8,8 +8,11 @@ import {
   loadRecurringGoals,
   saveRecurringGoal,
   removeRecurringGoal,
+  findSlotsForGoal,
   type TimeGoal,
   type OutcomeGoal,
+  type FlexSlot,
+  type ProposedEvent,
 } from "../lib/calendar-optimizer.js";
 
 // ============================================
@@ -278,5 +281,239 @@ describe("removeRecurringGoal", () => {
 
     const saved = JSON.parse(fs.readFileSync(testConfigPath, "utf-8"));
     expect(saved.recurringGoals).toHaveLength(3);
+  });
+});
+
+// ============================================
+// Slot Allocation Tests
+// ============================================
+
+describe("findSlotsForGoal", () => {
+  // Helper to create a date at a specific time today
+  function todayAt(hour: number, minute: number = 0): Date {
+    const d = new Date();
+    d.setHours(hour, minute, 0, 0);
+    return d;
+  }
+
+  // Helper to create a FlexSlot
+  function createSlot(startHour: number, endHour: number, startMinute = 0, endMinute = 0): FlexSlot {
+    return {
+      start: todayAt(startHour, startMinute),
+      end: todayAt(endHour, endMinute),
+      durationMinutes: (endHour - startHour) * 60 + (endMinute - startMinute),
+    };
+  }
+
+  it("allocates a single session when goal fits in one gap", () => {
+    const goal: TimeGoal = {
+      type: "time",
+      id: "writing",
+      name: "Writing time",
+      totalMinutes: 120, // 2 hours
+      colorId: "2",
+      priority: 1,
+      recurring: true,
+    };
+
+    const gaps: FlexSlot[] = [
+      createSlot(9, 12), // 3-hour gap
+    ];
+
+    const proposed = findSlotsForGoal(goal, gaps);
+    expect(proposed).toHaveLength(1);
+    expect(proposed[0].durationMinutes).toBe(120);
+  });
+
+  it("allocates multiple sessions when goal requires splitting", () => {
+    const goal: TimeGoal = {
+      type: "time",
+      id: "writing",
+      name: "Writing time",
+      totalMinutes: 240, // 4 hours
+      minSessionMinutes: 60,
+      maxSessionMinutes: 120,
+      colorId: "2",
+      priority: 1,
+      recurring: true,
+    };
+
+    const gaps: FlexSlot[] = [
+      createSlot(9, 11), // 2-hour gap
+      createSlot(14, 16), // 2-hour gap
+      createSlot(17, 18), // 1-hour gap
+    ];
+
+    const proposed = findSlotsForGoal(goal, gaps);
+    // Should allocate 2h + 2h = 4h across two gaps
+    expect(proposed.length).toBeGreaterThanOrEqual(2);
+    const totalAllocated = proposed.reduce((sum, p) => sum + p.durationMinutes, 0);
+    expect(totalAllocated).toBe(240);
+  });
+
+  it("respects minSessionMinutes constraint", () => {
+    const goal: TimeGoal = {
+      type: "time",
+      id: "deep-work",
+      name: "Deep work",
+      totalMinutes: 180, // 3 hours
+      minSessionMinutes: 90, // At least 1.5 hours per session
+      colorId: "2",
+      priority: 1,
+      recurring: true,
+    };
+
+    const gaps: FlexSlot[] = [
+      createSlot(9, 10), // 1-hour gap (too small)
+      createSlot(11, 13), // 2-hour gap (fits)
+      createSlot(14, 15, 0, 30), // 1.5-hour gap (fits exactly)
+    ];
+
+    const proposed = findSlotsForGoal(goal, gaps);
+    // Should skip the 1-hour gap, use the 2-hour and 1.5-hour gaps
+    expect(proposed).toHaveLength(2);
+    // Each proposed session should be at least 90 minutes
+    for (const p of proposed) {
+      expect(p.durationMinutes).toBeGreaterThanOrEqual(90);
+    }
+  });
+
+  it("respects maxSessionMinutes constraint", () => {
+    const goal: TimeGoal = {
+      type: "time",
+      id: "focus",
+      name: "Focus time",
+      totalMinutes: 180, // 3 hours
+      maxSessionMinutes: 60, // Max 1 hour per session
+      colorId: "2",
+      priority: 1,
+      recurring: true,
+    };
+
+    const gaps: FlexSlot[] = [
+      createSlot(9, 12), // 3-hour gap
+    ];
+
+    const proposed = findSlotsForGoal(goal, gaps);
+    // Should split into 3 sessions of 1 hour each
+    expect(proposed).toHaveLength(3);
+    for (const p of proposed) {
+      expect(p.durationMinutes).toBe(60);
+    }
+  });
+
+  it("prefers morning slots when preferredTimes.dayPart is morning", () => {
+    const goal: TimeGoal = {
+      type: "time",
+      id: "writing",
+      name: "Writing time",
+      totalMinutes: 120,
+      preferredTimes: { dayPart: "morning" },
+      colorId: "2",
+      priority: 1,
+      recurring: true,
+    };
+
+    const gaps: FlexSlot[] = [
+      createSlot(14, 17), // afternoon gap (3h)
+      createSlot(7, 9), // morning gap (2h)
+      createSlot(18, 20), // evening gap (2h)
+    ];
+
+    const proposed = findSlotsForGoal(goal, gaps);
+    expect(proposed).toHaveLength(1);
+    // Should pick the morning slot
+    expect(proposed[0].start.getHours()).toBeLessThan(12);
+  });
+
+  it("prefers afternoon slots when preferredTimes.dayPart is afternoon", () => {
+    const goal: TimeGoal = {
+      type: "time",
+      id: "meetings",
+      name: "Meeting prep",
+      totalMinutes: 60,
+      preferredTimes: { dayPart: "afternoon" },
+      colorId: "3",
+      priority: 1,
+      recurring: true,
+    };
+
+    const gaps: FlexSlot[] = [
+      createSlot(7, 9), // morning
+      createSlot(14, 17), // afternoon
+      createSlot(18, 20), // evening
+    ];
+
+    const proposed = findSlotsForGoal(goal, gaps);
+    expect(proposed).toHaveLength(1);
+    // Should pick afternoon slot (14:00)
+    const hour = proposed[0].start.getHours();
+    expect(hour).toBeGreaterThanOrEqual(12);
+    expect(hour).toBeLessThan(18);
+  });
+
+  it("returns partial allocation when gaps are insufficient", () => {
+    const goal: TimeGoal = {
+      type: "time",
+      id: "writing",
+      name: "Writing time",
+      totalMinutes: 300, // 5 hours needed
+      colorId: "2",
+      priority: 1,
+      recurring: true,
+    };
+
+    const gaps: FlexSlot[] = [
+      createSlot(9, 10), // 1 hour
+      createSlot(14, 15), // 1 hour
+    ];
+
+    const proposed = findSlotsForGoal(goal, gaps);
+    // Only 2 hours available
+    const totalAllocated = proposed.reduce((sum, p) => sum + p.durationMinutes, 0);
+    expect(totalAllocated).toBe(120); // 2 hours
+    expect(totalAllocated).toBeLessThan(300); // Less than needed
+  });
+
+  it("returns empty array when no suitable gaps", () => {
+    const goal: TimeGoal = {
+      type: "time",
+      id: "deep-work",
+      name: "Deep work",
+      totalMinutes: 120,
+      minSessionMinutes: 120, // Need at least 2 hours per session
+      colorId: "2",
+      priority: 1,
+      recurring: true,
+    };
+
+    const gaps: FlexSlot[] = [
+      createSlot(9, 10), // 1 hour (too small)
+      createSlot(14, 15), // 1 hour (too small)
+    ];
+
+    const proposed = findSlotsForGoal(goal, gaps);
+    expect(proposed).toHaveLength(0);
+  });
+
+  it("sets correct properties on proposed events", () => {
+    const goal: TimeGoal = {
+      type: "time",
+      id: "writing",
+      name: "Writing time",
+      totalMinutes: 60,
+      colorId: "2",
+      priority: 1,
+      recurring: true,
+    };
+
+    const gaps: FlexSlot[] = [createSlot(9, 10)];
+
+    const proposed = findSlotsForGoal(goal, gaps);
+    expect(proposed).toHaveLength(1);
+    expect(proposed[0].summary).toBe("Writing time");
+    expect(proposed[0].colorId).toBe("2");
+    expect(proposed[0].goalId).toBe("writing");
+    expect(proposed[0].durationMinutes).toBe(60);
   });
 });

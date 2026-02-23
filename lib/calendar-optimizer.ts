@@ -55,6 +55,21 @@ export interface OptimizationConfig {
   movableEventPatterns?: string[];
 }
 
+export interface FlexSlot {
+  start: Date;
+  end: Date;
+  durationMinutes: number;
+}
+
+export interface ProposedEvent {
+  summary: string;
+  start: Date;
+  end: Date;
+  durationMinutes: number;
+  colorId: string;
+  goalId: string;
+}
+
 // ============================================
 // Goal Parsing
 // ============================================
@@ -338,4 +353,152 @@ export function removeRecurringGoal(goalId: string, configPath: string): void {
   } catch {
     // Silently fail if file doesn't exist or is invalid
   }
+}
+
+// ============================================
+// Slot Allocation
+// ============================================
+
+/**
+ * Find optimal time slots for a goal from available gaps.
+ *
+ * Algorithm:
+ * 1. Filter gaps by minimum session constraint
+ * 2. Sort gaps by preference (morning/afternoon/evening if specified)
+ * 3. Allocate time slots respecting max session constraint
+ * 4. Continue until goal is fully satisfied or no more suitable gaps
+ */
+export function findSlotsForGoal(goal: TimeGoal, gaps: FlexSlot[]): ProposedEvent[] {
+  const proposed: ProposedEvent[] = [];
+  let remainingMinutes = goal.totalMinutes;
+
+  const minSession = goal.minSessionMinutes ?? 0;
+  const maxSession = goal.maxSessionMinutes ?? Infinity;
+
+  // Filter gaps that meet minimum session requirement
+  const suitableGaps = gaps.filter((g) => g.durationMinutes >= minSession);
+
+  if (suitableGaps.length === 0) {
+    return [];
+  }
+
+  // Sort gaps by preference
+  const sortedGaps = sortGapsByPreference(suitableGaps, goal.preferredTimes);
+
+  // Create a mutable copy to track remaining time in each gap
+  const gapRemaining = sortedGaps.map((g) => ({
+    ...g,
+    remaining: g.durationMinutes,
+  }));
+
+  for (const gap of gapRemaining) {
+    if (remainingMinutes <= 0) break;
+
+    // Skip if remaining gap is too small
+    if (gap.remaining < minSession) continue;
+
+    // Calculate how much to allocate in this gap
+    let sessionDuration: number;
+
+    if (maxSession < Infinity) {
+      // If max session is set, we may need multiple sessions from this gap
+      while (remainingMinutes > 0 && gap.remaining >= minSession) {
+        sessionDuration = Math.min(
+          maxSession,
+          gap.remaining,
+          remainingMinutes
+        );
+
+        // Only create session if it meets minimum
+        if (sessionDuration < minSession) break;
+
+        const event = createProposedEvent(goal, gap, sessionDuration, gap.remaining - gap.durationMinutes);
+        proposed.push(event);
+
+        gap.remaining -= sessionDuration;
+        remainingMinutes -= sessionDuration;
+      }
+    } else {
+      // No max constraint - take as much as needed/available
+      // But ensure we meet the minimum session requirement (may overshoot goal)
+      sessionDuration = Math.min(gap.remaining, Math.max(remainingMinutes, minSession));
+
+      // Only create session if it meets minimum and there's still goal time needed
+      if (sessionDuration >= minSession && remainingMinutes > 0) {
+        const event = createProposedEvent(goal, gap, sessionDuration, 0);
+        proposed.push(event);
+        remainingMinutes -= sessionDuration;
+      }
+    }
+  }
+
+  return proposed;
+}
+
+/**
+ * Sort gaps by time preference (morning, afternoon, evening).
+ */
+function sortGapsByPreference(
+  gaps: FlexSlot[],
+  preference?: TimePreference
+): FlexSlot[] {
+  if (!preference?.dayPart) {
+    return [...gaps]; // Return copy, no sorting needed
+  }
+
+  const dayPart = preference.dayPart;
+
+  return [...gaps].sort((a, b) => {
+    const aHour = a.start.getHours();
+    const bHour = b.start.getHours();
+
+    const aScore = getDayPartScore(aHour, dayPart);
+    const bScore = getDayPartScore(bHour, dayPart);
+
+    return bScore - aScore; // Higher score = better match, sort first
+  });
+}
+
+/**
+ * Score how well an hour matches a day part preference.
+ */
+function getDayPartScore(hour: number, dayPart: "morning" | "afternoon" | "evening"): number {
+  switch (dayPart) {
+    case "morning":
+      if (hour >= 6 && hour < 12) return 2; // Perfect match
+      if (hour >= 5 && hour < 13) return 1; // Close
+      return 0;
+    case "afternoon":
+      if (hour >= 12 && hour < 18) return 2; // Perfect match
+      if (hour >= 11 && hour < 19) return 1; // Close
+      return 0;
+    case "evening":
+      if (hour >= 18 && hour < 22) return 2; // Perfect match
+      if (hour >= 17 && hour < 23) return 1; // Close
+      return 0;
+    default:
+      return 0;
+  }
+}
+
+/**
+ * Create a proposed event from a goal and gap.
+ */
+function createProposedEvent(
+  goal: TimeGoal,
+  gap: FlexSlot & { remaining?: number },
+  duration: number,
+  offsetMinutes: number
+): ProposedEvent {
+  const start = new Date(gap.start.getTime() + (gap.durationMinutes - (gap.remaining ?? gap.durationMinutes)) * 60 * 1000);
+  const end = new Date(start.getTime() + duration * 60 * 1000);
+
+  return {
+    summary: goal.name,
+    start,
+    end,
+    durationMinutes: duration,
+    colorId: goal.colorId,
+    goalId: goal.id,
+  };
 }
