@@ -217,3 +217,157 @@ export function calculateSplitTime(
 
   return result;
 }
+
+// ============================================================================
+// Categorization
+// ============================================================================
+
+export interface CategorySuggestion {
+  colorId: string;
+  colorName: string;
+  meaning: string;
+  confidence: number;
+}
+
+/**
+ * Category patterns for event title matching.
+ * Each category has keywords that trigger it, with the color ID and name.
+ */
+const CATEGORY_PATTERNS: Array<{
+  colorId: string;
+  colorName: string;
+  meaning: string;
+  patterns: RegExp[];
+}> = [
+  {
+    colorId: "1",
+    colorName: "Lavender",
+    meaning: "1:1s / People",
+    patterns: [
+      /1:1/i,
+      /one[\s-]?on[\s-]?one/i,
+      /sync\s+with/i,
+      /catch[\s-]?up\s+with/i,
+    ],
+  },
+  {
+    colorId: "2",
+    colorName: "Sage",
+    meaning: "Deep Work / Focus",
+    patterns: [/focus/i, /deep\s*work/i, /heads?\s*down/i, /no\s*meetings?/i],
+  },
+  {
+    colorId: "3",
+    colorName: "Grape",
+    meaning: "Meetings",
+    patterns: [
+      /standup/i,
+      /stand[\s-]?up/i,
+      /sync(?!\s+with)/i,
+      /review/i,
+      /retro/i,
+      /retrospective/i,
+      /planning/i,
+      /grooming/i,
+      /refinement/i,
+      /all[\s-]?hands/i,
+      /team\s+meeting/i,
+    ],
+  },
+  {
+    colorId: "4",
+    colorName: "Flamingo",
+    meaning: "Blocked / Waiting",
+    patterns: [/blocked/i, /waiting/i, /hold/i, /tentative/i],
+  },
+  {
+    colorId: "5",
+    colorName: "Banana",
+    meaning: "Admin / Ops",
+    patterns: [/admin/i, /ops\b/i, /operations/i, /expense/i, /hr\b/i],
+  },
+  {
+    colorId: "6",
+    colorName: "Tangerine",
+    meaning: "External",
+    patterns: [/external/i, /vendor/i, /customer/i, /client/i, /partner/i],
+  },
+  {
+    colorId: "7",
+    colorName: "Peacock",
+    meaning: "Learning",
+    patterns: [/learn/i, /training/i, /workshop/i, /course/i, /study/i],
+  },
+  {
+    colorId: "8",
+    colorName: "Graphite",
+    meaning: "Personal",
+    patterns: [/personal/i, /doctor/i, /dentist/i, /appointment/i, /break/i],
+  },
+  {
+    colorId: "11",
+    colorName: "Tomato",
+    meaning: "Urgent / Deadlines",
+    patterns: [/urgent/i, /deadline/i, /asap/i, /critical/i, /emergency/i],
+  },
+];
+
+/**
+ * Suggest a category (color) for an event based on its title.
+ * Returns the suggested color and a confidence score (0-1).
+ */
+export function suggestCategory(event: CalendarEvent): CategorySuggestion {
+  const title = event.summary || "";
+
+  for (const category of CATEGORY_PATTERNS) {
+    for (const pattern of category.patterns) {
+      if (pattern.test(title)) {
+        return {
+          colorId: category.colorId,
+          colorName: category.colorName,
+          meaning: category.meaning,
+          confidence: 0.8, // High confidence for pattern match
+        };
+      }
+    }
+  }
+
+  // No match found - return default with low confidence
+  return {
+    colorId: "3", // Default to Grape (Meetings) as fallback
+    colorName: "Grape",
+    meaning: "Meetings",
+    confidence: 0.2, // Low confidence
+  };
+}
+
+/**
+ * Extract the parent (recurring series) ID from an instance ID.
+ *
+ * Recurring event instances have IDs like: "baseId_20260222T130000Z"
+ * where the suffix is a date/time pattern.
+ *
+ * Returns null if not a recurring instance.
+ */
+export function extractRecurringParentId(eventId: string): string | null {
+  // Pattern: ends with _YYYYMMDDTHHMMSSZ
+  const recurringPattern = /_(\d{8}T\d{6}Z)$/;
+  const match = eventId.match(recurringPattern);
+
+  if (match) {
+    // Return everything before the last underscore + date pattern
+    return eventId.slice(0, -match[0].length);
+  }
+
+  return null;
+}
+
+/**
+ * Find events that have no color assigned (unlabeled).
+ * These are events with colorId of "", "default", or undefined.
+ */
+export function findUnlabeledEvents(events: CalendarEvent[]): CalendarEvent[] {
+  return events.filter(
+    (event) => !event.colorId || event.colorId === "" || event.colorId === "default"
+  );
+}

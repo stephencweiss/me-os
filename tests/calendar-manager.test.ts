@@ -8,6 +8,9 @@ import { describe, it, expect } from "vitest";
 import {
   buildOverlapGroups,
   calculateOverlapMinutes,
+  suggestCategory,
+  extractRecurringParentId,
+  findUnlabeledEvents,
   OverlapGroup,
 } from "../lib/calendar-manager.js";
 import type { CalendarEvent } from "../lib/time-analysis.js";
@@ -196,5 +199,176 @@ describe("calculateOverlapMinutes", () => {
     const overlap = calculateOverlapMinutes(a, b);
 
     expect(overlap).toBe(0);
+  });
+});
+
+// ============================================================================
+// Categorization Tests
+// ============================================================================
+
+describe("suggestCategory", () => {
+  it('suggests Lavender for "1:1 with Alice"', () => {
+    const event = createEvent("a", 9, 0, 10, 0, "1:1 with Alice");
+
+    const suggestion = suggestCategory(event);
+
+    expect(suggestion.colorId).toBe("1");
+    expect(suggestion.colorName).toBe("Lavender");
+    expect(suggestion.confidence).toBeGreaterThan(0.5);
+  });
+
+  it('suggests Lavender for "one on one with Bob"', () => {
+    const event = createEvent("a", 9, 0, 10, 0, "one on one with Bob");
+
+    const suggestion = suggestCategory(event);
+
+    expect(suggestion.colorId).toBe("1");
+    expect(suggestion.colorName).toBe("Lavender");
+  });
+
+  it('suggests Lavender for "Sync with Carol"', () => {
+    const event = createEvent("a", 9, 0, 10, 0, "Sync with Carol");
+
+    const suggestion = suggestCategory(event);
+
+    expect(suggestion.colorId).toBe("1");
+    expect(suggestion.colorName).toBe("Lavender");
+  });
+
+  it('suggests Grape for "Team standup"', () => {
+    const event = createEvent("a", 9, 0, 10, 0, "Team standup");
+
+    const suggestion = suggestCategory(event);
+
+    expect(suggestion.colorId).toBe("3");
+    expect(suggestion.colorName).toBe("Grape");
+  });
+
+  it('suggests Grape for "Sprint review"', () => {
+    const event = createEvent("a", 9, 0, 10, 0, "Sprint review");
+
+    const suggestion = suggestCategory(event);
+
+    expect(suggestion.colorId).toBe("3");
+    expect(suggestion.colorName).toBe("Grape");
+  });
+
+  it('suggests Sage for "Focus time"', () => {
+    const event = createEvent("a", 9, 0, 10, 0, "Focus time");
+
+    const suggestion = suggestCategory(event);
+
+    expect(suggestion.colorId).toBe("2");
+    expect(suggestion.colorName).toBe("Sage");
+  });
+
+  it('suggests Sage for "Deep work"', () => {
+    const event = createEvent("a", 9, 0, 10, 0, "Deep work on project");
+
+    const suggestion = suggestCategory(event);
+
+    expect(suggestion.colorId).toBe("2");
+    expect(suggestion.colorName).toBe("Sage");
+  });
+
+  it('suggests Tangerine for "External vendor call"', () => {
+    const event = createEvent("a", 9, 0, 10, 0, "External vendor call");
+
+    const suggestion = suggestCategory(event);
+
+    expect(suggestion.colorId).toBe("6");
+    expect(suggestion.colorName).toBe("Tangerine");
+  });
+
+  it("returns low confidence for unknown patterns", () => {
+    const event = createEvent("a", 9, 0, 10, 0, "Random meeting about stuff");
+
+    const suggestion = suggestCategory(event);
+
+    expect(suggestion.confidence).toBeLessThan(0.5);
+  });
+});
+
+describe("extractRecurringParentId", () => {
+  it("extracts parent from instance ID with date suffix", () => {
+    const instanceId = "sa8vq84c1lf1g1cr653erfp7m4_20260222T130000Z";
+
+    const parentId = extractRecurringParentId(instanceId);
+
+    expect(parentId).toBe("sa8vq84c1lf1g1cr653erfp7m4");
+  });
+
+  it("returns null for non-recurring event ID", () => {
+    const eventId = "abc123xyz";
+
+    const parentId = extractRecurringParentId(eventId);
+
+    expect(parentId).toBeNull();
+  });
+
+  it("handles IDs with multiple underscores", () => {
+    // Some IDs might have underscores in the base part
+    const instanceId = "event_with_underscores_20260222T130000Z";
+
+    const parentId = extractRecurringParentId(instanceId);
+
+    expect(parentId).toBe("event_with_underscores");
+  });
+
+  it("returns null for ID with underscore but no date pattern", () => {
+    const eventId = "event_with_underscore_but_no_date";
+
+    const parentId = extractRecurringParentId(eventId);
+
+    expect(parentId).toBeNull();
+  });
+});
+
+describe("findUnlabeledEvents", () => {
+  it("returns events with no colorId", () => {
+    const events: CalendarEvent[] = [
+      { ...createEvent("a", 9, 0, 10, 0), colorId: "1" },
+      { ...createEvent("b", 10, 0, 11, 0), colorId: "" },
+      { ...createEvent("c", 11, 0, 12, 0), colorId: "3" },
+    ];
+
+    const unlabeled = findUnlabeledEvents(events);
+
+    expect(unlabeled).toHaveLength(1);
+    expect(unlabeled[0].id).toBe("b");
+  });
+
+  it("returns events with default colorId", () => {
+    const events: CalendarEvent[] = [
+      { ...createEvent("a", 9, 0, 10, 0), colorId: "1" },
+      { ...createEvent("b", 10, 0, 11, 0), colorId: "default" },
+    ];
+
+    const unlabeled = findUnlabeledEvents(events);
+
+    expect(unlabeled).toHaveLength(1);
+    expect(unlabeled[0].id).toBe("b");
+  });
+
+  it("returns empty array when all events are labeled", () => {
+    const events: CalendarEvent[] = [
+      { ...createEvent("a", 9, 0, 10, 0), colorId: "1" },
+      { ...createEvent("b", 10, 0, 11, 0), colorId: "3" },
+    ];
+
+    const unlabeled = findUnlabeledEvents(events);
+
+    expect(unlabeled).toHaveLength(0);
+  });
+
+  it("returns all events when none are labeled", () => {
+    const events: CalendarEvent[] = [
+      { ...createEvent("a", 9, 0, 10, 0), colorId: "" },
+      { ...createEvent("b", 10, 0, 11, 0), colorId: "" },
+    ];
+
+    const unlabeled = findUnlabeledEvents(events);
+
+    expect(unlabeled).toHaveLength(2);
   });
 });
