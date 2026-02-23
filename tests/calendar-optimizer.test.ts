@@ -10,6 +10,7 @@ import {
   removeRecurringGoal,
   findSlotsForGoal,
   identifyMovableEvents,
+  scoreOptimization,
   type TimeGoal,
   type OutcomeGoal,
   type FlexSlot,
@@ -637,5 +638,241 @@ describe("identifyMovableEvents", () => {
     const events = [createEvent("1:1 with Alice")];
     const movable = identifyMovableEvents(events, []);
     expect(movable).toHaveLength(0);
+  });
+});
+
+// ============================================
+// scoreOptimization Tests
+// ============================================
+
+describe("scoreOptimization", () => {
+  function todayAt(hour: number, minute = 0): Date {
+    const d = new Date();
+    d.setHours(hour, minute, 0, 0);
+    return d;
+  }
+
+  it("returns perfect goalAchievement when all goals fully scheduled", () => {
+    const goals: TimeGoal[] = [
+      {
+        type: "time",
+        id: "writing",
+        name: "Writing",
+        totalMinutes: 120,
+        colorId: "2",
+        priority: 1,
+        recurring: true,
+      },
+    ];
+
+    const proposed: ProposedEvent[] = [
+      {
+        summary: "Writing",
+        start: todayAt(9),
+        end: todayAt(11),
+        durationMinutes: 120,
+        colorId: "2",
+        goalId: "writing",
+      },
+    ];
+
+    const score = scoreOptimization(goals, proposed);
+    expect(score.goalAchievement).toBe(1);
+  });
+
+  it("returns partial goalAchievement when goals partially scheduled", () => {
+    const goals: TimeGoal[] = [
+      {
+        type: "time",
+        id: "writing",
+        name: "Writing",
+        totalMinutes: 120,
+        colorId: "2",
+        priority: 1,
+        recurring: true,
+      },
+    ];
+
+    const proposed: ProposedEvent[] = [
+      {
+        summary: "Writing",
+        start: todayAt(9),
+        end: todayAt(10),
+        durationMinutes: 60, // Only half scheduled
+        colorId: "2",
+        goalId: "writing",
+      },
+    ];
+
+    const score = scoreOptimization(goals, proposed);
+    expect(score.goalAchievement).toBe(0.5);
+  });
+
+  it("returns zero goalAchievement when nothing scheduled", () => {
+    const goals: TimeGoal[] = [
+      {
+        type: "time",
+        id: "writing",
+        name: "Writing",
+        totalMinutes: 120,
+        colorId: "2",
+        priority: 1,
+        recurring: true,
+      },
+    ];
+
+    const score = scoreOptimization(goals, []);
+    expect(score.goalAchievement).toBe(0);
+  });
+
+  it("calculates focusBlockQuality based on average session length", () => {
+    const goals: TimeGoal[] = [
+      {
+        type: "time",
+        id: "writing",
+        name: "Writing",
+        totalMinutes: 180,
+        colorId: "2",
+        priority: 1,
+        recurring: true,
+      },
+    ];
+
+    // Three 1-hour sessions (fragmented)
+    const proposed: ProposedEvent[] = [
+      {
+        summary: "Writing",
+        start: todayAt(9),
+        end: todayAt(10),
+        durationMinutes: 60,
+        colorId: "2",
+        goalId: "writing",
+      },
+      {
+        summary: "Writing",
+        start: todayAt(11),
+        end: todayAt(12),
+        durationMinutes: 60,
+        colorId: "2",
+        goalId: "writing",
+      },
+      {
+        summary: "Writing",
+        start: todayAt(14),
+        end: todayAt(15),
+        durationMinutes: 60,
+        colorId: "2",
+        goalId: "writing",
+      },
+    ];
+
+    const score = scoreOptimization(goals, proposed);
+    // Average block is 60 minutes
+    expect(score.averageBlockMinutes).toBe(60);
+  });
+
+  it("calculates preferenceAlignment when slots match preferred times", () => {
+    const goals: TimeGoal[] = [
+      {
+        type: "time",
+        id: "writing",
+        name: "Writing",
+        totalMinutes: 120,
+        preferredTimes: { dayPart: "morning" },
+        colorId: "2",
+        priority: 1,
+        recurring: true,
+      },
+    ];
+
+    const proposed: ProposedEvent[] = [
+      {
+        summary: "Writing",
+        start: todayAt(8), // Morning (perfect)
+        end: todayAt(10),
+        durationMinutes: 120,
+        colorId: "2",
+        goalId: "writing",
+      },
+    ];
+
+    const score = scoreOptimization(goals, proposed);
+    expect(score.preferenceAlignment).toBe(1);
+  });
+
+  it("returns lower preferenceAlignment when slots don't match preferred times", () => {
+    const goals: TimeGoal[] = [
+      {
+        type: "time",
+        id: "writing",
+        name: "Writing",
+        totalMinutes: 120,
+        preferredTimes: { dayPart: "morning" },
+        colorId: "2",
+        priority: 1,
+        recurring: true,
+      },
+    ];
+
+    const proposed: ProposedEvent[] = [
+      {
+        summary: "Writing",
+        start: todayAt(20), // Evening (not preferred)
+        end: todayAt(22),
+        durationMinutes: 120,
+        colorId: "2",
+        goalId: "writing",
+      },
+    ];
+
+    const score = scoreOptimization(goals, proposed);
+    expect(score.preferenceAlignment).toBeLessThan(1);
+  });
+
+  it("handles multiple goals in score calculation", () => {
+    const goals: TimeGoal[] = [
+      {
+        type: "time",
+        id: "writing",
+        name: "Writing",
+        totalMinutes: 120,
+        colorId: "2",
+        priority: 1,
+        recurring: true,
+      },
+      {
+        type: "time",
+        id: "workout",
+        name: "Workout",
+        totalMinutes: 60,
+        colorId: "8",
+        priority: 2,
+        recurring: true,
+      },
+    ];
+
+    const proposed: ProposedEvent[] = [
+      {
+        summary: "Writing",
+        start: todayAt(9),
+        end: todayAt(11),
+        durationMinutes: 120,
+        colorId: "2",
+        goalId: "writing",
+      },
+      // Workout not scheduled
+    ];
+
+    const score = scoreOptimization(goals, proposed);
+    // Writing fully scheduled (120/120 = 1), Workout not scheduled (0/60 = 0)
+    // Average: (1 + 0) / 2 = 0.5
+    expect(score.goalAchievement).toBe(0.5);
+  });
+
+  it("returns empty score when no goals provided", () => {
+    const score = scoreOptimization([], []);
+    expect(score.goalAchievement).toBe(0);
+    expect(score.averageBlockMinutes).toBe(0);
+    expect(score.preferenceAlignment).toBe(0);
   });
 });
