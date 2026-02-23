@@ -86,6 +86,19 @@ After showing the report (especially for `/time-report yesterday`), offer these 
 4. If user confirms, use the `update_event_color` MCP tool to update the color
 5. If user says "change", ask them which color to use
 
+**Handling Recurring Events:**
+
+Recurring events have instance IDs with a date suffix (e.g., `abc123_20260222T130000Z`).
+When updating a recurring event:
+
+1. **Detect if recurring:** Check if the event ID contains an underscore followed by a date pattern
+2. **Ask user:** "This is a recurring event. Update just this instance, or the entire series?"
+3. **For single instance:** Use the full ID with date suffix
+4. **For entire series:** Strip the date suffix to get the parent event ID:
+   - Instance: `sa8vq84c1lf1g1cr653erfp7m4_20260222T130000Z`
+   - Series: `sa8vq84c1lf1g1cr653erfp7m4`
+5. **Default to series:** Most users expect color changes to apply to all occurrences
+
 ### 2. Categorize Gap Time
 
 **What:** Time blocks with NO events - unstructured/unscheduled time.

@@ -41,6 +41,10 @@ async function main() {
     } else if (arg === "--today") {
       mode = "today";
       targetDate = new Date();
+    } else if (arg === "--tomorrow") {
+      mode = "today"; // reuse today's format
+      targetDate = new Date();
+      targetDate.setDate(targetDate.getDate() + 1);
     } else if (arg === "--json") {
       outputJson = true;
     } else if (arg === "--help" || arg === "-h") {
@@ -54,6 +58,7 @@ Options:
   --week <date>    Generate report for week containing <date> (YYYY-MM-DD)
   --yesterday      Generate report for yesterday only
   --today          Generate report for today only
+  --tomorrow       Generate report for tomorrow only
   --json           Output as JSON instead of markdown
   --help, -h       Show this help message
 
