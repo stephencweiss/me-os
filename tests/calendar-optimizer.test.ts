@@ -9,10 +9,12 @@ import {
   saveRecurringGoal,
   removeRecurringGoal,
   findSlotsForGoal,
+  identifyMovableEvents,
   type TimeGoal,
   type OutcomeGoal,
   type FlexSlot,
   type ProposedEvent,
+  type CalendarEventWithOrganizer,
 } from "../lib/calendar-optimizer.js";
 
 // ============================================
@@ -515,5 +517,125 @@ describe("findSlotsForGoal", () => {
     expect(proposed[0].colorId).toBe("2");
     expect(proposed[0].goalId).toBe("writing");
     expect(proposed[0].durationMinutes).toBe(60);
+  });
+});
+
+// ============================================
+// identifyMovableEvents Tests
+// ============================================
+
+describe("identifyMovableEvents", () => {
+  // Helper to create a test event
+  function createEvent(
+    summary: string,
+    overrides: Partial<{
+      isAllDay: boolean;
+      isOrganizer: boolean;
+      hasExternalAttendees: boolean;
+      isRecurring: boolean;
+      recurringEventId: string | null;
+    }> = {}
+  ): CalendarEventWithOrganizer {
+    const today = new Date();
+    today.setHours(10, 0, 0, 0);
+    const end = new Date(today);
+    end.setHours(11, 0, 0, 0);
+
+    return {
+      id: `event-${summary.replace(/\s+/g, "-").toLowerCase()}`,
+      account: "test@example.com",
+      summary,
+      start: today,
+      end,
+      durationMinutes: 60,
+      colorId: "1",
+      colorName: "Lavender",
+      colorMeaning: "1:1s / People",
+      isAllDay: overrides.isAllDay ?? false,
+      isRecurring: overrides.isRecurring ?? false,
+      recurringEventId: overrides.recurringEventId ?? null,
+      isOrganizer: overrides.isOrganizer ?? true,
+      hasExternalAttendees: overrides.hasExternalAttendees ?? false,
+    };
+  }
+
+  it("identifies 1:1 events as movable", () => {
+    const events = [
+      createEvent("1:1 with Alice"),
+      createEvent("Team standup"),
+    ];
+
+    const movable = identifyMovableEvents(events, ["1:1", "sync"]);
+    expect(movable).toHaveLength(1);
+    expect(movable[0].summary).toBe("1:1 with Alice");
+  });
+
+  it("identifies sync events as movable", () => {
+    const events = [
+      createEvent("Weekly sync"),
+      createEvent("Product review"),
+    ];
+
+    const movable = identifyMovableEvents(events, ["1:1", "sync"]);
+    expect(movable).toHaveLength(1);
+    expect(movable[0].summary).toBe("Weekly sync");
+  });
+
+  it("uses case-insensitive pattern matching", () => {
+    const events = [
+      createEvent("SYNC with team"),
+      createEvent("1:1 WITH BOB"),
+    ];
+
+    const movable = identifyMovableEvents(events, ["1:1", "sync"]);
+    expect(movable).toHaveLength(2);
+  });
+
+  it("excludes all-day events", () => {
+    const events = [
+      createEvent("1:1 with Alice", { isAllDay: true }),
+    ];
+
+    const movable = identifyMovableEvents(events, ["1:1"]);
+    expect(movable).toHaveLength(0);
+  });
+
+  it("excludes events where user is not organizer", () => {
+    const events = [
+      createEvent("1:1 with Alice", { isOrganizer: false }),
+    ];
+
+    const movable = identifyMovableEvents(events, ["1:1"]);
+    expect(movable).toHaveLength(0);
+  });
+
+  it("excludes events with external attendees", () => {
+    const events = [
+      createEvent("Sync with partner", { hasExternalAttendees: true }),
+    ];
+
+    const movable = identifyMovableEvents(events, ["sync"]);
+    expect(movable).toHaveLength(0);
+  });
+
+  it("returns empty array when no patterns match", () => {
+    const events = [
+      createEvent("Team standup"),
+      createEvent("Product review"),
+    ];
+
+    const movable = identifyMovableEvents(events, ["1:1", "sync"]);
+    expect(movable).toHaveLength(0);
+  });
+
+  it("works with empty events array", () => {
+    const movable = identifyMovableEvents([], ["1:1"]);
+    expect(movable).toHaveLength(0);
+  });
+
+  it("works with empty patterns array (nothing matches)", () => {
+    const events = [createEvent("1:1 with Alice")];
+    const movable = identifyMovableEvents(events, []);
+    expect(movable).toHaveLength(0);
   });
 });

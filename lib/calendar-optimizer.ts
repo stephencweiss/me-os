@@ -70,6 +70,26 @@ export interface ProposedEvent {
   goalId: string;
 }
 
+/**
+ * Extended CalendarEvent with organizer/attendee info for movable event detection.
+ */
+export interface CalendarEventWithOrganizer {
+  id: string;
+  account: string;
+  summary: string;
+  start: Date;
+  end: Date;
+  durationMinutes: number;
+  colorId: string;
+  colorName: string;
+  colorMeaning: string;
+  isAllDay: boolean;
+  isRecurring: boolean;
+  recurringEventId: string | null;
+  isOrganizer: boolean;
+  hasExternalAttendees: boolean;
+}
+
 // ============================================
 // Goal Parsing
 // ============================================
@@ -501,4 +521,49 @@ function createProposedEvent(
     colorId: goal.colorId,
     goalId: goal.id,
   };
+}
+
+// ============================================
+// Movable Event Detection
+// ============================================
+
+/**
+ * Identify events that can potentially be moved to optimize the schedule.
+ *
+ * An event is considered movable if:
+ * 1. It matches one of the configurable patterns (e.g., "1:1", "sync")
+ * 2. It's NOT an all-day event
+ * 3. The user IS the organizer (they own the event)
+ * 4. It has NO external attendees (internal meetings only)
+ */
+export function identifyMovableEvents(
+  events: CalendarEventWithOrganizer[],
+  patterns: string[]
+): CalendarEventWithOrganizer[] {
+  if (events.length === 0 || patterns.length === 0) {
+    return [];
+  }
+
+  return events.filter((event) => {
+    // Must not be all-day
+    if (event.isAllDay) {
+      return false;
+    }
+
+    // Must be the organizer
+    if (!event.isOrganizer) {
+      return false;
+    }
+
+    // Must not have external attendees
+    if (event.hasExternalAttendees) {
+      return false;
+    }
+
+    // Must match at least one pattern (case-insensitive)
+    const summaryLower = event.summary.toLowerCase();
+    return patterns.some((pattern) =>
+      summaryLower.includes(pattern.toLowerCase())
+    );
+  });
 }
