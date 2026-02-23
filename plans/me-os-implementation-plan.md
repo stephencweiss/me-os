@@ -7,8 +7,8 @@ Build a personal productivity system as Claude Code skills with MCP integration.
 
 ## Current Status
 
-**Phase:** 1 Complete - Ready for Phase 2
-**Status:** Foundation complete with multi-account unified view
+**Phase:** 2 Complete - Ready for Phase 3
+**Status:** Time reports and analytics fully implemented
 
 **What's done:**
 - ✅ Project setup (package.json, tsconfig, dependencies)
@@ -17,12 +17,14 @@ Build a personal productivity system as Claude Code skills with MCP integration.
 - ✅ Calendar skill registered as `/calendar` slash command
 - ✅ Personal and work accounts authenticated
 - ✅ Multi-account unified view (events from all accounts merged and sorted)
-- ✅ Each event includes account label (personal/work)
+- ✅ Time analysis library with gap detection, color grouping, overlap merging
+- ✅ `/time-report` skill with interactive labeling and gap categorization
+- ✅ Standalone weekly report script (scripts/weekly-report.ts)
 
 **Next action:**
-1. Restart Claude Code to pick up MCP server changes
-2. Verify unified view shows events from both accounts
-3. Proceed to Phase 2: Time Reports & Analytics
+1. Test `/time-report` and `/time-report yesterday` commands
+2. Use interactive features to label unlabeled events and categorize gaps
+3. Proceed to Phase 3: One-on-One Management (when ready)
 
 ---
 
@@ -159,7 +161,21 @@ Skill file: `skills/time-report/skill.md`
 - `/time-report gaps` - Focus on unstructured time
 
 Interactive features:
-- Prompt to assign colors to unlabeled events
+
+**1. Unlabeled Events (events with Default color):**
+- Find all events that have no color assigned (Default)
+- For each unlabeled event, Claude suggests a category based on event title
+- Ask user to confirm or alter the suggested label
+- Update the event color in Google Calendar
+
+**2. Gap Time Breakdown (time with no events):**
+- Identify gaps in the schedule (unstructured time)
+- Ask user: "What did you do during [9:00 AM - 10:30 AM] on Monday?"
+- User breaks down the gap into categories (e.g., "30 min focus work, 1 hour admin")
+- Track this for reporting purposes (stored locally, not as calendar events)
+- Most useful with `/time-report yesterday` when memory is fresh
+
+**3. Comparison:**
 - Show comparison to previous weeks
 
 ### 2.3 Standalone Script
@@ -373,3 +389,7 @@ Leverage existing JIRA MCP from work environment.
 | 2026-02-21 | Work account auth | Complete | Both personal and work calendars authenticated |
 | 2026-02-21 | Phase 1.5: Multi-account unified view | Complete | MCP server merges events from all accounts, sorted by time |
 | 2026-02-21 | **Phase 1 Complete** | ✅ | Foundation ready for Phase 2 |
+| 2026-02-22 | Phase 2.1: Time analysis library | Complete | lib/time-analysis.ts with gap detection, color grouping, overlap handling |
+| 2026-02-22 | Phase 2.2: Time report skill | Complete | /time-report skill with interactive labeling instructions |
+| 2026-02-22 | Phase 2.3: Weekly report script | Complete | scripts/weekly-report.ts standalone CLI |
+| 2026-02-22 | **Phase 2 Complete** | ✅ | Time reports and analytics ready |
