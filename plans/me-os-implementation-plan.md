@@ -7,8 +7,8 @@ Build a personal productivity system as Claude Code skills with MCP integration.
 
 ## Current Status
 
-**Phase:** 2 Complete - Ready for Phase 3
-**Status:** Time reports and analytics fully implemented
+**Phase:** 2.5 In Progress - Calendar Manager
+**Status:** Building active calendar management features
 
 **What's done:**
 - ✅ Project setup (package.json, tsconfig, dependencies)
@@ -21,10 +21,14 @@ Build a personal productivity system as Claude Code skills with MCP integration.
 - ✅ `/time-report` skill with interactive labeling and gap categorization
 - ✅ Standalone weekly report script (scripts/weekly-report.ts)
 
+**In Progress:**
+- 🔄 Phase 2.5: Calendar Manager skill
+
 **Next action:**
-1. Test `/time-report` and `/time-report yesterday` commands
-2. Use interactive features to label unlabeled events and categorize gaps
-3. Proceed to Phase 3: One-on-One Management (when ready)
+1. Create `lib/calendar-manager.ts` with overlap detection (TDD)
+2. Add MCP tools: `create_event`, `update_event_status`
+3. Create `/calendar-manager` skill
+4. Proceed to Phase 3: One-on-One Management (when ready)
 
 ---
 
@@ -215,6 +219,83 @@ Outputs markdown summary, can be invoked by skill.
 
 ---
 
+## Phase 2.5: Calendar Manager
+
+Active calendar management: conflict detection, event categorization, and gap filling.
+
+### 2.5.1 Calendar Manager Library
+**Location**: `lib/calendar-manager.ts`
+
+Functions:
+- `buildOverlapGroups(events)` - Detect overlapping events using sweep-line + union-find
+- `calculateOverlapMinutes(eventA, eventB)` - Calculate overlap between two events
+- `calculateSplitTime(attending)` - Split overlapping attendance time evenly
+- `findUnlabeledEvents(events)` - Find events with Default/no color
+- `suggestCategory(event)` - Suggest color based on event title keywords
+- `extractRecurringParentId(eventId)` - Extract parent ID from recurring instance
+- `calculateFlexSlots(events, wakingHours, minGap)` - Find gaps for flex events
+
+### 2.5.2 New MCP Tools
+**Location**: `mcp/google-calendar/index.ts`
+
+- `create_event` - Create calendar events (for flex time blocking)
+  - Parameters: summary, start, end, colorId, visibility, account
+- `update_event_status` - Change RSVP status (accept/decline/tentative)
+  - Parameters: eventId, status, account
+
+### 2.5.3 Calendar Manager Skill
+**Location**: `.claude/skills/calendar-manager/`
+
+Commands:
+- `/calendar-manager` - Dashboard for today with interactive prompts
+- `/calendar-manager conflicts` - Only resolve double bookings
+- `/calendar-manager categorize` - Only label unlabeled events
+- `/calendar-manager flex` - Only fill gaps with flex events
+- `/calendar-manager [yesterday|today|tomorrow|week]` - Specific range
+
+### 2.5.4 Configuration
+**Location**: `config/calendar-manager.json`
+
+```json
+{
+  "accountPriority": ["work", "personal"],
+  "wakingHours": { "start": 9, "end": 18 },
+  "minGapMinutes": 30,
+  "skipWeekends": true,
+  "flexEventDefaults": {
+    "visibility": "private",
+    "colorId": "9",
+    "title": "flex"
+  }
+}
+```
+
+### 2.5.5 Testing Strategy - Phase 2.5
+
+**Unit Tests** (`tests/calendar-manager.test.ts`):
+
+| Test | Expected |
+|------|----------|
+| Non-overlapping events | Empty overlap groups |
+| Two overlapping events | 1 group, 2 events |
+| Chain of overlapping events | 1 group with all connected events |
+| Suggest category for "1:1 with Alice" | Lavender (1:1s / People) |
+| Suggest category for "Team standup" | Grape (Meetings) |
+| Extract recurring parent ID | Strips date suffix correctly |
+| Flex slots with 30min minimum | Ignores gaps < 30min |
+| Flex slots on weekend | Returns empty (skipWeekends=true) |
+
+**Manual Tests**:
+
+| Test | Expected |
+|------|----------|
+| create_event for flex | Event visible in both calendars |
+| update_event_status decline | RSVP status changes |
+| /calendar-manager dashboard | Shows overview + interactive prompts |
+| /calendar-manager conflicts | Only runs conflict resolution |
+
+---
+
 ## Phase 3: One-on-One Management
 
 ### 3.1 Voice Transcription
@@ -343,6 +424,13 @@ Leverage existing JIRA MCP from work environment.
 - `skills/time-report/skill.md`
 - `scripts/weekly-report.ts`
 
+### Phase 2.5
+- `lib/calendar-manager.ts`
+- `tests/calendar-manager.test.ts`
+- `.claude/skills/calendar-manager/SKILL.md`
+- `config/calendar-manager.json`
+- `data/calendar-decisions/` (directory)
+
 ### Phase 3
 - `lib/transcription.ts`
 - `skills/one-on-one/skill.md`
@@ -393,3 +481,5 @@ Leverage existing JIRA MCP from work environment.
 | 2026-02-22 | Phase 2.2: Time report skill | Complete | /time-report skill with interactive labeling instructions |
 | 2026-02-22 | Phase 2.3: Weekly report script | Complete | scripts/weekly-report.ts standalone CLI |
 | 2026-02-22 | **Phase 2 Complete** | ✅ | Time reports and analytics ready |
+| 2026-02-22 | Phase 2.5: Planning | Complete | Created plan for calendar-manager skill |
+| 2026-02-22 | Phase 2.5.1: Main plan update | Complete | Added Phase 2.5 section to implementation plan |
