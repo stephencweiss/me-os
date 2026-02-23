@@ -1,6 +1,7 @@
 ---
 name: time-report
 description: Generate time analysis reports showing how you spent your week, with gap detection and category breakdowns. Shows data from all authenticated Google accounts.
+user-invocable: true
 ---
 
 # /time-report - Time Analysis & Weekly Reports
