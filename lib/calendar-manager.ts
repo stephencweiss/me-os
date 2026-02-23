@@ -371,3 +371,164 @@ export function findUnlabeledEvents(events: CalendarEvent[]): CalendarEvent[] {
     (event) => !event.colorId || event.colorId === "" || event.colorId === "default"
   );
 }
+
+// ============================================================================
+// Flex Slot Calculation
+// ============================================================================
+
+export interface FlexSlot {
+  start: Date;
+  end: Date;
+  durationMinutes: number;
+}
+
+export interface FlexSlotConfig {
+  wakingHours: { start: number; end: number };
+  minGapMinutes: number;
+  skipWeekends: boolean;
+}
+
+/**
+ * Check if a date is a weekend (Saturday = 6, Sunday = 0)
+ */
+function isWeekend(date: Date): boolean {
+  const day = date.getDay();
+  return day === 0 || day === 6;
+}
+
+/**
+ * Merge overlapping intervals for gap calculation.
+ * Takes sorted events and returns merged intervals.
+ */
+function mergeIntervals(
+  events: CalendarEvent[]
+): Array<{ start: Date; end: Date }> {
+  if (events.length === 0) return [];
+
+  const sorted = [...events].sort(
+    (a, b) => a.start.getTime() - b.start.getTime()
+  );
+
+  const merged: Array<{ start: Date; end: Date }> = [];
+  let current = { start: sorted[0].start, end: sorted[0].end };
+
+  for (let i = 1; i < sorted.length; i++) {
+    const event = sorted[i];
+    if (event.start <= current.end) {
+      // Overlapping or adjacent - extend current interval
+      current.end = new Date(
+        Math.max(current.end.getTime(), event.end.getTime())
+      );
+    } else {
+      // Non-overlapping - save current and start new
+      merged.push(current);
+      current = { start: event.start, end: event.end };
+    }
+  }
+  merged.push(current);
+
+  return merged;
+}
+
+/**
+ * Calculate flex slots (available time blocks) for given events.
+ *
+ * Finds gaps in the schedule during waking hours, filtering by minimum
+ * gap duration and optionally skipping weekends.
+ */
+export function calculateFlexSlots(
+  events: CalendarEvent[],
+  config: FlexSlotConfig
+): FlexSlot[] {
+  const { wakingHours, minGapMinutes, skipWeekends } = config;
+  const flexSlots: FlexSlot[] = [];
+
+  // Filter out all-day events
+  const timedEvents = events.filter((e) => !e.isAllDay);
+
+  if (timedEvents.length === 0) {
+    return [];
+  }
+
+  // Group events by local date (using local year/month/day)
+  const eventsByDate = new Map<string, CalendarEvent[]>();
+  for (const event of timedEvents) {
+    const d = event.start;
+    const dateKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    if (!eventsByDate.has(dateKey)) {
+      eventsByDate.set(dateKey, []);
+    }
+    eventsByDate.get(dateKey)!.push(event);
+  }
+
+  // Process each date
+  for (const [dateKey, dayEvents] of eventsByDate) {
+    const [year, month, day] = dateKey.split("-").map(Number);
+    const date = new Date(year, month - 1, day);
+
+    // Skip weekends if configured
+    if (skipWeekends && isWeekend(date)) {
+      continue;
+    }
+
+    // Create waking hours boundaries for this date
+    const wakingStart = new Date(date);
+    wakingStart.setHours(wakingHours.start, 0, 0, 0);
+    const wakingEnd = new Date(date);
+    wakingEnd.setHours(wakingHours.end, 0, 0, 0);
+
+    // Filter events to only those within waking hours
+    const wakingEvents = dayEvents.filter(
+      (e) => e.end > wakingStart && e.start < wakingEnd
+    );
+
+    // Merge overlapping intervals
+    const merged = mergeIntervals(wakingEvents);
+
+    // Clip merged intervals to waking hours
+    const clipped = merged.map((interval) => ({
+      start: new Date(
+        Math.max(interval.start.getTime(), wakingStart.getTime())
+      ),
+      end: new Date(Math.min(interval.end.getTime(), wakingEnd.getTime())),
+    }));
+
+    // Find gaps
+    let currentTime = wakingStart;
+
+    for (const interval of clipped) {
+      if (interval.start > currentTime) {
+        const gapDuration =
+          (interval.start.getTime() - currentTime.getTime()) / 60000;
+        if (gapDuration >= minGapMinutes) {
+          flexSlots.push({
+            start: new Date(currentTime),
+            end: new Date(interval.start),
+            durationMinutes: gapDuration,
+          });
+        }
+      }
+      currentTime = new Date(
+        Math.max(currentTime.getTime(), interval.end.getTime())
+      );
+    }
+
+    // Check for gap after last event
+    if (currentTime < wakingEnd) {
+      const gapDuration =
+        (wakingEnd.getTime() - currentTime.getTime()) / 60000;
+      if (gapDuration >= minGapMinutes) {
+        flexSlots.push({
+          start: new Date(currentTime),
+          end: new Date(wakingEnd),
+          durationMinutes: gapDuration,
+        });
+      }
+    }
+  }
+
+  // Sort by start time
+  flexSlots.sort((a, b) => a.start.getTime() - b.start.getTime());
+
+  return flexSlots;
+}

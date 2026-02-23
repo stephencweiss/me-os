@@ -11,7 +11,9 @@ import {
   suggestCategory,
   extractRecurringParentId,
   findUnlabeledEvents,
+  calculateFlexSlots,
   OverlapGroup,
+  FlexSlot,
 } from "../lib/calendar-manager.js";
 import type { CalendarEvent } from "../lib/time-analysis.js";
 
@@ -372,3 +374,187 @@ describe("findUnlabeledEvents", () => {
     expect(unlabeled).toHaveLength(2);
   });
 });
+
+// ============================================================================
+// Flex Slot Tests
+// ============================================================================
+
+describe("calculateFlexSlots", () => {
+  // Default config: 6am-10pm waking hours, 30min minimum gap, no weekends
+  const defaultConfig = {
+    wakingHours: { start: 6, end: 22 },
+    minGapMinutes: 30,
+    skipWeekends: true,
+  };
+
+  it("finds gaps during waking hours", () => {
+    // Feb 22, 2026 is a Sunday, let's use Monday Feb 23
+    const monday = new Date(2026, 1, 23);
+    const events = [
+      createEventOnDate(monday, 9, 0, 10, 0), // 9:00-10:00
+      createEventOnDate(monday, 14, 0, 15, 0), // 14:00-15:00
+    ];
+
+    const flexSlots = calculateFlexSlots(events, defaultConfig);
+
+    // Expected gaps:
+    // 6:00-9:00 (3h = 180min)
+    // 10:00-14:00 (4h = 240min)
+    // 15:00-22:00 (7h = 420min)
+    expect(flexSlots.length).toBe(3);
+    expect(flexSlots[0].durationMinutes).toBe(180); // 6:00-9:00
+    expect(flexSlots[1].durationMinutes).toBe(240); // 10:00-14:00
+    expect(flexSlots[2].durationMinutes).toBe(420); // 15:00-22:00
+  });
+
+  it("ignores gaps less than minGapMinutes", () => {
+    const monday = new Date(2026, 1, 23);
+    const events = [
+      createEventOnDate(monday, 9, 0, 10, 0), // 9:00-10:00
+      createEventOnDate(monday, 10, 20, 11, 0), // 10:20-11:00 (20 min gap before)
+    ];
+
+    const flexSlots = calculateFlexSlots(events, defaultConfig);
+
+    // The 20-min gap (10:00-10:20) should be excluded
+    const gapBetweenEvents = flexSlots.find(
+      (s) => s.start.getHours() === 10 && s.start.getMinutes() === 0
+    );
+    expect(gapBetweenEvents).toBeUndefined();
+  });
+
+  it("ignores weekends when skipWeekends is true", () => {
+    // Feb 22, 2026 is a Sunday
+    const sunday = new Date(2026, 1, 22);
+    const events = [createEventOnDate(sunday, 9, 0, 10, 0)];
+
+    const flexSlots = calculateFlexSlots(events, defaultConfig);
+
+    expect(flexSlots).toHaveLength(0);
+  });
+
+  it("includes weekends when skipWeekends is false", () => {
+    const sunday = new Date(2026, 1, 22);
+    const events = [createEventOnDate(sunday, 9, 0, 10, 0)];
+
+    const flexSlots = calculateFlexSlots(events, {
+      ...defaultConfig,
+      skipWeekends: false,
+    });
+
+    expect(flexSlots.length).toBeGreaterThan(0);
+  });
+
+  it("excludes gaps before waking hours start", () => {
+    const monday = new Date(2026, 1, 23);
+    const events = [
+      createEventOnDate(monday, 5, 0, 5, 30), // 5:00-5:30 (before waking hours)
+      createEventOnDate(monday, 10, 0, 11, 0), // 10:00-11:00
+    ];
+
+    const flexSlots = calculateFlexSlots(events, defaultConfig);
+
+    // Should not include any slot starting before 6:00
+    const earlySlot = flexSlots.find((s) => s.start.getHours() < 6);
+    expect(earlySlot).toBeUndefined();
+  });
+
+  it("excludes gaps after waking hours end", () => {
+    const monday = new Date(2026, 1, 23);
+    const events = [
+      createEventOnDate(monday, 10, 0, 11, 0), // 10:00-11:00
+      createEventOnDate(monday, 23, 0, 23, 30), // 23:00-23:30 (after waking hours)
+    ];
+
+    const flexSlots = calculateFlexSlots(events, defaultConfig);
+
+    // Last slot should end at 22:00 (waking hours end)
+    const lastSlot = flexSlots[flexSlots.length - 1];
+    expect(lastSlot.end.getHours()).toBe(22);
+  });
+
+  it("handles multiple days", () => {
+    const monday = new Date(2026, 1, 23);
+    const tuesday = new Date(2026, 1, 24);
+    const events = [
+      createEventOnDate(monday, 10, 0, 11, 0),
+      createEventOnDate(tuesday, 14, 0, 15, 0),
+    ];
+
+    const flexSlots = calculateFlexSlots(events, defaultConfig);
+
+    // Should have slots for both days
+    const mondaySlots = flexSlots.filter(
+      (s) => s.start.getDate() === 23
+    );
+    const tuesdaySlots = flexSlots.filter(
+      (s) => s.start.getDate() === 24
+    );
+
+    expect(mondaySlots.length).toBeGreaterThan(0);
+    expect(tuesdaySlots.length).toBeGreaterThan(0);
+  });
+
+  it("returns empty array when day is fully booked", () => {
+    const monday = new Date(2026, 1, 23);
+    // Create events that cover all waking hours
+    const events = [createEventOnDate(monday, 6, 0, 22, 0)];
+
+    const flexSlots = calculateFlexSlots(events, defaultConfig);
+
+    expect(flexSlots).toHaveLength(0);
+  });
+
+  it("handles overlapping events correctly", () => {
+    const monday = new Date(2026, 1, 23);
+    const events = [
+      createEventOnDate(monday, 10, 0, 11, 0),
+      createEventOnDate(monday, 10, 30, 11, 30), // Overlaps with first
+    ];
+
+    const flexSlots = calculateFlexSlots(events, defaultConfig);
+
+    // Gap should be 11:30 to next, not 11:00
+    const gapAfterEvents = flexSlots.find(
+      (s) => s.start.getHours() === 11 && s.start.getMinutes() === 30
+    );
+    expect(gapAfterEvents).toBeDefined();
+  });
+});
+
+// Helper to create events on a specific date
+function createEventOnDate(
+  date: Date,
+  startHour: number,
+  startMinute: number,
+  endHour: number,
+  endMinute: number,
+  summary = "Test Event"
+): CalendarEvent {
+  const start = new Date(
+    date.getFullYear(),
+    date.getMonth(),
+    date.getDate(),
+    startHour,
+    startMinute
+  );
+  const end = new Date(
+    date.getFullYear(),
+    date.getMonth(),
+    date.getDate(),
+    endHour,
+    endMinute
+  );
+  return {
+    id: `event-${start.getTime()}`,
+    account: "test",
+    summary,
+    start,
+    end,
+    durationMinutes: (end.getTime() - start.getTime()) / 60000,
+    colorId: "1",
+    colorName: "Lavender",
+    colorMeaning: "1:1s / People",
+    isAllDay: false,
+  };
+}
