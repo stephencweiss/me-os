@@ -1,0 +1,20 @@
+{
+  "calendarTypes": {
+    "On Call Schedule for Example User": "availability",
+    "Company Vacation Calendar": "reference",
+    "Company Calendar": "reference",
+    "Social Events Calendar": "reference"
+  },
+  "defaultType": {
+    "primary": "active",
+    "owner": "active",
+    "shared": "active"
+  },
+  "filtering": {
+    "denyList": [
+      "Holidays in United States",
+      "Contacts"
+    ],
+    "allowList": []
+  }
+}

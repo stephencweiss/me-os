@@ -19,6 +19,13 @@ import {
   getTimePeriodDates,
   type WeeklySchedule,
 } from "./schedule.js";
+import {
+  CalendarType,
+  loadCalendarFilterConfig,
+  getCalendarType,
+  getCalendarTypeBehavior,
+  shouldIncludeEvent,
+} from "./calendar-filter.js";
 
 // Load color definitions for semantic meanings
 const CONFIG_DIR = path.join(process.cwd(), "config");
@@ -45,6 +52,8 @@ const GOOGLE_CALENDAR_COLORS: Record<string, string> = {
 export interface CalendarEvent {
   id: string;
   account: string;
+  calendarName: string;
+  calendarType: CalendarType;
   summary: string;
   start: Date;
   end: Date;
@@ -77,8 +86,10 @@ export interface DailySummary {
   dateString: string;
   totalScheduledMinutes: number;
   totalGapMinutes: number;
-  events: CalendarEvent[];
+  events: CalendarEvent[];           // Active events (count toward time)
   allDayEvents: CalendarEvent[];
+  availabilityEvents: CalendarEvent[]; // Availability context (e.g., on-call)
+  referenceEvents: CalendarEvent[];    // Reference/FYI events
   gaps: TimeGap[];
   byColor: ColorSummary[];
   isWorkDay: boolean;
@@ -96,11 +107,13 @@ export interface WeeklySummary {
 }
 
 /**
- * Fetch events from all accounts and all calendars for a date range
+ * Fetch events from all accounts and all calendars for a date range.
+ * Applies calendar type filtering and tags events with their calendar type.
  */
 export async function fetchEvents(startDate: Date, endDate: Date): Promise<CalendarEvent[]> {
   const clients = await getAllAuthenticatedClients();
   const allEvents: CalendarEvent[] = [];
+  const filterConfig = loadCalendarFilterConfig();
 
   for (const { account, calendar } of clients) {
     try {
@@ -115,6 +128,27 @@ export async function fetchEvents(startDate: Date, endDate: Date): Promise<Calen
         // Skip holiday calendars (they add noise)
         if (cal.id.includes("#holiday@group")) continue;
 
+        // Determine calendar type
+        const calendarInfo = {
+          id: cal.id,
+          summary: cal.summary || cal.id,
+          primary: cal.primary || false,
+          accessRole: cal.accessRole || "reader",
+        };
+        const calendarType = getCalendarType(calendarInfo, filterConfig);
+
+        // Skip excluded calendars
+        if (calendarType === "excluded") {
+          continue;
+        }
+
+        // Check if this is a shared calendar without explicit type config
+        const isSharedCalendarWithoutExplicitType =
+          !cal.primary &&
+          cal.accessRole !== "owner" &&
+          !filterConfig.calendarTypes[cal.id] &&
+          !filterConfig.calendarTypes[cal.summary || ""];
+
         try {
           const response = await calendar.events.list({
             calendarId: cal.id,
@@ -125,6 +159,22 @@ export async function fetchEvents(startDate: Date, endDate: Date): Promise<Calen
           });
 
           for (const event of response.data.items || []) {
+            // For shared calendars without explicit type, filter by attendee status
+            if (isSharedCalendarWithoutExplicitType) {
+              const shouldInclude = shouldIncludeEvent(
+                {
+                  attendees: event.attendees,
+                  organizer: event.organizer,
+                },
+                account,
+                calendarType as CalendarType,
+                true
+              );
+              if (!shouldInclude) {
+                continue;
+              }
+            }
+
             const isAllDay = !event.start?.dateTime && !!event.start?.date;
             const start = parseEventTime(event.start);
             const end = parseEventTime(event.end);
@@ -146,6 +196,8 @@ export async function fetchEvents(startDate: Date, endDate: Date): Promise<Calen
             allEvents.push({
               id: event.id || "",
               account,
+              calendarName: cal.summary || cal.id,
+              calendarType: calendarType as CalendarType,
               summary: event.summary || "(No title)",
               start,
               end,
@@ -376,22 +428,29 @@ export async function generateDailySummary(
   const startOfDay = new Date(date);
   startOfDay.setHours(0, 0, 0, 0);
 
-  const events = await fetchEvents(startOfDay, nextDay);
+  const allEvents = await fetchEvents(startOfDay, nextDay);
 
-  // Filter to timed events within analysis hours for gap calculation
-  const analysisHourEvents = events.filter(e =>
+  // Separate events by calendar type
+  const activeEvents = allEvents.filter(e => e.calendarType === "active");
+  const availabilityEvents = allEvents.filter(e => e.calendarType === "availability");
+  const referenceEvents = allEvents.filter(e => e.calendarType === "reference");
+  const blockingEvents = allEvents.filter(e => e.calendarType === "blocking");
+
+  // For gap calculation, use active + blocking events (both fill gaps)
+  const gapFillingEvents = [...activeEvents, ...blockingEvents];
+  const analysisHourEvents = gapFillingEvents.filter(e =>
     !e.isAllDay && e.end > dayStart && e.start < dayEnd
   );
 
   const gaps = calculateGaps(analysisHourEvents, dayStart, dayEnd);
 
-  // Only count timed events (not all-day) for time breakdowns
-  const timedEvents = events.filter(e => !e.isAllDay);
-  const allDayEvents = events.filter(e => e.isAllDay);
-  const byColor = groupByColor(timedEvents);
+  // Only count active timed events for time breakdowns
+  const timedActiveEvents = activeEvents.filter(e => !e.isAllDay);
+  const allDayEvents = allEvents.filter(e => e.isAllDay);
+  const byColor = groupByColor(timedActiveEvents);
 
-  // Use effective time to avoid double-counting overlapping events
-  const totalScheduledMinutes = calculateEffectiveScheduledTime(events);
+  // Use effective time to avoid double-counting overlapping active events
+  const totalScheduledMinutes = calculateEffectiveScheduledTime(activeEvents);
   const totalGapMinutes = gaps.reduce((sum, g) => sum + g.durationMinutes, 0);
 
   const isWorkDayResult = isWorkDay(date, effectiveSchedule);
@@ -406,8 +465,10 @@ export async function generateDailySummary(
     }),
     totalScheduledMinutes,
     totalGapMinutes,
-    events: timedEvents,
+    events: timedActiveEvents,
     allDayEvents,
+    availabilityEvents: availabilityEvents.filter(e => !e.isAllDay),
+    referenceEvents: referenceEvents.filter(e => !e.isAllDay),
     gaps,
     byColor,
     isWorkDay: isWorkDayResult,
@@ -474,20 +535,27 @@ export async function generateWeeklyReport(
       e.start >= startOfDay && e.start < nextDay
     );
 
-    // Filter to timed events within analysis hours for gap calculation
-    const analysisHourEvents = dayEvents.filter(e =>
+    // Separate events by calendar type
+    const activeEvents = dayEvents.filter(e => e.calendarType === "active");
+    const availabilityEvents = dayEvents.filter(e => e.calendarType === "availability");
+    const referenceEvents = dayEvents.filter(e => e.calendarType === "reference");
+    const blockingEvents = dayEvents.filter(e => e.calendarType === "blocking");
+
+    // For gap calculation, use active + blocking events (both fill gaps)
+    const gapFillingEvents = [...activeEvents, ...blockingEvents];
+    const analysisHourEvents = gapFillingEvents.filter(e =>
       !e.isAllDay && e.end > dayStart && e.start < dayEnd
     );
 
     const gaps = calculateGaps(analysisHourEvents, dayStart, dayEnd);
 
-    // Only count timed events (not all-day) for time breakdowns
-    const timedDayEvents = dayEvents.filter(e => !e.isAllDay);
+    // Only count active timed events for time breakdowns
+    const timedActiveEvents = activeEvents.filter(e => !e.isAllDay);
     const allDayDayEvents = dayEvents.filter(e => e.isAllDay);
-    const byColor = groupByColor(timedDayEvents);
+    const byColor = groupByColor(timedActiveEvents);
 
-    // Use effective time to avoid double-counting overlapping events
-    const totalScheduledMinutes = calculateEffectiveScheduledTime(dayEvents);
+    // Use effective time to avoid double-counting overlapping active events
+    const totalScheduledMinutes = calculateEffectiveScheduledTime(activeEvents);
     const totalGapMinutes = gaps.reduce((sum, g) => sum + g.durationMinutes, 0);
 
     days.push({
@@ -500,8 +568,10 @@ export async function generateWeeklyReport(
       }),
       totalScheduledMinutes,
       totalGapMinutes,
-      events: timedDayEvents,
+      events: timedActiveEvents,
       allDayEvents: allDayDayEvents,
+      availabilityEvents: availabilityEvents.filter(e => !e.isAllDay),
+      referenceEvents: referenceEvents.filter(e => !e.isAllDay),
       gaps,
       byColor,
       isWorkDay: isWorkDayResult,
@@ -509,11 +579,11 @@ export async function generateWeeklyReport(
     });
   }
 
-  // Aggregate weekly totals (only timed events)
+  // Aggregate weekly totals (only active timed events)
   const totalScheduledMinutes = days.reduce((sum, d) => sum + d.totalScheduledMinutes, 0);
   const totalGapMinutes = days.reduce((sum, d) => sum + d.totalGapMinutes, 0);
-  const timedEvents = allEvents.filter(e => !e.isAllDay);
-  const byColor = groupByColor(timedEvents);
+  const activeTimedEvents = allEvents.filter(e => !e.isAllDay && e.calendarType === "active");
+  const byColor = groupByColor(activeTimedEvents);
 
   return {
     weekStart,
@@ -627,6 +697,49 @@ export function formatWeeklyReportMarkdown(report: WeeklySummary): string {
         lines.push(`  - ${startTime} - ${endTime} (${formatDuration(gap.durationMinutes)})`);
       }
     }
+  }
+  lines.push("");
+
+  // Availability context (e.g., on-call)
+  const allAvailabilityEvents = report.days.flatMap(d => d.availabilityEvents || []);
+  if (allAvailabilityEvents.length > 0) {
+    lines.push("## Availability Context");
+    lines.push("*Events that show context (e.g., on-call) but don't count toward time tracking.*");
+    lines.push("");
+
+    for (const day of report.days) {
+      if (day.availabilityEvents && day.availabilityEvents.length > 0) {
+        const dayName = day.date.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+        lines.push(`**${dayName}:**`);
+        for (const event of day.availabilityEvents) {
+          const startTime = event.start.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+          const endTime = event.end.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+          lines.push(`- ${startTime} - ${endTime}: ${event.summary} [${event.calendarName}]`);
+        }
+      }
+    }
+    lines.push("");
+  }
+
+  // Reference events (FYI)
+  const allReferenceEvents = report.days.flatMap(d => d.referenceEvents || []);
+  if (allReferenceEvents.length > 0) {
+    lines.push("## Reference (FYI)");
+    lines.push("*Events from reference calendars, shown for context only.*");
+    lines.push("");
+
+    for (const day of report.days) {
+      if (day.referenceEvents && day.referenceEvents.length > 0) {
+        const dayName = day.date.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+        lines.push(`**${dayName}:**`);
+        for (const event of day.referenceEvents) {
+          const startTime = event.start.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+          const endTime = event.end.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+          lines.push(`- ${startTime} - ${endTime}: ${event.summary} [${event.calendarName}]`);
+        }
+      }
+    }
+    lines.push("");
   }
 
   return lines.join("\n");

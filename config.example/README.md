@@ -32,3 +32,33 @@ Recurring goals for the calendar optimizer.
 
 ### `schedule.json`
 Your weekly schedule template (waking hours, work hours by day of week).
+
+### `calendars.json`
+Calendar type configuration for filtering and time tracking behavior.
+
+**Calendar Types:**
+- `active`: Events count toward time tracking, fill gaps, block scheduling (default for owned calendars)
+- `availability`: Context only (e.g., on-call schedules) - doesn't count as time spent
+- `reference`: FYI only - hidden from time reports or shown in separate section
+- `blocking`: Blocks time without details (e.g., personal holds) - fills gaps but no time tracking
+
+**Structure:**
+```json
+{
+  "calendarTypes": {
+    "On Call Schedule": "availability",
+    "Company Calendar": "reference"
+  },
+  "defaultType": {
+    "primary": "active",
+    "owner": "active",
+    "shared": "active"
+  },
+  "filtering": {
+    "denyList": ["Holidays in United States"],
+    "allowList": []
+  }
+}
+```
+
+Run `/calendar-setup` to interactively configure your calendars.

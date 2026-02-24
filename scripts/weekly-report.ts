@@ -133,6 +133,30 @@ Examples:
         }
         console.log("");
 
+        // Show availability context (e.g., on-call)
+        if (summary.availabilityEvents && summary.availabilityEvents.length > 0) {
+          console.log("## Availability Context");
+          console.log("*These events show context (e.g., on-call) but don't count toward time tracking.*\n");
+          for (const event of summary.availabilityEvents) {
+            const startTime = event.start.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+            const endTime = event.end.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+            console.log(`- ${startTime} - ${endTime}: ${event.summary} [${event.calendarName}]`);
+          }
+          console.log("");
+        }
+
+        // Show reference events (FYI)
+        if (summary.referenceEvents && summary.referenceEvents.length > 0) {
+          console.log("## Reference (FYI)");
+          console.log("*Events from reference calendars, shown for context only.*\n");
+          for (const event of summary.referenceEvents) {
+            const startTime = event.start.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+            const endTime = event.end.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+            console.log(`- ${startTime} - ${endTime}: ${event.summary} [${event.calendarName}]`);
+          }
+          console.log("");
+        }
+
         if (summary.gaps.length > 0) {
           console.log("## Unstructured Time Blocks");
           for (const gap of summary.gaps) {
