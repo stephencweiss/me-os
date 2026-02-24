@@ -11,6 +11,14 @@ import { getAllAuthenticatedClients } from "./google-auth.js";
 import { calendar_v3 } from "googleapis";
 import * as fs from "fs";
 import * as path from "path";
+import {
+  loadSchedule,
+  getScheduleForDate,
+  isWorkDay,
+  getWakingHours,
+  getTimePeriodDates,
+  type WeeklySchedule,
+} from "./schedule.js";
 
 // Load color definitions for semantic meanings
 const CONFIG_DIR = path.join(process.cwd(), "config");
@@ -73,6 +81,8 @@ export interface DailySummary {
   allDayEvents: CalendarEvent[];
   gaps: TimeGap[];
   byColor: ColorSummary[];
+  isWorkDay: boolean;
+  analysisHours: { start: number; end: number }; // Hours used for gap analysis
 }
 
 export interface WeeklySummary {
@@ -303,19 +313,43 @@ export function groupByColor(events: CalendarEvent[]): ColorSummary[] {
  * Generate a daily summary
  *
  * @param date - The date to analyze
- * @param workDayStart - Hour the work day starts (default: 9)
- * @param workDayEnd - Hour the work day ends (default: 18)
+ * @param schedule - Optional schedule config (loaded from config if not provided)
+ * @param overrideHours - Optional explicit hours override (for backward compatibility)
  */
 export async function generateDailySummary(
   date: Date,
-  workDayStart: number = 9,
-  workDayEnd: number = 18
+  schedule?: WeeklySchedule,
+  overrideHours?: { start: number; end: number }
 ): Promise<DailySummary> {
+  // Load schedule if not provided
+  const effectiveSchedule = schedule || loadSchedule();
+
+  // Determine analysis hours based on schedule
+  let analysisStart: number;
+  let analysisEnd: number;
+
+  if (overrideHours) {
+    // Explicit override takes precedence (backward compatibility)
+    analysisStart = overrideHours.start;
+    analysisEnd = overrideHours.end;
+  } else {
+    // Use schedule - work hours for work days, waking hours for non-work days
+    const daySchedule = getScheduleForDate(date, effectiveSchedule);
+    if (daySchedule.workPeriod) {
+      analysisStart = daySchedule.workPeriod.start;
+      analysisEnd = daySchedule.workPeriod.end;
+    } else {
+      // Weekend/holiday - use waking hours
+      analysisStart = daySchedule.awakePeriod.start;
+      analysisEnd = daySchedule.awakePeriod.end;
+    }
+  }
+
   const dayStart = new Date(date);
-  dayStart.setHours(workDayStart, 0, 0, 0);
+  dayStart.setHours(analysisStart, 0, 0, 0);
 
   const dayEnd = new Date(date);
-  dayEnd.setHours(workDayEnd, 0, 0, 0);
+  dayEnd.setHours(analysisEnd, 0, 0, 0);
 
   const nextDay = new Date(date);
   nextDay.setDate(nextDay.getDate() + 1);
@@ -327,12 +361,12 @@ export async function generateDailySummary(
 
   const events = await fetchEvents(startOfDay, nextDay);
 
-  // Filter to timed events within work hours for gap calculation
-  const workHourEvents = events.filter(e =>
+  // Filter to timed events within analysis hours for gap calculation
+  const analysisHourEvents = events.filter(e =>
     !e.isAllDay && e.end > dayStart && e.start < dayEnd
   );
 
-  const gaps = calculateGaps(workHourEvents, dayStart, dayEnd);
+  const gaps = calculateGaps(analysisHourEvents, dayStart, dayEnd);
 
   // Only count timed events (not all-day) for time breakdowns
   const timedEvents = events.filter(e => !e.isAllDay);
@@ -342,6 +376,8 @@ export async function generateDailySummary(
   // Use effective time to avoid double-counting overlapping events
   const totalScheduledMinutes = calculateEffectiveScheduledTime(events);
   const totalGapMinutes = gaps.reduce((sum, g) => sum + g.durationMinutes, 0);
+
+  const isWorkDayResult = isWorkDay(date, effectiveSchedule);
 
   return {
     date,
@@ -357,6 +393,8 @@ export async function generateDailySummary(
     allDayEvents,
     gaps,
     byColor,
+    isWorkDay: isWorkDayResult,
+    analysisHours: { start: analysisStart, end: analysisEnd },
   };
 }
 
@@ -364,14 +402,15 @@ export async function generateDailySummary(
  * Generate a weekly summary
  *
  * @param weekStart - Start date of the week (typically Sunday or Monday)
- * @param workDayStart - Hour the work day starts (default: 9)
- * @param workDayEnd - Hour the work day ends (default: 18)
+ * @param schedule - Optional schedule config (loaded from config if not provided)
  */
 export async function generateWeeklyReport(
   weekStart: Date,
-  workDayStart: number = 9,
-  workDayEnd: number = 18
+  schedule?: WeeklySchedule
 ): Promise<WeeklySummary> {
+  // Load schedule if not provided
+  const effectiveSchedule = schedule || loadSchedule();
+
   const weekEnd = new Date(weekStart);
   weekEnd.setDate(weekEnd.getDate() + 7);
 
@@ -388,11 +427,23 @@ export async function generateWeeklyReport(
     const date = new Date(weekStart);
     date.setDate(date.getDate() + i);
 
+    // Get schedule for this specific day
+    const daySchedule = getScheduleForDate(date, effectiveSchedule);
+    const isWorkDayResult = daySchedule.workPeriod !== null;
+
+    // Use work hours for work days, waking hours for weekends/holidays
+    const analysisStart = isWorkDayResult
+      ? daySchedule.workPeriod!.start
+      : daySchedule.awakePeriod.start;
+    const analysisEnd = isWorkDayResult
+      ? daySchedule.workPeriod!.end
+      : daySchedule.awakePeriod.end;
+
     const dayStart = new Date(date);
-    dayStart.setHours(workDayStart, 0, 0, 0);
+    dayStart.setHours(analysisStart, 0, 0, 0);
 
     const dayEnd = new Date(date);
-    dayEnd.setHours(workDayEnd, 0, 0, 0);
+    dayEnd.setHours(analysisEnd, 0, 0, 0);
 
     const nextDay = new Date(date);
     nextDay.setDate(nextDay.getDate() + 1);
@@ -406,12 +457,12 @@ export async function generateWeeklyReport(
       e.start >= startOfDay && e.start < nextDay
     );
 
-    // Filter to timed events within work hours for gap calculation
-    const workHourEvents = dayEvents.filter(e =>
+    // Filter to timed events within analysis hours for gap calculation
+    const analysisHourEvents = dayEvents.filter(e =>
       !e.isAllDay && e.end > dayStart && e.start < dayEnd
     );
 
-    const gaps = calculateGaps(workHourEvents, dayStart, dayEnd);
+    const gaps = calculateGaps(analysisHourEvents, dayStart, dayEnd);
 
     // Only count timed events (not all-day) for time breakdowns
     const timedDayEvents = dayEvents.filter(e => !e.isAllDay);
@@ -436,6 +487,8 @@ export async function generateWeeklyReport(
       allDayEvents: allDayDayEvents,
       gaps,
       byColor,
+      isWorkDay: isWorkDayResult,
+      analysisHours: { start: analysisStart, end: analysisEnd },
     });
   }
 
@@ -538,13 +591,16 @@ export function formatWeeklyReportMarkdown(report: WeeklySummary): string {
 
   // Gap analysis
   lines.push("## Unstructured Time (Gaps)");
-  lines.push("Days with significant unstructured time during work hours (9am-6pm):");
+  lines.push("Days with significant unstructured time:");
   lines.push("");
 
   for (const day of report.days) {
     if (day.totalGapMinutes >= 60) {
       const dayName = day.date.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
-      lines.push(`- **${dayName}:** ${formatDuration(day.totalGapMinutes)}`);
+      const hoursLabel = day.isWorkDay
+        ? `work hours ${formatHour(day.analysisHours.start)}-${formatHour(day.analysisHours.end)}`
+        : `waking hours ${formatHour(day.analysisHours.start)}-${formatHour(day.analysisHours.end)}`;
+      lines.push(`- **${dayName}:** ${formatDuration(day.totalGapMinutes)} (${hoursLabel})`);
 
       // Show largest gaps
       const largeGaps = day.gaps.filter(g => g.durationMinutes >= 30).slice(0, 3);
@@ -557,4 +613,14 @@ export function formatWeeklyReportMarkdown(report: WeeklySummary): string {
   }
 
   return lines.join("\n");
+}
+
+/**
+ * Format an hour as a simple time string (e.g., 9am, 5pm)
+ */
+function formatHour(hour: number): string {
+  if (hour === 0) return "12am";
+  if (hour === 12) return "12pm";
+  if (hour < 12) return `${hour}am`;
+  return `${hour - 12}pm`;
 }

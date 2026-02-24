@@ -40,7 +40,7 @@ Supports multiple Google accounts (e.g., personal + work) with unified views. Ev
 - **Language**: TypeScript/Node.js
 - **Runtime**: Claude Code skills and MCP servers
 - **Calendar**: Google Calendar API (OAuth2)
-- **Testing**: Vitest (84 tests passing)
+- **Testing**: Vitest (108 tests passing)
 
 ## Project Structure
 
@@ -57,13 +57,17 @@ me-os/
 │   ├── google-auth.ts    # OAuth2 multi-account support
 │   ├── time-analysis.ts  # Gap detection, color grouping
 │   ├── calendar-manager.ts # Overlap detection, flex slots
-│   └── calendar-optimizer.ts # Goal parsing, slot allocation
+│   ├── calendar-optimizer.ts # Goal parsing, slot allocation
+│   └── schedule.ts       # Weekly schedule configuration
 ├── scripts/
 │   └── weekly-report.ts  # Standalone time report CLI
-├── config/
-│   ├── colors.json       # Semantic color definitions
-│   ├── calendar-manager.json
+├── config/               # Personal config (gitignored)
+│   ├── credentials-*.json
+│   ├── tokens-*.json
+│   ├── colors.json
+│   ├── schedule.json
 │   └── optimization-goals.json
+├── config.example/       # Config templates (copy to config/)
 ├── tests/                # Unit tests (Vitest)
 └── plans/                # Implementation plans
 ```
@@ -86,6 +90,33 @@ Events are color-coded with semantic meaning:
 | 10 | Basil | Unassigned |
 | 11 | Tomato | Urgent / Deadlines |
 
+## Schedule Configuration
+
+The schedule defines your waking hours and work hours by day of week, used for gap analysis and calendar optimization.
+
+**Default schedule** (`config/schedule.json`):
+```json
+{
+  "defaultSchedule": {
+    "weekday": {
+      "awakePeriod": { "start": 6, "end": 22 },
+      "workPeriod": { "start": 9, "end": 17 }
+    },
+    "weekend": {
+      "awakePeriod": { "start": 6, "end": 22 },
+      "workPeriod": null
+    }
+  },
+  "overrides": {},
+  "holidays": []
+}
+```
+
+- **Work days**: Gap analysis uses work hours (9am-5pm by default)
+- **Weekends/holidays**: Gap analysis uses waking hours (6am-10pm)
+- **Overrides**: Customize specific days (e.g., shorter Fridays)
+- **Holidays**: Treated as weekends (no work hours)
+
 ## Getting Started
 
 ### Prerequisites
@@ -103,6 +134,9 @@ cd me-os
 
 # Install dependencies
 npm install
+
+# Copy config templates
+cp -r config.example/* config/
 
 # Build TypeScript
 npm run build
@@ -192,6 +226,7 @@ npx tsc --noEmit
 - **Phase 2**: Time Reports & Analytics - Complete
 - **Phase 2.5**: Calendar Manager - Complete
 - **Phase 3**: Calendar Optimizer - Complete
+- **Phase 3.5**: Schedule Configuration - Complete
 - **Phase 4**: One-on-One Management - Planned
 - **Phase 5**: Project Dashboard - Planned
 
