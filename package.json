@@ -1,0 +1,29 @@
+{
+  "name": "me-os",
+  "version": "0.1.0",
+  "description": "Personal productivity system with Claude Code skills and MCP integration",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "auth": "node --loader ts-node/esm lib/google-auth.ts",
+    "auth:list": "node --loader ts-node/esm lib/google-auth.ts --list",
+    "mcp:calendar": "node --loader ts-node/esm mcp/google-calendar/index.ts"
+  },
+  "keywords": [
+    "productivity",
+    "calendar",
+    "mcp",
+    "claude-code"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.3.3"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "googleapis": "^130.0.0"
+  }
+}

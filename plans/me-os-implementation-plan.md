@@ -3,6 +3,29 @@
 ## Overview
 Build a personal productivity system as Claude Code skills with MCP integration. TypeScript/Node.js stack, Google Calendar as primary calendar provider.
 
+---
+
+## Current Status
+
+**Phase:** 1 Complete - Ready for Phase 2
+**Status:** Foundation complete with multi-account unified view
+
+**What's done:**
+- ✅ Project setup (package.json, tsconfig, dependencies)
+- ✅ Google auth helper with multi-account support (personal/work)
+- ✅ Google Calendar MCP server (7 tools, 2 resources)
+- ✅ Calendar skill registered as `/calendar` slash command
+- ✅ Personal and work accounts authenticated
+- ✅ Multi-account unified view (events from all accounts merged and sorted)
+- ✅ Each event includes account label (personal/work)
+
+**Next action:**
+1. Restart Claude Code to pick up MCP server changes
+2. Verify unified view shows events from both accounts
+3. Proceed to Phase 2: Time Reports & Analytics
+
+---
+
 ## Phase 1: Foundation & Google Calendar Integration
 
 ### 1.1 Project Setup
@@ -40,7 +63,52 @@ Skill file: `skills/calendar/skill.md`
 - `/calendar today` - Today's schedule
 - `/calendar color <event> <color>` - Change event color
 
-### 1.5 Testing Strategy - Phase 1
+### 1.5 Multi-Account Unified View
+**Added:** To see all calendars (personal + work) simultaneously
+
+Changes needed:
+- `lib/google-auth.ts`: Add `getAllAuthenticatedClients()` function
+  - Auto-discover all `tokens-*.json` files in config/
+  - Return array of authenticated clients with account names
+- `mcp/google-calendar/index.ts`: Update tools to merge events
+  - `get_week_view`: Fetch from all accounts, merge and sort by time
+  - `get_today`: Same - merge events from all accounts
+  - `get_events`: Add optional `account` filter, default to all
+  - Add `account` field to each event in response
+- Display format: Show account source per event
+  - Example: `9:00 AM - Meeting [work] [Grape]`
+
+**Testing Strategy - Phase 1.5:**
+
+**How we prove it works:**
+1. Events from all authenticated accounts appear in a single unified view
+2. Events are sorted by start time (interleaved across accounts)
+3. Each event includes its source account label
+4. The response includes a list of all accounts being queried
+
+**Tests to run:**
+
+| Test | Command/Action | Expected Result |
+|------|----------------|-----------------|
+| Multi-account week view | Call `get_week_view` via MCP | Returns events from both personal and work calendars, sorted by time |
+| Multi-account today | Call `get_today` via MCP | Returns today's events from all accounts with account labels |
+| Account labels | Check any event in response | Contains `account` field with "personal" or "work" |
+| Accounts list | Check response metadata | Contains `accounts: ["personal", "work"]` array |
+| Search across accounts | Call `search_events` with query | Finds matching events from all accounts |
+| Update color cross-account | Update event color on work calendar | Successfully updates (auto-detects account or uses specified account) |
+| Error handling | Query with no authenticated accounts | Graceful empty response, no crash |
+
+**Verification checklist:**
+- [ ] Create test event in personal calendar
+- [ ] Create test event in work calendar at similar time
+- [ ] Verify `/calendar` shows both events with account labels
+- [ ] Verify events are sorted by time (not grouped by account)
+- [ ] Change color on one event, verify correct account is updated
+- [ ] Delete test events
+
+---
+
+### 1.6 Testing Strategy - Phase 1
 
 **How we prove it works:**
 1. OAuth flow completes and tokens are stored/refreshed correctly
@@ -291,3 +359,17 @@ Leverage existing JIRA MCP from work environment.
 | Date | Step | Status | Notes |
 |------|------|--------|-------|
 | 2026-02-20 | Initial planning | Complete | Created CLAUDE.md, IDEA.md, and implementation plan |
+| 2026-02-20 | Phase 1.1: Project setup | Complete | package.json, tsconfig.json, .npmrc (public registry), .gitignore |
+| 2026-02-20 | Phase 1.2: Directory structure | Complete | Created lib/, mcp/, scripts/, skills/, config/, data/ |
+| 2026-02-20 | Phase 1.3: Google auth helper | Complete | lib/google-auth.ts - OAuth2 flow for Google Calendar |
+| 2026-02-20 | Phase 1.4: Calendar MCP server | Complete | mcp/google-calendar/index.ts - 7 tools, 2 resources |
+| 2026-02-20 | Phase 1.5: Calendar skill | Complete | skills/calendar/skill.md - /calendar command |
+| 2026-02-20 | Phase 1.6: Build verification | Complete | npm install + tsc compile successful |
+| 2026-02-21 | Multi-account support | Complete | credentials-{account}.json pattern, GOOGLE_ACCOUNT env var |
+| 2026-02-21 | Personal account auth | Complete | OAuth flow working, tokens saved |
+| 2026-02-21 | Calendar API test | Complete | scripts/test-calendar.ts verified API access |
+| 2026-02-21 | MCP config | Complete | .mcp.json created, enableAllProjectMcpServers enabled |
+| 2026-02-21 | End-to-end test | Complete | MCP tools working, /calendar skill registered |
+| 2026-02-21 | Work account auth | Complete | Both personal and work calendars authenticated |
+| 2026-02-21 | Phase 1.5: Multi-account unified view | Complete | MCP server merges events from all accounts, sorted by time |
+| 2026-02-21 | **Phase 1 Complete** | ✅ | Foundation ready for Phase 2 |
