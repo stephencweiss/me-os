@@ -96,7 +96,7 @@ export interface WeeklySummary {
 }
 
 /**
- * Fetch events from all accounts for a date range
+ * Fetch events from all accounts and all calendars for a date range
  */
 export async function fetchEvents(startDate: Date, endDate: Date): Promise<CalendarEvent[]> {
   const clients = await getAllAuthenticatedClients();
@@ -104,50 +104,67 @@ export async function fetchEvents(startDate: Date, endDate: Date): Promise<Calen
 
   for (const { account, calendar } of clients) {
     try {
-      const response = await calendar.events.list({
-        calendarId: "primary",
-        timeMin: startDate.toISOString(),
-        timeMax: endDate.toISOString(),
-        singleEvents: true,
-        orderBy: "startTime",
-      });
+      // Get all calendars for this account
+      const calendarListResponse = await calendar.calendarList.list();
+      const calendars = calendarListResponse.data.items || [];
 
-      for (const event of response.data.items || []) {
-        const isAllDay = !event.start?.dateTime && !!event.start?.date;
-        const start = parseEventTime(event.start);
-        const end = parseEventTime(event.end);
+      // Fetch events from each calendar
+      for (const cal of calendars) {
+        if (!cal.id) continue;
 
-        if (!start || !end) continue;
+        // Skip holiday calendars (they add noise)
+        if (cal.id.includes("#holiday@group")) continue;
 
-        const colorId = event.colorId || "default";
-        const colorName = colorId === "default" ? "Default" : GOOGLE_CALENDAR_COLORS[colorId] || colorId;
-        const colorMeaning = colorDefinitions[colorId]?.meaning || "";
+        try {
+          const response = await calendar.events.list({
+            calendarId: cal.id,
+            timeMin: startDate.toISOString(),
+            timeMax: endDate.toISOString(),
+            singleEvents: true,
+            orderBy: "startTime",
+          });
 
-        // For all-day events, don't count their duration in time analysis
-        // They represent days, not hours
-        const durationMinutes = isAllDay ? 0 : Math.round((end.getTime() - start.getTime()) / (1000 * 60));
+          for (const event of response.data.items || []) {
+            const isAllDay = !event.start?.dateTime && !!event.start?.date;
+            const start = parseEventTime(event.start);
+            const end = parseEventTime(event.end);
 
-        // Check if this is a recurring event instance
-        const recurringEventId = event.recurringEventId || null;
-        const isRecurring = !!recurringEventId;
+            if (!start || !end) continue;
 
-        allEvents.push({
-          id: event.id || "",
-          account,
-          summary: event.summary || "(No title)",
-          start,
-          end,
-          durationMinutes,
-          colorId,
-          colorName,
-          colorMeaning,
-          isAllDay,
-          isRecurring,
-          recurringEventId,
-        });
+            const colorId = event.colorId || "default";
+            const colorName = colorId === "default" ? "Default" : GOOGLE_CALENDAR_COLORS[colorId] || colorId;
+            const colorMeaning = colorDefinitions[colorId]?.meaning || "";
+
+            // For all-day events, don't count their duration in time analysis
+            // They represent days, not hours
+            const durationMinutes = isAllDay ? 0 : Math.round((end.getTime() - start.getTime()) / (1000 * 60));
+
+            // Check if this is a recurring event instance
+            const recurringEventId = event.recurringEventId || null;
+            const isRecurring = !!recurringEventId;
+
+            allEvents.push({
+              id: event.id || "",
+              account,
+              summary: event.summary || "(No title)",
+              start,
+              end,
+              durationMinutes,
+              colorId,
+              colorName,
+              colorMeaning,
+              isAllDay,
+              isRecurring,
+              recurringEventId,
+            });
+          }
+        } catch (err) {
+          // Silently skip calendars we can't read (e.g., some shared calendars)
+          console.error(`Failed to fetch events from ${cal.summary || cal.id} for ${account}:`, err);
+        }
       }
     } catch (err) {
-      console.error(`Failed to fetch events for ${account}:`, err);
+      console.error(`Failed to fetch calendars for ${account}:`, err);
     }
   }
 
