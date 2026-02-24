@@ -1,0 +1,17 @@
+{
+  "accountPriority": ["work", "personal"],
+  "wakingHours": { "start": 6, "end": 22 },
+  "minGapMinutes": 30,
+  "skipWeekends": true,
+  "flexEventDefaults": {
+    "visibility": "private",
+    "colorId": "9",
+    "title": "flex"
+  },
+  "categoryKeywords": {
+    "1:1": ["1:1", "one on one", "sync with"],
+    "meeting": ["standup", "sync", "review", "retro"],
+    "focus": ["focus", "deep work"],
+    "external": ["external", "vendor", "customer"]
+  }
+}

@@ -45,6 +45,8 @@ export interface CalendarEvent {
   colorName: string;
   colorMeaning: string;
   isAllDay: boolean;
+  isRecurring: boolean;
+  recurringEventId: string | null;
 }
 
 export interface TimeGap {
@@ -115,6 +117,10 @@ export async function fetchEvents(startDate: Date, endDate: Date): Promise<Calen
         // They represent days, not hours
         const durationMinutes = isAllDay ? 0 : Math.round((end.getTime() - start.getTime()) / (1000 * 60));
 
+        // Check if this is a recurring event instance
+        const recurringEventId = event.recurringEventId || null;
+        const isRecurring = !!recurringEventId;
+
         allEvents.push({
           id: event.id || "",
           account,
@@ -126,6 +132,8 @@ export async function fetchEvents(startDate: Date, endDate: Date): Promise<Calen
           colorName,
           colorMeaning,
           isAllDay,
+          isRecurring,
+          recurringEventId,
         });
       }
     } catch (err) {

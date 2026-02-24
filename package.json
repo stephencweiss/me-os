@@ -5,6 +5,8 @@
   "type": "module",
   "scripts": {
     "build": "tsc",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "auth": "node --loader ts-node/esm lib/google-auth.ts",
     "auth:list": "node --loader ts-node/esm lib/google-auth.ts --list",
     "mcp:calendar": "node --loader ts-node/esm mcp/google-calendar/index.ts"
@@ -20,7 +22,8 @@
   "devDependencies": {
     "@types/node": "^20.11.0",
     "ts-node": "^10.9.2",
-    "typescript": "^5.3.3"
+    "typescript": "^5.3.3",
+    "vitest": "^4.0.18"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0",
