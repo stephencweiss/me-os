@@ -32,6 +32,9 @@ Unstructured time during work hours (9am-6pm):
 ### Multi-Account Support
 Shows combined data from all authenticated calendars (personal + work) with account labels on each event.
 
+### Coverage Dependencies
+Reports missing dependent coverage, opted-out events, and orphaned coverage proposals when dependency rules are configured in `config/dependencies.json`.
+
 ## Instructions
 
 When the user invokes this skill:
@@ -39,7 +42,7 @@ When the user invokes this skill:
 1. **For `/time-report` (no args or "week")**:
    - Run the standalone script: `node --loader ts-node/esm scripts/weekly-report.ts`
    - Present the markdown output to the user
-   - Highlight key insights (busiest day, most time in which category, total gap time)
+   - Highlight key insights (busiest day, most time in which category, total gap time, missing coverage)
 
 2. **For `/time-report yesterday`**:
    - Run: `node --loader ts-node/esm scripts/weekly-report.ts --yesterday`

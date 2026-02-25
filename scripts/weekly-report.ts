@@ -165,6 +165,31 @@ Examples:
             console.log(`- ${startTime} - ${endTime}: ${formatDuration(gap.durationMinutes)}`);
           }
         }
+
+        if (summary.coverageGaps.length > 0) {
+          console.log("\n## Dependent Coverage Gaps");
+          for (const gap of summary.coverageGaps) {
+            console.log(
+              `- ${gap.ruleName}: ${gap.sourceSummary} (${formatDuration(gap.missingMinutes)} missing, ${Math.round(
+                gap.actualCoveragePercent
+              )}% covered)`
+            );
+          }
+        }
+
+        if (summary.coverageOptOuts.length > 0) {
+          console.log("\n## Coverage Opt-Outs");
+          for (const optOut of summary.coverageOptOuts) {
+            console.log(`- ${optOut.sourceSummary} (${optOut.ruleId}) via ${optOut.matchedIn}: "${optOut.token}"`);
+          }
+        }
+
+        if (summary.coverageLifecycleProposals.length > 0) {
+          console.log("\n## Orphaned Coverage Proposals");
+          for (const orphan of summary.coverageLifecycleProposals) {
+            console.log(`- ${orphan.coverageSummary} (${orphan.ruleId}) -> ${orphan.action}`);
+          }
+        }
       }
     } else {
       // Weekly report

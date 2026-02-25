@@ -20,6 +20,7 @@ Actively manage your calendar: detect double bookings, categorize unlabeled even
 - `/calendar-manager conflicts` - Only resolve double bookings
 - `/calendar-manager categorize` - Only label unlabeled events
 - `/calendar-manager flex` - Only fill gaps with flex events
+- `/calendar-manager coverage` - Only evaluate dependent coverage rules
 
 ## Features
 
@@ -71,6 +72,16 @@ Creates "flex" events in gaps during waking hours.
    - Color: Blueberry (9)
    - Visibility: Private
 
+### 4. Dependent Coverage Rules
+Detects source events that require linked coverage (for example: social date -> babysitter coverage, trip -> dog coverage).
+
+**Process:**
+1. Load `config/dependencies.json`
+2. Evaluate rules against source events and required coverage windows
+3. Show missing coverage proposals and draft events targeting configured calendar/account
+4. Respect opt-out markers (`no coverage needed`, `#no-coverage`, rule-specific tokens)
+5. Show orphaned coverage proposals if linked source events are removed
+
 ## Color Schema
 
 See `config/colors.json` for the shared color definitions used across all calendar skills.
@@ -90,18 +101,21 @@ When the user invokes this skill:
    - Any conflicts detected
    - Any unlabeled events
    - Gap time available
+   - Any dependency coverage gaps / orphaned coverage proposals
 3. **Offer interactive options:**
    ```
    I found:
    - 2 conflict groups (4 overlapping events)
    - 3 unlabeled events
    - 2h 30m of gap time
+   - 1 missing dependent coverage item
 
    What would you like to do?
    1. Resolve conflicts
    2. Categorize unlabeled events
    3. Create flex events
-   4. All of the above
+   4. Review dependent coverage
+   5. All of the above
    ```
 
 ### For `/calendar-manager conflicts`:
@@ -133,6 +147,14 @@ When the user invokes this skill:
 4. Show gaps and durations
 5. Ask user preference (all/select/none)
 6. Create events on both calendars via `create_event` MCP tool
+
+### For `/calendar-manager coverage`:
+
+1. Fetch events for the time range
+2. Load dependency rules from `config/dependencies.json`
+3. Run dependency evaluation and list missing coverage with proposed drafts
+4. Ask user whether to create proposed coverage events
+5. Show opted-out source events and orphaned coverage proposals
 
 ## Recurring Events
 
