@@ -13,6 +13,7 @@
       "mcp__google-calendar__update_event_color",
       "mcp__google-calendar__list_calendars",
       "Bash(npm test:*)",
+      "Bash(npx vitest:*)",
       "Bash(npx tsc:*)",
       "mcp__google-calendar__get_events",
       "mcp__google-calendar__get_today",
