@@ -11,7 +11,7 @@ A personal productivity system built as Claude Code skills and MCP integrations.
 | `/calendar` | Week-at-a-glance view, event colors, RSVP management | Available |
 | `/time-report` | Time analysis, gap detection, category breakdowns | Available |
 | `/calendar-optimizer` | Goal-based schedule optimization | Available |
-| `/one-on-one` | 1:1 note processing and reporting | Planned |
+| `/one-on-one` | 1:1 note processing (voice, image, text) and summaries | Available |
 | `/project-dash` | JIRA/project status dashboard | Planned |
 
 ### Google Calendar MCP Server
@@ -40,7 +40,7 @@ Supports multiple Google accounts (e.g., personal + work) with unified views. Ev
 - **Language**: TypeScript/Node.js
 - **Runtime**: Claude Code skills and MCP servers
 - **Calendar**: Google Calendar API (OAuth2)
-- **Testing**: Vitest (108 tests passing)
+- **Testing**: Vitest (171 tests passing)
 
 ## Project Structure
 
@@ -50,7 +50,8 @@ me-os/
 │   └── skills/           # Claude Code skill definitions
 │       ├── calendar/
 │       ├── time-report/
-│       └── calendar-optimizer/
+│       ├── calendar-optimizer/
+│       └── one-on-one/
 ├── mcp/
 │   └── google-calendar/  # MCP server (11 tools, 2 resources)
 ├── lib/
@@ -58,7 +59,9 @@ me-os/
 │   ├── time-analysis.ts  # Gap detection, color grouping
 │   ├── calendar-manager.ts # Overlap detection, flex slots
 │   ├── calendar-optimizer.ts # Goal parsing, slot allocation
-│   └── schedule.ts       # Weekly schedule configuration
+│   ├── calendar-filter.ts # Calendar type system
+│   ├── schedule.ts       # Weekly schedule configuration
+│   └── one-on-one.ts     # 1:1 note management
 ├── scripts/
 │   └── weekly-report.ts  # Standalone time report CLI
 ├── config/               # Personal config (gitignored)
@@ -198,6 +201,23 @@ Example goals:
 - "workout 3x this week, 45 min each"
 - "2h focus time in the morning"
 
+### One-on-One Notes
+
+```
+/one-on-one <name>              # Start or continue 1:1 with person
+/one-on-one <name> add <file>   # Process voice/image/markdown file
+/one-on-one <name> note         # Add text notes interactively
+/one-on-one <name> summary      # Generate summary from today's notes
+/one-on-one <name> history      # View past 1:1s
+/one-on-one list                # List all direct reports
+```
+
+Supported file types:
+- **Voice notes**: `.m4a`, `.mp3`, `.wav`, `.ogg` - transcribed using Claude's native audio
+- **Handwritten notes**: `.jpg`, `.jpeg`, `.png`, `.heic` - interpreted using Claude's vision
+- **Markdown files**: `.md`, `.txt` - loaded directly
+
+
 ## Development
 
 ### Running Tests
@@ -227,7 +247,7 @@ npx tsc --noEmit
 - **Phase 2.5**: Calendar Manager - Complete
 - **Phase 3**: Calendar Optimizer - Complete
 - **Phase 3.5**: Schedule Configuration - Complete
-- **Phase 4**: One-on-One Management - Planned
+- **Phase 4**: One-on-One Management - Complete
 - **Phase 5**: Project Dashboard - Planned
 
 See `plans/me-os-implementation-plan.md` for detailed progress.
