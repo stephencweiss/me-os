@@ -237,13 +237,14 @@ describe("suggestCategory", () => {
     expect(suggestion.colorName).toBe("Lavender");
   });
 
-  it('suggests Grape for "Team standup"', () => {
+  it('suggests Flamingo for "Team standup"', () => {
     const event = createEvent("a", 9, 0, 10, 0, "Team standup");
 
     const suggestion = suggestCategory(event);
 
-    expect(suggestion.colorId).toBe("3");
-    expect(suggestion.colorName).toBe("Grape");
+    expect(suggestion.colorId).toBe("4");
+    expect(suggestion.colorName).toBe("Flamingo");
+    expect(suggestion.meaning).toBe("Meetings");
   });
 
   it('suggests Grape for "Sprint review"', () => {
@@ -273,13 +274,34 @@ describe("suggestCategory", () => {
     expect(suggestion.colorName).toBe("Sage");
   });
 
-  it('suggests Tangerine for "External vendor call"', () => {
-    const event = createEvent("a", 9, 0, 10, 0, "External vendor call");
+  it('suggests Tangerine for "Family dinner"', () => {
+    const event = createEvent("a", 18, 0, 19, 0, "Family dinner");
 
     const suggestion = suggestCategory(event);
 
     expect(suggestion.colorId).toBe("6");
     expect(suggestion.colorName).toBe("Tangerine");
+    expect(suggestion.meaning).toBe("Family Time");
+  });
+
+  it('suggests Blueberry for "Morning gym workout"', () => {
+    const event = createEvent("a", 6, 0, 7, 0, "Morning gym workout");
+
+    const suggestion = suggestCategory(event);
+
+    expect(suggestion.colorId).toBe("9");
+    expect(suggestion.colorName).toBe("Blueberry");
+    expect(suggestion.meaning).toBe("Fitness");
+  });
+
+  it('suggests Basil for "Coffee with friends"', () => {
+    const event = createEvent("a", 10, 0, 11, 0, "Coffee with friends");
+
+    const suggestion = suggestCategory(event);
+
+    expect(suggestion.colorId).toBe("10");
+    expect(suggestion.colorName).toBe("Basil");
+    expect(suggestion.meaning).toBe("Social");
   });
 
   it("returns low confidence for unknown patterns", () => {
