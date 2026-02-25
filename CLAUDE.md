@@ -57,6 +57,9 @@ me-os/
 │   ├── calendar-optimizer/ # Goal-based optimization
 │   ├── time-report/    # Weekly time analysis and gap detection
 │   └── one-on-one/     # 1:1 note processing and reporting
+│
+│   # Planned skill (not yet present in .claude/skills)
+│   └── project-dash/   # JIRA/project status dashboard
 ├── mcp/                # MCP server implementations
 │   └── google-calendar/# Google Calendar MCP server
 ├── plans/              # Plans for new features. Creates a record of work. Used for development. 
@@ -72,30 +75,38 @@ me-os/
 - Change event colors programmatically
 - Colors have semantic meaning (define your color schema)
 
-### 2. Time Reports (`/time-report`)
+### 2. Calendar Setup (`/calendar-setup`)
+- Configure calendar types for scheduling and reporting behavior
+- Supports active, availability, reference, and blocking calendars
+- Use when adding new accounts or changing calendar intent
+
+### 3. Calendar Management (`/calendar-manager`)
+- Detect and resolve overlapping meetings
+- Categorize unlabeled events with color suggestions
+- Fill open slots with configurable flex blocks
+
+### 4. Calendar Optimization (`/calendar-optimizer`)
+- Convert weekly goals into scheduled calendar blocks
+- Propose changes first, then apply with confirmation
+- Track recurring and ad-hoc goals against available time
+
+### 5. Time Reports (`/time-report`)
 - End-of-week retrospective: what did I do, how did I spend time?
 - Gap analysis: unstructured/uncalendared time by day
 - Interactive color assignment for unlabeled events
 - Exportable/scriptable for automation
 
-### 3. One-on-One Management (`/one-on-one`)
+### 6. One-on-One Management (`/one-on-one`)
 - Input: handwritten notes (image) or voice transcription
 - Output: raw transcript + structured summary
 - Integration: push to Lattice or Google Docs
 - Maintain history per direct report
 
-### 4. Active Calendar Management (`/calendar-manager`)
-- Detect and resolve scheduling conflicts
-- Categorize unlabeled events
-- Create flex-time blocks in gaps
-
-### 5. Goal-Based Optimization (`/calendar-optimizer`)
-- Translate weekly goals into proposed calendar blocks
-- Provide approval flow before creating/moving events
-
-### 6. Calendar Type Configuration (`/calendar-setup`)
-- Configure calendars as active/availability/reference/blocking/excluded
-- Control report and scheduling semantics per calendar
+### 7. Project Dashboard (`/project-dash`) [Planned]
+- JIRA integration for project status
+- Ticket status changes, blockers, timeline health
+- Code activity (who pushed, what repos)
+- On-demand queries or nightly sync summaries
 
 ## Color Schema
 
@@ -129,3 +140,4 @@ Skills are invoked via Claude Code:
 - `/calendar-optimizer` - Optimize schedule against goals
 - `/time-report` - Generate time analysis
 - `/one-on-one [name]` - Process 1:1 notes
+- `/project-dash` - Project status overview (planned)
