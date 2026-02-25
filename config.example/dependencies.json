@@ -1,0 +1,60 @@
+{
+  "enabled": true,
+  "defaultActionMode": "propose",
+  "optOut": {
+    "enabled": true,
+    "precedence": ["description", "title"],
+    "globalTokens": ["no coverage needed", "#no-coverage"],
+    "ruleScopedTokenTemplate": "no {ruleId} coverage needed"
+  },
+  "rules": [
+    {
+      "id": "babysitter-date",
+      "enabled": true,
+      "name": "Date requires babysitter",
+      "actionMode": "propose",
+      "orphanPolicy": "propose-delete",
+      "trigger": {
+        "sourceCalendars": ["Social"],
+        "summaryPatterns": ["\\bdate\\b", "\\bdate night\\b"]
+      },
+      "requirement": {
+        "coverageSummaryPatterns": ["babysit", "babysitter", "childcare"],
+        "coverageSearchCalendars": ["Family", "Household"],
+        "createTarget": {
+          "account": "personal",
+          "calendar": "Family"
+        },
+        "coverageColorId": "5",
+        "windowStartOffsetMinutes": 0,
+        "windowEndOffsetMinutes": 0,
+        "minCoveragePercent": 100
+      }
+    },
+    {
+      "id": "dog-care-trip",
+      "enabled": true,
+      "name": "Trip requires dog coverage",
+      "actionMode": "propose",
+      "orphanPolicy": "propose-delete",
+      "trigger": {
+        "sourceCalendars": ["Travel", "Primary"],
+        "summaryPatterns": [],
+        "allDaySummaryPatterns": ["\\btrip\\b", "\\btravel\\b"],
+        "timedSummaryPatterns": ["\\bflight\\b", "\\bairport\\b"]
+      },
+      "requirement": {
+        "coverageSummaryPatterns": ["dog sitter", "dog care", "pet coverage"],
+        "coverageSearchCalendars": ["Household", "Family"],
+        "createTarget": {
+          "account": "personal",
+          "calendar": "Household"
+        },
+        "coverageColorId": "5",
+        "windowStartOffsetMinutes": 0,
+        "windowEndOffsetMinutes": 0,
+        "minCoveragePercent": 100
+      }
+    }
+  ]
+}

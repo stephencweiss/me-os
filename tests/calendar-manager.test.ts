@@ -12,10 +12,18 @@ import {
   extractRecurringParentId,
   findUnlabeledEvents,
   calculateFlexSlots,
+  loadDependencyConfig,
+  findCoverageGaps,
+  buildCoverageEventDraft,
+  reconcileCoverageLifecycle,
+  validateDependencyConfigAgainstInventory,
   OverlapGroup,
   FlexSlot,
 } from "../lib/calendar-manager.js";
 import type { CalendarEvent } from "../lib/time-analysis.js";
+import * as fs from "fs";
+import * as os from "os";
+import * as path from "path";
 
 // Helper to create test events
 function createEvent(
@@ -580,3 +588,382 @@ function createEventOnDate(
     isAllDay: false,
   };
 }
+
+function createCoverageEvent(
+  id: string,
+  summary: string,
+  calendarName: string,
+  start: Date,
+  end: Date,
+  description?: string,
+  isAllDay = false
+): CalendarEvent {
+  return {
+    id,
+    account: "personal",
+    calendarName,
+    calendarType: "active",
+    summary,
+    description,
+    start,
+    end,
+    durationMinutes: (end.getTime() - start.getTime()) / 60000,
+    colorId: "default",
+    colorName: "Default",
+    colorMeaning: "",
+    isAllDay,
+    isRecurring: false,
+    recurringEventId: null,
+  };
+}
+
+describe("dependent coverage rules", () => {
+  const baseRule = {
+    id: "babysitter-date",
+    enabled: true,
+    name: "Date requires babysitter",
+    actionMode: "propose" as const,
+    orphanPolicy: "propose-delete" as const,
+    trigger: {
+      sourceCalendars: ["Social"],
+      summaryPatterns: ["\\bdate\\b"],
+    },
+    requirement: {
+      coverageSummaryPatterns: ["babysit", "babysitter"],
+      coverageSearchCalendars: ["Family"],
+      createTarget: {
+        account: "personal",
+        calendar: "Family",
+      },
+      coverageColorId: "5",
+      windowStartOffsetMinutes: 0,
+      windowEndOffsetMinutes: 0,
+      minCoveragePercent: 100,
+    },
+  };
+
+  it("loadDependencyConfig returns disabled defaults when file is missing", () => {
+    const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "deps-config-missing-"));
+    const configPath = path.join(tmpRoot, "dependencies.json");
+
+    const config = loadDependencyConfig(configPath);
+
+    expect(config.enabled).toBe(false);
+    expect(config.rules).toHaveLength(0);
+    expect(config.defaultActionMode).toBe("propose");
+    expect(config.optOut.precedence).toEqual(["description", "title"]);
+  });
+
+  it("loadDependencyConfig throws a clear error for invalid regex", () => {
+    const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "deps-config-invalid-"));
+    const configPath = path.join(tmpRoot, "dependencies.json");
+    fs.writeFileSync(
+      configPath,
+      JSON.stringify({
+        enabled: true,
+        rules: [
+          {
+            ...baseRule,
+            trigger: {
+              ...baseRule.trigger,
+              summaryPatterns: ["("],
+            },
+          },
+        ],
+      }),
+      "utf-8"
+    );
+
+    expect(() => loadDependencyConfig(configPath)).toThrow(/invalid regex/i);
+  });
+
+  it("finds missing coverage for a social date with no babysitter event", () => {
+    const sourceStart = new Date("2026-02-27T19:00:00");
+    const sourceEnd = new Date("2026-02-27T21:00:00");
+    const events = [
+      createCoverageEvent("source-1", "Date night", "Social", sourceStart, sourceEnd),
+    ];
+
+    const result = findCoverageGaps(events, [baseRule]);
+
+    expect(result.gaps).toHaveLength(1);
+    expect(result.gaps[0].ruleId).toBe("babysitter-date");
+    expect(result.gaps[0].sourceEventId).toBe("source-1");
+    expect(result.gaps[0].actualCoveragePercent).toBe(0);
+  });
+
+  it("does not create a gap when valid coverage already exists", () => {
+    const sourceStart = new Date("2026-02-27T19:00:00");
+    const sourceEnd = new Date("2026-02-27T21:00:00");
+    const events = [
+      createCoverageEvent("source-1", "Date night", "Social", sourceStart, sourceEnd),
+      createCoverageEvent("coverage-1", "Babysitter", "Family", sourceStart, sourceEnd),
+    ];
+
+    const result = findCoverageGaps(events, [baseRule]);
+
+    expect(result.gaps).toHaveLength(0);
+    expect(result.fulfilled).toHaveLength(1);
+  });
+
+  it("enforces buffer windows for dinner date coverage", () => {
+    const rule = {
+      ...baseRule,
+      id: "babysitter-dinner-date",
+      trigger: {
+        sourceCalendars: ["Social"],
+        summaryPatterns: ["\\bdinner date\\b"],
+      },
+      requirement: {
+        ...baseRule.requirement,
+        windowStartOffsetMinutes: -60,
+        windowEndOffsetMinutes: 60,
+      },
+    };
+
+    const sourceStart = new Date("2026-02-27T19:00:00");
+    const sourceEnd = new Date("2026-02-27T21:00:00");
+
+    const fulfilled = findCoverageGaps(
+      [
+        createCoverageEvent("source-1", "Dinner date", "Social", sourceStart, sourceEnd),
+        createCoverageEvent(
+          "coverage-1",
+          "Babysitter",
+          "Family",
+          new Date("2026-02-27T18:00:00"),
+          new Date("2026-02-27T22:00:00")
+        ),
+      ],
+      [rule]
+    );
+    expect(fulfilled.gaps).toHaveLength(0);
+
+    const missing = findCoverageGaps(
+      [
+        createCoverageEvent("source-1", "Dinner date", "Social", sourceStart, sourceEnd),
+        createCoverageEvent(
+          "coverage-1",
+          "Babysitter",
+          "Family",
+          new Date("2026-02-27T19:00:00"),
+          new Date("2026-02-27T21:00:00")
+        ),
+      ],
+      [rule]
+    );
+    expect(missing.gaps).toHaveLength(1);
+    expect(missing.gaps[0].requiredDurationMinutes).toBe(240);
+  });
+
+  it("applies opt-out precedence: description before title", () => {
+    const sourceStart = new Date("2026-02-27T19:00:00");
+    const sourceEnd = new Date("2026-02-27T21:00:00");
+    const rule = {
+      ...baseRule,
+      id: "dog-care-trip",
+      trigger: {
+        sourceCalendars: ["Travel"],
+        summaryPatterns: ["\\btrip\\b"],
+      },
+      requirement: {
+        ...baseRule.requirement,
+        coverageSummaryPatterns: ["dog sitter", "dog care"],
+        coverageSearchCalendars: ["Household"],
+        createTarget: {
+          account: "personal",
+          calendar: "Household",
+        },
+      },
+    };
+
+    const config = {
+      enabled: true,
+      defaultActionMode: "propose" as const,
+      optOut: {
+        enabled: true,
+        precedence: ["description", "title"] as const,
+        globalTokens: ["no coverage needed", "#no-coverage"],
+        ruleScopedTokenTemplate: "no {ruleId} coverage needed",
+      },
+      rules: [rule],
+    };
+
+    const withDescriptionToken = findCoverageGaps(
+      [
+        createCoverageEvent(
+          "trip-1",
+          "Trip #no-coverage",
+          "Travel",
+          sourceStart,
+          sourceEnd,
+          "No coverage needed for this trip"
+        ),
+      ],
+      [rule],
+      config
+    );
+
+    expect(withDescriptionToken.gaps).toHaveLength(0);
+    expect(withDescriptionToken.optedOut).toHaveLength(1);
+    expect(withDescriptionToken.optedOut[0].matchedIn).toBe("description");
+
+    const withTitleTokenOnly = findCoverageGaps(
+      [
+        createCoverageEvent(
+          "trip-2",
+          "Trip #no-coverage",
+          "Travel",
+          sourceStart,
+          sourceEnd,
+          "Normal description"
+        ),
+      ],
+      [rule],
+      config
+    );
+
+    expect(withTitleTokenOnly.gaps).toHaveLength(0);
+    expect(withTitleTokenOnly.optedOut).toHaveLength(1);
+    expect(withTitleTokenOnly.optedOut[0].matchedIn).toBe("title");
+  });
+
+  it("reconciles orphaned coverage proposals when source event is removed", () => {
+    const sourceStart = new Date("2026-02-27T19:00:00");
+    const sourceEnd = new Date("2026-02-27T21:00:00");
+    const coverage = createCoverageEvent(
+      "coverage-1",
+      "Babysitter for Date night",
+      "Family",
+      sourceStart,
+      sourceEnd
+    );
+
+    const lifecycle = reconcileCoverageLifecycle([coverage], [baseRule], [
+      {
+        ruleId: "babysitter-date",
+        sourceEventId: "source-1",
+        coverageEventId: "coverage-1",
+      },
+    ]);
+
+    expect(lifecycle.orphanedCoverage).toHaveLength(1);
+    expect(lifecycle.orphanedCoverage[0].coverageEventId).toBe("coverage-1");
+    expect(lifecycle.orphanedCoverage[0].action).toBe("propose-delete");
+  });
+
+  it("buildCoverageEventDraft targets configured calendar/account", () => {
+    const sourceStart = new Date("2026-02-27T19:00:00");
+    const sourceEnd = new Date("2026-02-27T21:00:00");
+    const events = [createCoverageEvent("source-1", "Date night", "Social", sourceStart, sourceEnd)];
+    const result = findCoverageGaps(events, [baseRule]);
+
+    const draft = buildCoverageEventDraft(result.gaps[0]);
+
+    expect(draft.account).toBe("personal");
+    expect(draft.calendar).toBe("Family");
+    expect(draft.colorId).toBe("5");
+    expect(draft.start).toEqual(sourceStart);
+    expect(draft.end).toEqual(sourceEnd);
+  });
+
+  it("supports trigger matching for all-day trips and timed flights only", () => {
+    const rule = {
+      ...baseRule,
+      id: "dog-care-trip",
+      trigger: {
+        sourceCalendars: ["Travel"],
+        summaryPatterns: [],
+        allDaySummaryPatterns: ["\\btrip\\b", "\\btravel\\b"],
+        timedSummaryPatterns: ["\\bflight\\b", "\\bairport\\b"],
+      },
+      requirement: {
+        ...baseRule.requirement,
+        coverageSummaryPatterns: ["dog sitter", "dog care"],
+        coverageSearchCalendars: ["Household"],
+        createTarget: {
+          account: "personal",
+          calendar: "Household",
+        },
+      },
+    };
+
+    const dayStart = new Date("2026-03-01T00:00:00");
+    const dayEnd = new Date("2026-03-02T00:00:00");
+    const timedTrip = createCoverageEvent(
+      "trip-timed",
+      "Traveling to coffee shop",
+      "Travel",
+      new Date("2026-03-01T10:00:00"),
+      new Date("2026-03-01T11:00:00")
+    );
+    const allDayTrip = createCoverageEvent(
+      "trip-all-day",
+      "Trip to Austin",
+      "Travel",
+      dayStart,
+      dayEnd,
+      undefined,
+      true
+    );
+    const flight = createCoverageEvent(
+      "flight-1",
+      "Flight to SFO",
+      "Travel",
+      new Date("2026-03-01T12:00:00"),
+      new Date("2026-03-01T14:00:00")
+    );
+
+    const result = findCoverageGaps([timedTrip, allDayTrip, flight], [rule]);
+
+    expect(result.gaps.map((gap) => gap.sourceEventId).sort()).toEqual([
+      "flight-1",
+      "trip-all-day",
+    ]);
+    expect(result.gaps.map((gap) => gap.sourceEventId)).not.toContain("trip-timed");
+  });
+
+  it("validates source, search, and target calendars/accounts against inventory", () => {
+    const config = {
+      enabled: true,
+      defaultActionMode: "propose" as const,
+      optOut: {
+        enabled: true,
+        precedence: ["description", "title"] as const,
+        globalTokens: [],
+        ruleScopedTokenTemplate: "no {ruleId} coverage needed",
+      },
+      rules: [
+        {
+          ...baseRule,
+          trigger: {
+            sourceCalendars: ["Missing Source"],
+            summaryPatterns: ["\\bdate\\b"],
+          },
+          requirement: {
+            ...baseRule.requirement,
+            coverageSearchCalendars: ["Missing Search"],
+            createTarget: {
+              account: "missing-account@example.com",
+              calendar: "Missing Target Calendar",
+            },
+          },
+        },
+      ],
+    };
+
+    const issues = validateDependencyConfigAgainstInventory(config, {
+      accounts: ["scweiss1@gmail.com"],
+      allCalendars: ["Primary", "Weiss-McGee Calendar"],
+      calendarsByAccount: {
+        "scweiss1@gmail.com": ["Primary", "Weiss-McGee Calendar"],
+      },
+    });
+
+    expect(issues.map((issue) => issue.field).sort()).toEqual([
+      "requirement.coverageSearchCalendars",
+      "requirement.createTarget.account",
+      "trigger.sourceCalendars",
+    ]);
+  });
+});
