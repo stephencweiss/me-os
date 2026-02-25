@@ -1,6 +1,7 @@
 ---
 name: calendar
 description: View and manage your Google Calendar. Use for week-at-a-glance views, event color management, and schedule queries. Shows events from ALL authenticated accounts (personal + work).
+user-invocable: true
 ---
 
 # /calendar - Calendar View and Management
