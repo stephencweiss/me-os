@@ -77,21 +77,21 @@ me-os/
 
 ## Color Schema
 
-Events are color-coded with semantic meaning:
+Events are color-coded with semantic meaning. **Source of truth:** `config/colors.json`.
 
 | Color | Name | Meaning |
 |-------|------|---------|
 | 1 | Lavender | 1:1s / People |
-| 2 | Sage | Deep Work / Focus |
-| 3 | Grape | Meetings |
-| 4 | Flamingo | Blocked / Waiting |
-| 5 | Banana | Admin / Ops |
-| 6 | Tangerine | External |
-| 7 | Peacock | Learning |
-| 8 | Graphite | Personal |
-| 9 | Blueberry | Flex / Available |
-| 10 | Basil | Unassigned |
-| 11 | Tomato | Urgent / Deadlines |
+| 2 | Sage | Deep Work / Focus / Learning |
+| 3 | Grape | Project Work |
+| 4 | Flamingo | Meetings |
+| 5 | Banana | Household / Pets |
+| 6 | Tangerine | Family Time |
+| 7 | Peacock | Personal Projects |
+| 8 | Graphite | Travel / Commute |
+| 9 | Blueberry | Fitness |
+| 10 | Basil | Social |
+| 11 | Tomato | Urgent / Blocked |
 
 ## Schedule Configuration
 

@@ -66,7 +66,7 @@ Add an optional `compact` parameter to `get_events`, `get_today`, `get_week_view
   "end": "2026-02-25T07:05:00-06:00",
   "colorId": "8",
   "colorName": "Graphite",
-  "colorMeaning": "Personal",
+  "colorMeaning": "Travel / Commute",
   "location": "...",
   "description": "...",
   "status": "confirmed",

@@ -62,11 +62,7 @@ me-os/
 
 ## Color Schema
 
-Define semantic colors for calendar events:
-
-| Color | Meaning |
-|-------|---------|
-| TBD   | Define based on your categories |
+Load `config/colors.json` which is the source of truth.
 
 ## Development Guidelines
 
