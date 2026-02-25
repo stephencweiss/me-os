@@ -29,6 +29,9 @@ me-os/
 │   ├── calendar-setup/     # Calendar type configuration
 │   ├── time-report/        # Weekly time analysis and gap detection
 │   └── one-on-one/         # 1:1 note processing and reporting
+│
+│   # Planned skill (not yet present in .claude/skills)
+│   └── project-dash/       # JIRA/project status dashboard
 ├── mcp/                # MCP server implementations
 │   └── google-calendar/# Google Calendar MCP server
 ├── plans/              # Plans for new features. Creates a record of work. Used for development. 
@@ -71,6 +74,12 @@ me-os/
 - Integration: push to Lattice or Google Docs
 - Maintain history per direct report
 
+### 7. Project Dashboard (`/project-dash`) [Planned]
+- JIRA integration for project status
+- Ticket status changes, blockers, timeline health
+- Code activity (who pushed, what repos)
+- On-demand queries or nightly sync summaries
+
 ## Color Schema
 
 Define semantic colors for calendar events:
@@ -106,3 +115,4 @@ Skills are invoked via Claude Code:
 - `/calendar-optimizer` - Turn goals into proposed schedule changes
 - `/time-report` - Generate time analysis
 - `/one-on-one [name]` - Process 1:1 notes
+- `/project-dash` - Project status overview (planned)
