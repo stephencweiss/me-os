@@ -192,6 +192,32 @@ async function fetchEventsFromAllAccounts(
   return allEvents;
 }
 
+/**
+ * Normalizes date input for calendar queries.
+ * - Date-only strings (YYYY-MM-DD) are converted to local timezone
+ * - For end dates, date-only strings get +1 day to make the range inclusive
+ */
+function normalizeDateInput(dateStr: string, isEndDate: boolean = false): string {
+  // Check if it's a date-only format (no time component)
+  const isDateOnly = !dateStr.includes('T');
+
+  if (isDateOnly) {
+    // Parse as local date, not UTC
+    const [year, month, day] = dateStr.split('-').map(Number);
+    const date = new Date(year, month - 1, day);
+
+    if (isEndDate) {
+      // For end date, set to start of NEXT day to make range inclusive
+      date.setDate(date.getDate() + 1);
+    }
+
+    return date.toISOString();
+  }
+
+  // Already has time component, parse normally
+  return new Date(dateStr).toISOString();
+}
+
 function getWeekBounds(): { start: Date; end: Date } {
   const now = new Date();
   const dayOfWeek = now.getDay();
@@ -562,8 +588,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           endDate: string;
         };
         const events = await fetchEventsFromAllAccounts(
-          new Date(startDate).toISOString(),
-          new Date(endDate).toISOString()
+          normalizeDateInput(startDate, false),
+          normalizeDateInput(endDate, true)
         );
         return {
           content: [
@@ -752,19 +778,29 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         };
 
         // Default to searching current month if no dates provided
-        const start = startDate ? new Date(startDate) : new Date();
-        if (!startDate) {
+        let timeMin: string;
+        let timeMax: string;
+
+        if (startDate) {
+          timeMin = normalizeDateInput(startDate, false);
+        } else {
+          const start = new Date();
           start.setDate(1);
           start.setHours(0, 0, 0, 0);
+          timeMin = start.toISOString();
         }
-        const end = endDate ? new Date(endDate) : new Date(start);
-        if (!endDate) {
+
+        if (endDate) {
+          timeMax = normalizeDateInput(endDate, true);
+        } else {
+          const end = new Date(timeMin);
           end.setMonth(end.getMonth() + 1);
+          timeMax = end.toISOString();
         }
 
         const events = await fetchEventsFromAllAccounts(
-          start.toISOString(),
-          end.toISOString(),
+          timeMin,
+          timeMax,
           query
         );
 
