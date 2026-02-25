@@ -77,7 +77,7 @@ See `config/colors.json` for the shared color definitions used across all calend
 
 Use `get_color_definitions` MCP tool to retrieve color meanings programmatically.
 
-## Instructions for Claude
+## Instructions for Assistant
 
 When the user invokes this skill:
 
