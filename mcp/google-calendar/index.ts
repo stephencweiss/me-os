@@ -93,6 +93,42 @@ function formatEvent(
   };
 }
 
+/**
+ * Format event in compact mode - minimal fields for reduced output size.
+ * Use compact: false to get full details including description, location, htmlLink.
+ */
+function formatEventCompact(
+  event: calendar_v3.Schema$Event,
+  account: string
+): object {
+  const colorId = event.colorId || "default";
+  const colorName = colorId === "default" ? "Default" : GOOGLE_CALENDAR_COLORS[colorId] || colorId;
+
+  return {
+    id: event.id,
+    account,
+    summary: event.summary || "(No title)",
+    start: event.start?.dateTime || event.start?.date,
+    end: event.end?.dateTime || event.end?.date,
+    colorName,
+  };
+}
+
+/**
+ * Deduplicate events by ID. When same event appears from multiple calendars,
+ * prefer the one from Primary calendar or the first occurrence.
+ */
+function deduplicateEvents(events: any[]): any[] {
+  const seen = new Map<string, any>();
+  for (const event of events) {
+    const existing = seen.get(event.id);
+    if (!existing || event.calendarName === "Primary") {
+      seen.set(event.id, event);
+    }
+  }
+  return Array.from(seen.values());
+}
+
 // Fetch events from all accounts and all calendars, then merge
 async function fetchEventsFromAllAccounts(
   timeMin: string,
@@ -282,6 +318,15 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
               description: "Calendar ID (default: primary)",
               default: "primary",
             },
+            compact: {
+              type: "boolean",
+              description: "Return compact format with fewer fields (default: true). Set to false for full details including description, location, htmlLink.",
+              default: true,
+            },
+            limit: {
+              type: "number",
+              description: "Maximum number of events to return",
+            },
           },
           required: ["startDate", "endDate"],
         },
@@ -297,6 +342,15 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
               description: "Calendar ID (default: primary)",
               default: "primary",
             },
+            compact: {
+              type: "boolean",
+              description: "Return compact format with fewer fields (default: true). Set to false for full details.",
+              default: true,
+            },
+            limit: {
+              type: "number",
+              description: "Maximum number of events to return",
+            },
           },
           required: [],
         },
@@ -311,6 +365,15 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
               type: "string",
               description: "Calendar ID (default: primary)",
               default: "primary",
+            },
+            compact: {
+              type: "boolean",
+              description: "Return compact format with fewer fields (default: true). Set to false for full details.",
+              default: true,
+            },
+            limit: {
+              type: "number",
+              description: "Maximum number of events to return",
             },
           },
           required: [],
@@ -370,6 +433,15 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
               type: "string",
               description: "Calendar ID (default: primary)",
               default: "primary",
+            },
+            compact: {
+              type: "boolean",
+              description: "Return compact format with fewer fields (default: true). Set to false for full details.",
+              default: true,
+            },
+            limit: {
+              type: "number",
+              description: "Maximum number of events to return",
             },
           },
           required: ["query"],
@@ -583,34 +655,67 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       case "get_events": {
-        const { startDate, endDate } = args as {
+        const { startDate, endDate, compact = true, limit } = args as {
           startDate: string;
           endDate: string;
+          compact?: boolean;
+          limit?: number;
         };
-        const events = await fetchEventsFromAllAccounts(
+        let events = await fetchEventsFromAllAccounts(
           normalizeDateInput(startDate, false),
           normalizeDateInput(endDate, true)
         );
+
+        // Deduplicate events
+        events = deduplicateEvents(events);
+
+        // Apply limit if specified
+        if (limit && limit > 0) {
+          events = events.slice(0, limit);
+        }
+
+        // Format based on compact mode
+        const formattedEvents = compact
+          ? events.map((e: any) => formatEventCompact(e, e.account))
+          : events;
+
         return {
           content: [
             {
               type: "text",
-              text: JSON.stringify(events, null, 2),
+              text: JSON.stringify(formattedEvents, null, 2),
             },
           ],
         };
       }
 
       case "get_week_view": {
+        const { compact = true, limit } = args as {
+          compact?: boolean;
+          limit?: number;
+        };
         const { start, end } = getWeekBounds();
-        const events = await fetchEventsFromAllAccounts(
+        let events = await fetchEventsFromAllAccounts(
           start.toISOString(),
           end.toISOString()
         );
 
+        // Deduplicate events
+        events = deduplicateEvents(events);
+
+        // Apply limit if specified
+        if (limit && limit > 0) {
+          events = events.slice(0, limit);
+        }
+
+        // Format based on compact mode
+        const formattedEvents = compact
+          ? events.map((e: any) => formatEventCompact(e, e.account))
+          : events;
+
         // Group by day
         const byDay: Record<string, object[]> = {};
-        for (const event of events) {
+        for (const event of formattedEvents) {
           const eventDate = new Date((event as any).start);
           const dayKey = eventDate.toLocaleDateString("en-US", {
             weekday: "long",
@@ -631,7 +736,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                   weekOf: start.toLocaleDateString(),
                   accounts: clients.map(c => c.account),
                   eventsByDay: byDay,
-                  totalEvents: events.length,
+                  totalEvents: formattedEvents.length,
                 },
                 null,
                 2
@@ -642,11 +747,29 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       case "get_today": {
+        const { compact = true, limit } = args as {
+          compact?: boolean;
+          limit?: number;
+        };
         const { start, end } = getTodayBounds();
-        const events = await fetchEventsFromAllAccounts(
+        let events = await fetchEventsFromAllAccounts(
           start.toISOString(),
           end.toISOString()
         );
+
+        // Deduplicate events
+        events = deduplicateEvents(events);
+
+        // Apply limit if specified
+        if (limit && limit > 0) {
+          events = events.slice(0, limit);
+        }
+
+        // Format based on compact mode
+        const formattedEvents = compact
+          ? events.map((e: any) => formatEventCompact(e, e.account))
+          : events;
+
         const clients = await getClients();
         return {
           content: [
@@ -656,8 +779,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                 {
                   date: start.toLocaleDateString(),
                   accounts: clients.map(c => c.account),
-                  events,
-                  totalEvents: events.length,
+                  events: formattedEvents,
+                  totalEvents: formattedEvents.length,
                 },
                 null,
                 2
@@ -771,10 +894,12 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       case "search_events": {
-        const { query, startDate, endDate } = args as {
+        const { query, startDate, endDate, compact = true, limit } = args as {
           query: string;
           startDate?: string;
           endDate?: string;
+          compact?: boolean;
+          limit?: number;
         };
 
         // Default to searching current month if no dates provided
@@ -798,11 +923,24 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           timeMax = end.toISOString();
         }
 
-        const events = await fetchEventsFromAllAccounts(
+        let events = await fetchEventsFromAllAccounts(
           timeMin,
           timeMax,
           query
         );
+
+        // Deduplicate events
+        events = deduplicateEvents(events);
+
+        // Apply limit if specified
+        if (limit && limit > 0) {
+          events = events.slice(0, limit);
+        }
+
+        // Format based on compact mode
+        const formattedEvents = compact
+          ? events.map((e: any) => formatEventCompact(e, e.account))
+          : events;
 
         return {
           content: [
@@ -811,8 +949,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
               text: JSON.stringify(
                 {
                   query,
-                  results: events,
-                  count: events.length,
+                  results: formattedEvents,
+                  count: formattedEvents.length,
                 },
                 null,
                 2
