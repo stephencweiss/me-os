@@ -77,21 +77,21 @@ me-os/
 
 ## Color Schema
 
-Events are color-coded with semantic meaning:
+Events are color-coded with semantic meaning. **Source of truth:** `config/colors.json`.
 
 | Color | Name | Meaning |
 |-------|------|---------|
 | 1 | Lavender | 1:1s / People |
-| 2 | Sage | Deep Work / Focus |
-| 3 | Grape | Meetings |
-| 4 | Flamingo | Blocked / Waiting |
-| 5 | Banana | Admin / Ops |
-| 6 | Tangerine | External |
-| 7 | Peacock | Learning |
-| 8 | Graphite | Personal |
-| 9 | Blueberry | Flex / Available |
-| 10 | Basil | Unassigned |
-| 11 | Tomato | Urgent / Deadlines |
+| 2 | Sage | Deep Work / Focus / Learning |
+| 3 | Grape | Project Work |
+| 4 | Flamingo | Meetings |
+| 5 | Banana | Household / Pets |
+| 6 | Tangerine | Family Time |
+| 7 | Peacock | Personal Projects |
+| 8 | Graphite | Travel / Commute |
+| 9 | Blueberry | Fitness |
+| 10 | Basil | Social |
+| 11 | Tomato | Urgent / Blocked |
 
 ## Schedule Configuration
 
@@ -177,6 +177,27 @@ Add to your `.mcp.json`:
 }
 ```
 
+### Dependency Rules Configuration
+
+Dependent coverage rules are configured in `config/dependencies.json`.
+
+- `config.example/dependencies.json` is a template only.
+- Calendar names like `Social`, `Family`, or `Travel` in the example may not exist in your account.
+- You must replace them with your real calendar names in `config/dependencies.json`.
+
+Rule fields:
+- `trigger.sourceCalendars`: calendars scanned for source events that trigger a rule.
+- `requirement.coverageSearchCalendars`: calendars searched for existing coverage.
+- `requirement.createTarget.account` + `requirement.createTarget.calendar`: where missing coverage should be created.
+
+Validate your config against live authenticated accounts/calendars:
+
+```bash
+npm run validate:dependencies
+```
+
+This validation fails fast with explicit errors if any source/search/target account/calendar references are invalid.
+
 ## Usage
 
 ### Time Report
@@ -224,6 +245,12 @@ Supported file types:
 
 ```bash
 npm test
+```
+
+### Validate Dependency Config
+
+```bash
+npm run validate:dependencies
 ```
 
 ### Type Checking
