@@ -7,24 +7,28 @@ Build a personal productivity system as Claude Code skills with MCP integration.
 
 ## Current Status
 
-**Phase:** 2 Complete - Ready for Phase 3
-**Status:** Time reports and analytics fully implemented
+**Phase:** 3 Complete - Calendar Optimizer
+**Status:** Ready for Phase 4 (One-on-One Management)
 
 **What's done:**
 - ✅ Project setup (package.json, tsconfig, dependencies)
 - ✅ Google auth helper with multi-account support (personal/work)
-- ✅ Google Calendar MCP server (7 tools, 2 resources)
+- ✅ Google Calendar MCP server (11 tools, 2 resources)
 - ✅ Calendar skill registered as `/calendar` slash command
 - ✅ Personal and work accounts authenticated
 - ✅ Multi-account unified view (events from all accounts merged and sorted)
 - ✅ Time analysis library with gap detection, color grouping, overlap merging
 - ✅ `/time-report` skill with interactive labeling and gap categorization
 - ✅ Standalone weekly report script (scripts/weekly-report.ts)
+- ✅ Calendar manager library with overlap detection, categorization, flex slots
+- ✅ `/calendar-manager` skill for conflict resolution and flex time blocking
+- ✅ Calendar optimizer library with goal parsing, slot allocation, scoring
+- ✅ `/calendar-optimizer` skill for goal-based schedule optimization
+- ✅ 84 unit tests passing
 
 **Next action:**
-1. Test `/time-report` and `/time-report yesterday` commands
-2. Use interactive features to label unlabeled events and categorize gaps
-3. Proceed to Phase 3: One-on-One Management (when ready)
+1. Proceed to Phase 4: One-on-One Management (when ready)
+2. Or test `/calendar-optimizer` skill in practice
 
 ---
 
@@ -215,16 +219,185 @@ Outputs markdown summary, can be invoked by skill.
 
 ---
 
-## Phase 3: One-on-One Management
+## Phase 2.5: Calendar Manager
 
-### 3.1 Voice Transcription
+Active calendar management: conflict detection, event categorization, and gap filling.
+
+### 2.5.1 Calendar Manager Library
+**Location**: `lib/calendar-manager.ts`
+
+Functions:
+- `buildOverlapGroups(events)` - Detect overlapping events using sweep-line + union-find
+- `calculateOverlapMinutes(eventA, eventB)` - Calculate overlap between two events
+- `calculateSplitTime(attending)` - Split overlapping attendance time evenly
+- `findUnlabeledEvents(events)` - Find events with Default/no color
+- `suggestCategory(event)` - Suggest color based on event title keywords
+- `extractRecurringParentId(eventId)` - Extract parent ID from recurring instance
+- `calculateFlexSlots(events, wakingHours, minGap)` - Find gaps for flex events
+
+### 2.5.2 New MCP Tools
+**Location**: `mcp/google-calendar/index.ts`
+
+- `create_event` - Create calendar events (for flex time blocking)
+  - Parameters: summary, start, end, colorId, visibility, account
+- `update_event_status` - Change RSVP status (accept/decline/tentative)
+  - Parameters: eventId, status, account
+
+### 2.5.3 Calendar Manager Skill
+**Location**: `.claude/skills/calendar-manager/`
+
+Commands:
+- `/calendar-manager` - Dashboard for today with interactive prompts
+- `/calendar-manager conflicts` - Only resolve double bookings
+- `/calendar-manager categorize` - Only label unlabeled events
+- `/calendar-manager flex` - Only fill gaps with flex events
+- `/calendar-manager [yesterday|today|tomorrow|week]` - Specific range
+
+### 2.5.4 Configuration
+**Location**: `config/calendar-manager.json`
+
+```json
+{
+  "accountPriority": ["work", "personal"],
+  "wakingHours": { "start": 9, "end": 18 },
+  "minGapMinutes": 30,
+  "skipWeekends": true,
+  "flexEventDefaults": {
+    "visibility": "private",
+    "colorId": "9",
+    "title": "flex"
+  }
+}
+```
+
+### 2.5.5 Testing Strategy - Phase 2.5
+
+**Unit Tests** (`tests/calendar-manager.test.ts`):
+
+| Test | Expected |
+|------|----------|
+| Non-overlapping events | Empty overlap groups |
+| Two overlapping events | 1 group, 2 events |
+| Chain of overlapping events | 1 group with all connected events |
+| Suggest category for "1:1 with Alice" | Lavender (1:1s / People) |
+| Suggest category for "Team standup" | Grape (Meetings) |
+| Extract recurring parent ID | Strips date suffix correctly |
+| Flex slots with 30min minimum | Ignores gaps < 30min |
+| Flex slots on weekend | Returns empty (skipWeekends=true) |
+
+**Manual Tests**:
+
+| Test | Expected |
+|------|----------|
+| create_event for flex | Event visible in both calendars |
+| update_event_status decline | RSVP status changes |
+| /calendar-manager dashboard | Shows overview + interactive prompts |
+| /calendar-manager conflicts | Only runs conflict resolution |
+
+---
+
+## Phase 3: Calendar Optimizer
+
+Goal-based calendar optimization to help achieve weekly objectives.
+
+### 3.1 Calendar Optimizer Library
+**Location**: `lib/calendar-optimizer.ts`
+
+Functions:
+- `parseGoalsFromText(text)` - Parse natural language goals into structured format
+- `loadRecurringGoals(configPath)` - Load recurring goals from config
+- `saveRecurringGoal(goal, configPath)` - Add/update a recurring goal
+- `removeRecurringGoal(goalId, configPath)` - Delete a recurring goal
+- `analyzeCurrentSchedule(events, goals)` - Analyze schedule vs. goals
+- `findSlotsForGoal(goal, gaps)` - Find optimal slots respecting min/max constraints
+- `identifyMovableEvents(events)` - Find flexible events that can be rescheduled
+- `suggestEventMoves(events, goals)` - Suggest moves to create larger focus blocks
+- `optimizeSchedule(events, goals)` - Full optimization with proposals
+- `scoreOptimization(before, after)` - Score improvement metrics
+
+### 3.2 New MCP Tools
+**Location**: `mcp/google-calendar/index.ts`
+
+- `update_event_time` - Move/reschedule events
+  - Parameters: eventId, newStart, newEnd, account
+- `delete_event` - Delete events (for cleanup)
+  - Parameters: eventId, account
+
+### 3.3 Calendar Optimizer Skill
+**Location**: `.claude/skills/calendar-optimizer/`
+
+Commands:
+- `/calendar-optimizer` - Analyze week with recurring goals
+- `/calendar-optimizer <goals text>` - Ad-hoc goals for this session
+- `/calendar-optimizer status` - Show goal progress vs. schedule
+- `/calendar-optimizer apply` - Apply last proposed changes
+- `/calendar-optimizer add-goal` - Interactive wizard to add recurring goal
+- `/calendar-optimizer goals` - List/edit/remove recurring goals
+
+### 3.4 Configuration
+**Location**: `config/optimization-goals.json`
+
+```json
+{
+  "recurringGoals": [
+    {
+      "id": "writing",
+      "name": "Writing time",
+      "totalMinutes": 240,
+      "minSessionMinutes": 60,
+      "maxSessionMinutes": 120,
+      "colorId": "2",
+      "priority": 1,
+      "preferredTimes": { "dayPart": "morning" }
+    }
+  ],
+  "constraints": {
+    "noMeetingsBefore": 9,
+    "maxMeetingsPerDay": 5,
+    "preferContiguousFocus": true,
+    "minFocusBlockMinutes": 90
+  },
+  "movableEventPatterns": ["sync", "1:1", "check-in"]
+}
+```
+
+### 3.5 Testing Strategy - Phase 3
+
+**Unit Tests** (`tests/calendar-optimizer.test.ts`):
+
+| Test | Expected |
+|------|----------|
+| Parse "4 hours of writing time" | TimeGoal with totalMinutes=240 |
+| Parse "workout 3x this week" | TimeGoal with sessionsPerWeek=3 |
+| Load recurring goals from config | Returns array of TimeGoals |
+| Save new recurring goal | Updates config file |
+| Allocate 2h goal in 3h gap | Single 2h session proposed |
+| Allocate 4h goal across multiple gaps | Multiple sessions respecting min/max |
+| Identify movable 1:1s | Returns events matching patterns |
+| Exclude external meetings from movable | Not returned |
+
+**Manual Tests**:
+
+| Test | Expected |
+|------|----------|
+| `/calendar-optimizer` | Shows optimization proposal |
+| `/calendar-optimizer add-goal` | Interactive wizard, saves to config |
+| `/calendar-optimizer goals` | Lists goals, edit/remove works |
+| `/calendar-optimizer status` | Shows goal progress |
+| Approve changes | Events created via create_event |
+
+---
+
+## Phase 4: One-on-One Management
+
+### 4.1 Voice Transcription
 **Location**: `lib/transcription.ts`
 
 - Use Claude's audio capabilities or Whisper API
 - Accept audio file path, return transcript
 - Store raw audio in `data/audio/` (gitignored)
 
-### 3.2 One-on-One Skill
+### 4.2 One-on-One Skill
 **Location**: `skills/one-on-one/`
 
 Skill file: `skills/one-on-one/skill.md`
@@ -237,11 +410,11 @@ Data storage: `data/one-on-ones/<name>/`
 - `YYYY-MM-DD-raw.md` - Raw transcript
 - `YYYY-MM-DD-summary.md` - Structured summary
 
-### 3.3 Export Integrations (Future)
+### 4.3 Export Integrations (Future)
 - Google Docs API for document creation
 - Lattice API for feedback submission (requires Lattice API access)
 
-### 3.4 Testing Strategy - Phase 3
+### 4.4 Testing Strategy - Phase 4
 
 **How we prove it works:**
 1. Audio transcription produces readable, accurate text
@@ -269,19 +442,19 @@ Data storage: `data/one-on-ones/<name>/`
 
 ---
 
-## Phase 4: Project Dashboard
+## Phase 5: Project Dashboard
 
-### 4.1 JIRA Integration
+### 5.1 JIRA Integration
 Leverage existing JIRA MCP from work environment.
 
-### 4.2 Project Dashboard Skill
+### 5.2 Project Dashboard Skill
 **Location**: `skills/project-dash/`
 
 - `/project-dash` - Overview of active projects
 - `/project-dash <project>` - Deep dive on specific project
 - `/project-dash changes` - Recent ticket status changes
 
-### 4.3 Testing Strategy - Phase 4
+### 5.3 Testing Strategy - Phase 5
 
 **How we prove it works:**
 1. JIRA MCP connection works and returns project data
@@ -343,12 +516,26 @@ Leverage existing JIRA MCP from work environment.
 - `skills/time-report/skill.md`
 - `scripts/weekly-report.ts`
 
+### Phase 2.5
+- `lib/calendar-manager.ts`
+- `tests/calendar-manager.test.ts`
+- `.claude/skills/calendar-manager/SKILL.md`
+- `config/calendar-manager.json`
+- `data/calendar-decisions/` (directory)
+
 ### Phase 3
+- `lib/calendar-optimizer.ts`
+- `tests/calendar-optimizer.test.ts`
+- `.claude/skills/calendar-optimizer/SKILL.md`
+- `config/optimization-goals.json`
+- `data/optimization-proposals/` (directory)
+
+### Phase 4
 - `lib/transcription.ts`
 - `skills/one-on-one/skill.md`
 - `data/` directory structure
 
-### Phase 4
+### Phase 5
 - `skills/project-dash/skill.md`
 
 ---
@@ -393,3 +580,23 @@ Leverage existing JIRA MCP from work environment.
 | 2026-02-22 | Phase 2.2: Time report skill | Complete | /time-report skill with interactive labeling instructions |
 | 2026-02-22 | Phase 2.3: Weekly report script | Complete | scripts/weekly-report.ts standalone CLI |
 | 2026-02-22 | **Phase 2 Complete** | ✅ | Time reports and analytics ready |
+| 2026-02-22 | Phase 2.5: Planning | Complete | Created plan for calendar-manager skill |
+| 2026-02-22 | Phase 2.5.1: Main plan update | Complete | Added Phase 2.5 section to implementation plan |
+| 2026-02-22 | Phase 2.5.2: Overlap detection | Complete | TDD - 14 tests + buildOverlapGroups implementation |
+| 2026-02-22 | Phase 2.5.3: Categorization | Complete | TDD - 12 tests + suggestCategory, findUnlabeledEvents |
+| 2026-02-22 | Phase 2.5.4: Flex slots | Complete | TDD - 13 tests + calculateFlexSlots (6am-10pm waking hours) |
+| 2026-02-22 | Phase 2.5.5: MCP tools | Complete | Added create_event and update_event_status tools |
+| 2026-02-22 | Phase 2.5.6: Config files | Complete | config/calendar-manager.json, updated colors.json |
+| 2026-02-22 | Phase 2.5.7: Skill file | Complete | .claude/skills/calendar-manager/SKILL.md |
+| 2026-02-22 | Phase 2.5.8: Time-report integration | Complete | Added isRecurring, recurringEventId to CalendarEvent |
+| 2026-02-22 | **Phase 2.5 Complete** | ✅ | Calendar manager ready with 39 passing tests |
+| 2026-02-23 | Phase 3: Planning | Complete | Created plan for calendar-optimizer skill |
+| 2026-02-23 | Phase 3.1: Main plan update | Complete | Added Phase 3 section, renumbered phases 4 & 5 |
+| 2026-02-23 | Phase 3.2: Goal parsing | Complete | TDD - 11 tests + parseGoalsFromText (natural language) |
+| 2026-02-23 | Phase 3.3: Goal config | Complete | TDD - 8 tests + loadRecurringGoals, saveRecurringGoal, removeRecurringGoal |
+| 2026-02-23 | Phase 3.4: Slot allocation | Complete | TDD - 9 tests + findSlotsForGoal with min/max session constraints |
+| 2026-02-23 | Phase 3.5: Movable events | Complete | TDD - 9 tests + identifyMovableEvents (pattern matching, organizer check) |
+| 2026-02-23 | Phase 3.6: Optimization scoring | Complete | TDD - 8 tests + scoreOptimization (goal achievement, preference alignment) |
+| 2026-02-23 | Phase 3.7: MCP tools | Complete | Added update_event_time, delete_event tools |
+| 2026-02-23 | Phase 3.8: Config & skill | Complete | optimization-goals.json, calendar-optimizer/SKILL.md |
+| 2026-02-23 | **Phase 3 Complete** | ✅ | Calendar optimizer ready with 84 passing tests |

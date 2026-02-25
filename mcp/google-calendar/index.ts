@@ -272,6 +272,175 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           required: ["query"],
         },
       },
+      {
+        name: "create_event",
+        description: "Create a new calendar event (for flex time blocking or manual events)",
+        inputSchema: {
+          type: "object",
+          properties: {
+            summary: {
+              type: "string",
+              description: "Event title/summary",
+            },
+            start: {
+              type: "string",
+              description: "Start time in ISO format (e.g., 2026-02-23T09:00:00)",
+            },
+            end: {
+              type: "string",
+              description: "End time in ISO format (e.g., 2026-02-23T10:00:00)",
+            },
+            colorId: {
+              type: "string",
+              description: "Color ID (1-11) or color name. Default is Blueberry (9) for flex events.",
+              default: "9",
+            },
+            visibility: {
+              type: "string",
+              enum: ["default", "public", "private", "confidential"],
+              description: "Event visibility. Use 'private' for flex events.",
+              default: "private",
+            },
+            account: {
+              type: "string",
+              description: "Which account to create the event on (e.g., 'personal', 'work'). Required.",
+            },
+            description: {
+              type: "string",
+              description: "Event description (optional)",
+            },
+            calendarId: {
+              type: "string",
+              description: "Calendar ID (default: primary)",
+              default: "primary",
+            },
+          },
+          required: ["summary", "start", "end", "account"],
+        },
+      },
+      {
+        name: "update_event_status",
+        description: "Update RSVP status for an event (accept, decline, or tentative)",
+        inputSchema: {
+          type: "object",
+          properties: {
+            eventId: {
+              type: "string",
+              description: "The event ID to update",
+            },
+            status: {
+              type: "string",
+              enum: ["accepted", "declined", "tentative", "needsAction"],
+              description: "The RSVP status to set",
+            },
+            account: {
+              type: "string",
+              description: "Which account the event is on. If not provided, will search all accounts.",
+            },
+            calendarId: {
+              type: "string",
+              description: "Calendar ID (default: primary)",
+              default: "primary",
+            },
+          },
+          required: ["eventId", "status"],
+        },
+      },
+      {
+        name: "decline_event",
+        description: "Smart decline: If you're an attendee, declines the invitation. If you're the organizer with active attendees, declines but keeps the event. If you're the organizer with no active attendees, deletes the event.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            eventId: {
+              type: "string",
+              description: "The event ID to decline",
+            },
+            calendarId: {
+              type: "string",
+              description: "Calendar ID (default: primary)",
+              default: "primary",
+            },
+            sendUpdates: {
+              type: "string",
+              description: "Whether to send notifications: 'all' (notify organizer), 'none' (silent). Default: 'all'",
+              enum: ["all", "none"],
+              default: "all",
+            },
+            account: {
+              type: "string",
+              description: "Which account to use (personal/work). Auto-detected if not specified.",
+            },
+          },
+          required: ["eventId"],
+        },
+      },
+      {
+        name: "update_event_time",
+        description: "Move/reschedule an event to a new time",
+        inputSchema: {
+          type: "object",
+          properties: {
+            eventId: {
+              type: "string",
+              description: "The event ID to update",
+            },
+            newStart: {
+              type: "string",
+              description: "New start time in ISO format (e.g., 2026-02-23T09:00:00)",
+            },
+            newEnd: {
+              type: "string",
+              description: "New end time in ISO format (e.g., 2026-02-23T10:00:00)",
+            },
+            account: {
+              type: "string",
+              description: "Which account the event is on. Auto-detected if not specified.",
+            },
+            calendarId: {
+              type: "string",
+              description: "Calendar ID (default: primary)",
+              default: "primary",
+            },
+            sendUpdates: {
+              type: "string",
+              description: "Whether to send notifications: 'all' (notify attendees), 'none' (silent). Default: 'all'",
+              enum: ["all", "none"],
+              default: "all",
+            },
+          },
+          required: ["eventId", "newStart", "newEnd"],
+        },
+      },
+      {
+        name: "delete_event",
+        description: "Delete a calendar event",
+        inputSchema: {
+          type: "object",
+          properties: {
+            eventId: {
+              type: "string",
+              description: "The event ID to delete",
+            },
+            account: {
+              type: "string",
+              description: "Which account the event is on. Auto-detected if not specified.",
+            },
+            calendarId: {
+              type: "string",
+              description: "Calendar ID (default: primary)",
+              default: "primary",
+            },
+            sendUpdates: {
+              type: "string",
+              description: "Whether to send notifications: 'all' (notify attendees), 'none' (silent). Default: 'all'",
+              enum: ["all", "none"],
+              default: "all",
+            },
+          },
+          required: ["eventId"],
+        },
+      },
     ],
   };
 });
@@ -535,6 +704,526 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                 null,
                 2
               ),
+            },
+          ],
+        };
+      }
+
+      case "create_event": {
+        const {
+          summary,
+          start,
+          end,
+          colorId = "9",
+          visibility = "private",
+          account,
+          description,
+          calendarId = "primary",
+        } = args as {
+          summary: string;
+          start: string;
+          end: string;
+          colorId?: string;
+          visibility?: string;
+          account: string;
+          description?: string;
+          calendarId?: string;
+        };
+
+        // Resolve color name to ID if needed
+        let resolvedColorId = colorId;
+        if (isNaN(parseInt(colorId))) {
+          const colorEntry = Object.entries(GOOGLE_CALENDAR_COLORS).find(
+            ([_, name]) => name.toLowerCase() === colorId.toLowerCase()
+          );
+          if (colorEntry) {
+            resolvedColorId = colorEntry[0];
+          }
+        }
+
+        const calendar = await getClientForAccount(account);
+
+        // Determine timezone from start date or use local
+        const startDate = new Date(start);
+        const endDate = new Date(end);
+
+        const response = await calendar.events.insert({
+          calendarId,
+          requestBody: {
+            summary,
+            description,
+            start: {
+              dateTime: startDate.toISOString(),
+              timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+            },
+            end: {
+              dateTime: endDate.toISOString(),
+              timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+            },
+            colorId: resolvedColorId,
+            visibility,
+          },
+        });
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify(
+                {
+                  success: true,
+                  account,
+                  event: formatEvent(response.data, account),
+                },
+                null,
+                2
+              ),
+            },
+          ],
+        };
+      }
+
+      case "update_event_status": {
+        const { eventId, status, account, calendarId = "primary" } = args as {
+          eventId: string;
+          status: "accepted" | "declined" | "tentative" | "needsAction";
+          account?: string;
+          calendarId?: string;
+        };
+
+        const clients = await getClients();
+        let targetAccount = account;
+        let targetCalendar: calendar_v3.Calendar | null = null;
+        let existingEvent: calendar_v3.Schema$Event | null = null;
+
+        // Find the event and get the user's email for this account
+        if (!targetAccount) {
+          for (const { account: acct, calendar } of clients) {
+            try {
+              const eventResponse = await calendar.events.get({
+                calendarId,
+                eventId,
+              });
+              existingEvent = eventResponse.data;
+              targetAccount = acct;
+              targetCalendar = calendar;
+              break;
+            } catch {
+              // Event not found in this account, continue
+            }
+          }
+        } else {
+          targetCalendar = await getClientForAccount(targetAccount);
+          const eventResponse = await targetCalendar.events.get({
+            calendarId,
+            eventId,
+          });
+          existingEvent = eventResponse.data;
+        }
+
+        if (!targetAccount || !targetCalendar || !existingEvent) {
+          return {
+            content: [
+              {
+                type: "text",
+                text: `Event not found in any account. Please specify the account parameter.`,
+              },
+            ],
+            isError: true,
+          };
+        }
+
+        // Get the user's email for this account
+        const calendarList = await targetCalendar.calendarList.get({
+          calendarId: "primary",
+        });
+        const userEmail = calendarList.data.id;
+
+        // Update the attendee status
+        const updatedAttendees = existingEvent.attendees?.map((attendee) => {
+          if (attendee.self || attendee.email === userEmail) {
+            return { ...attendee, responseStatus: status };
+          }
+          return attendee;
+        });
+
+        // If no attendees list (user is organizer), just update the event
+        const response = await targetCalendar.events.patch({
+          calendarId,
+          eventId,
+          requestBody: {
+            attendees: updatedAttendees || undefined,
+          },
+        });
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify(
+                {
+                  success: true,
+                  account: targetAccount,
+                  newStatus: status,
+                  event: formatEvent(response.data, targetAccount),
+                },
+                null,
+                2
+              ),
+            },
+          ],
+        };
+      }
+
+      case "decline_event": {
+        const {
+          eventId,
+          calendarId = "primary",
+          sendUpdates = "all",
+          account,
+        } = args as {
+          eventId: string;
+          calendarId?: string;
+          sendUpdates?: "all" | "none";
+          account?: string;
+        };
+
+        const clients = await getClients();
+        let targetAccount = account;
+        let targetCalendar: calendar_v3.Calendar | null = null;
+        let event: calendar_v3.Schema$Event | null = null;
+
+        // Find the event and determine which account owns it
+        if (targetAccount) {
+          targetCalendar = await getClientForAccount(targetAccount);
+          const response = await targetCalendar.events.get({ calendarId, eventId });
+          event = response.data;
+        } else {
+          for (const { account: acct, calendar } of clients) {
+            try {
+              const response = await calendar.events.get({ calendarId, eventId });
+              event = response.data;
+              targetAccount = acct;
+              targetCalendar = calendar;
+              break;
+            } catch {
+              // Event not found in this account, continue
+            }
+          }
+        }
+
+        if (!event || !targetCalendar || !targetAccount) {
+          return {
+            content: [
+              {
+                type: "text",
+                text: "Event not found in any account. Please specify the account parameter.",
+              },
+            ],
+            isError: true,
+          };
+        }
+
+        // Get the authenticated user's email for this account
+        const calendarListResponse = await targetCalendar.calendarList.get({ calendarId: "primary" });
+        const userEmail = calendarListResponse.data.id || "";
+
+        // Get attendees list
+        const attendees = event.attendees || [];
+        const selfAttendee = attendees.find(
+          (a) => a.email?.toLowerCase() === userEmail.toLowerCase() || a.self === true
+        );
+
+        // Check if user is the organizer
+        const isOrganizer = event.organizer?.self === true ||
+                            event.organizer?.email?.toLowerCase() === userEmail.toLowerCase();
+
+        // Check if there are other attendees (excluding self)
+        const otherAttendees = attendees.filter(
+          (a) => a.email?.toLowerCase() !== userEmail.toLowerCase() && a.self !== true
+        );
+
+        // Check if any other attendees are still "active" (not declined)
+        const activeAttendees = otherAttendees.filter(
+          (a) => a.responseStatus !== "declined"
+        );
+        const hasActiveAttendees = activeAttendees.length > 0;
+
+        if (isOrganizer && !hasActiveAttendees) {
+          // User is organizer with no other attendees OR all have declined - delete the event
+          await targetCalendar.events.delete({
+            calendarId,
+            eventId,
+            sendUpdates,
+          });
+
+          return {
+            content: [
+              {
+                type: "text",
+                text: JSON.stringify({
+                  success: true,
+                  account: targetAccount,
+                  action: "deleted",
+                  message: `Deleted event: ${event.summary} (no active attendees remaining)`,
+                  sendUpdates,
+                }, null, 2),
+              },
+            ],
+          };
+        }
+
+        // If organizer with active attendees, decline our own attendance
+        if (isOrganizer && hasActiveAttendees) {
+          let organizerAttendee = attendees.find(
+            (a) => a.email?.toLowerCase() === userEmail.toLowerCase() || a.self === true
+          );
+
+          if (!organizerAttendee) {
+            // Add organizer as an attendee so we can decline
+            organizerAttendee = { email: userEmail, responseStatus: "declined" };
+            attendees.push(organizerAttendee);
+          } else {
+            organizerAttendee.responseStatus = "declined";
+          }
+
+          const response = await targetCalendar.events.patch({
+            calendarId,
+            eventId,
+            sendUpdates,
+            requestBody: { attendees },
+          });
+
+          return {
+            content: [
+              {
+                type: "text",
+                text: JSON.stringify({
+                  success: true,
+                  account: targetAccount,
+                  action: "declined",
+                  message: `Declined event: ${event.summary} (you were the organizer, event continues for ${activeAttendees.length} active attendee(s))`,
+                  sendUpdates,
+                  event: formatEvent(response.data, targetAccount),
+                }, null, 2),
+              },
+            ],
+          };
+        }
+
+        if (!selfAttendee) {
+          // User is not an attendee and not the organizer - edge case
+          return {
+            content: [
+              {
+                type: "text",
+                text: JSON.stringify({
+                  success: false,
+                  error: "You are not an attendee or organizer of this event.",
+                  event: formatEvent(event, targetAccount),
+                }, null, 2),
+              },
+            ],
+            isError: true,
+          };
+        }
+
+        // Update the response status to declined
+        selfAttendee.responseStatus = "declined";
+
+        // Patch the event with updated attendees
+        const response = await targetCalendar.events.patch({
+          calendarId,
+          eventId,
+          sendUpdates,
+          requestBody: {
+            attendees,
+          },
+        });
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify({
+                success: true,
+                account: targetAccount,
+                action: "declined",
+                message: `Declined event: ${event.summary}`,
+                sendUpdates,
+                event: formatEvent(response.data, targetAccount),
+              }, null, 2),
+            },
+          ],
+        };
+      }
+
+      case "update_event_time": {
+        const {
+          eventId,
+          newStart,
+          newEnd,
+          account,
+          calendarId = "primary",
+          sendUpdates = "all",
+        } = args as {
+          eventId: string;
+          newStart: string;
+          newEnd: string;
+          account?: string;
+          calendarId?: string;
+          sendUpdates?: "all" | "none";
+        };
+
+        const clients = await getClients();
+        let targetAccount = account;
+        let targetCalendar: calendar_v3.Calendar | null = null;
+        let existingEvent: calendar_v3.Schema$Event | null = null;
+
+        // Find the event if account not specified
+        if (!targetAccount) {
+          for (const { account: acct, calendar } of clients) {
+            try {
+              const response = await calendar.events.get({ calendarId, eventId });
+              existingEvent = response.data;
+              targetAccount = acct;
+              targetCalendar = calendar;
+              break;
+            } catch {
+              // Event not found in this account, continue
+            }
+          }
+        } else {
+          targetCalendar = await getClientForAccount(targetAccount);
+          const response = await targetCalendar.events.get({ calendarId, eventId });
+          existingEvent = response.data;
+        }
+
+        if (!targetAccount || !targetCalendar || !existingEvent) {
+          return {
+            content: [
+              {
+                type: "text",
+                text: "Event not found in any account. Please specify the account parameter.",
+              },
+            ],
+            isError: true,
+          };
+        }
+
+        // Update the event with new times
+        const startDate = new Date(newStart);
+        const endDate = new Date(newEnd);
+
+        const response = await targetCalendar.events.patch({
+          calendarId,
+          eventId,
+          sendUpdates,
+          requestBody: {
+            start: {
+              dateTime: startDate.toISOString(),
+              timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+            },
+            end: {
+              dateTime: endDate.toISOString(),
+              timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+            },
+          },
+        });
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify({
+                success: true,
+                account: targetAccount,
+                action: "rescheduled",
+                oldStart: existingEvent.start?.dateTime || existingEvent.start?.date,
+                oldEnd: existingEvent.end?.dateTime || existingEvent.end?.date,
+                newStart: newStart,
+                newEnd: newEnd,
+                sendUpdates,
+                event: formatEvent(response.data, targetAccount),
+              }, null, 2),
+            },
+          ],
+        };
+      }
+
+      case "delete_event": {
+        const {
+          eventId,
+          account,
+          calendarId = "primary",
+          sendUpdates = "all",
+        } = args as {
+          eventId: string;
+          account?: string;
+          calendarId?: string;
+          sendUpdates?: "all" | "none";
+        };
+
+        const clients = await getClients();
+        let targetAccount = account;
+        let targetCalendar: calendar_v3.Calendar | null = null;
+        let existingEvent: calendar_v3.Schema$Event | null = null;
+
+        // Find the event if account not specified
+        if (!targetAccount) {
+          for (const { account: acct, calendar } of clients) {
+            try {
+              const response = await calendar.events.get({ calendarId, eventId });
+              existingEvent = response.data;
+              targetAccount = acct;
+              targetCalendar = calendar;
+              break;
+            } catch {
+              // Event not found in this account, continue
+            }
+          }
+        } else {
+          targetCalendar = await getClientForAccount(targetAccount);
+          const response = await targetCalendar.events.get({ calendarId, eventId });
+          existingEvent = response.data;
+        }
+
+        if (!targetAccount || !targetCalendar || !existingEvent) {
+          return {
+            content: [
+              {
+                type: "text",
+                text: "Event not found in any account. Please specify the account parameter.",
+              },
+            ],
+            isError: true,
+          };
+        }
+
+        // Delete the event
+        await targetCalendar.events.delete({
+          calendarId,
+          eventId,
+          sendUpdates,
+        });
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify({
+                success: true,
+                account: targetAccount,
+                action: "deleted",
+                message: `Deleted event: ${existingEvent.summary}`,
+                sendUpdates,
+                deletedEvent: {
+                  id: existingEvent.id,
+                  summary: existingEvent.summary,
+                  start: existingEvent.start?.dateTime || existingEvent.start?.date,
+                  end: existingEvent.end?.dateTime || existingEvent.end?.date,
+                },
+              }, null, 2),
             },
           ],
         };

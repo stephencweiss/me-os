@@ -9,6 +9,8 @@ config/credentials.json
 config/tokens.json
 config/*.json
 !config/colors.json
+!config/calendar-manager.json
+!config/optimization-goals.json
 
 # Data files (personal)
 data/

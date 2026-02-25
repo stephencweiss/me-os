@@ -1,6 +1,7 @@
 ---
 name: time-report
 description: Generate time analysis reports showing how you spent your week, with gap detection and category breakdowns. Shows data from all authenticated Google accounts.
+user-invocable: true
 ---
 
 # /time-report - Time Analysis & Weekly Reports
@@ -18,19 +19,9 @@ Analyze how you spend your time based on calendar data. Identifies scheduled vs.
 ## What It Shows
 
 ### Time by Category
-Events grouped by their calendar color with semantic meanings:
+Events grouped by their calendar color with semantic meanings.
 
-| Color | Meaning |
-|-------|---------|
-| Lavender | 1:1s / People |
-| Sage | Deep Work / Focus |
-| Grape | Meetings |
-| Flamingo | Blocked / Waiting |
-| Banana | Admin / Ops |
-| Tangerine | External |
-| Peacock | Learning |
-| Graphite | Personal |
-| Tomato | Urgent / Deadlines |
+See `config/colors.json` for the shared color definitions used across all calendar skills. Use `get_color_definitions` MCP tool to retrieve them programmatically.
 
 ### Gap Analysis
 Unstructured time during work hours (9am-6pm):
