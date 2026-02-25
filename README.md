@@ -79,20 +79,6 @@ me-os/
 
 Events are color-coded with semantic meaning. **Source of truth:** `config/colors.json`.
 
-| Color | Name | Meaning |
-|-------|------|---------|
-| 1 | Lavender | 1:1s / People |
-| 2 | Sage | Deep Work / Focus / Learning |
-| 3 | Grape | Project Work |
-| 4 | Flamingo | Meetings |
-| 5 | Banana | Household / Pets |
-| 6 | Tangerine | Family Time |
-| 7 | Peacock | Personal Projects |
-| 8 | Graphite | Travel / Commute |
-| 9 | Blueberry | Fitness |
-| 10 | Basil | Social |
-| 11 | Tomato | Urgent / Blocked |
-
 ## Schedule Configuration
 
 The schedule defines your waking hours and work hours by day of week, used for gap analysis and calendar optimization.
