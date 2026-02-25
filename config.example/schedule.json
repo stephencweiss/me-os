@@ -1,0 +1,14 @@
+{
+  "defaultSchedule": {
+    "weekday": {
+      "awakePeriod": { "start": 6, "end": 22 },
+      "workPeriod": { "start": 9, "end": 17 }
+    },
+    "weekend": {
+      "awakePeriod": { "start": 6, "end": 22 },
+      "workPeriod": null
+    }
+  },
+  "overrides": {},
+  "holidays": []
+}

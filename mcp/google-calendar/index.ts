@@ -13,6 +13,13 @@ import {
   getCalendarClient,
   AuthenticatedAccount
 } from "../../lib/google-auth.js";
+import {
+  CalendarType,
+  loadCalendarFilterConfig,
+  getCalendarType,
+  shouldIncludeEvent,
+  CalendarFilterConfig,
+} from "../../lib/calendar-filter.js";
 import { calendar_v3 } from "googleapis";
 import * as fs from "fs";
 import * as path from "path";
@@ -58,7 +65,12 @@ async function getClientForAccount(account: string): Promise<calendar_v3.Calenda
   return found.calendar;
 }
 
-function formatEvent(event: calendar_v3.Schema$Event, account: string): object {
+function formatEvent(
+  event: calendar_v3.Schema$Event,
+  account: string,
+  calendarName?: string,
+  calendarType?: CalendarType
+): object {
   const colorId = event.colorId || "default";
   const colorName = colorId === "default" ? "Default" : GOOGLE_CALENDAR_COLORS[colorId] || colorId;
   const colorMeaning = colorDefinitions[colorId]?.meaning || "";
@@ -66,6 +78,8 @@ function formatEvent(event: calendar_v3.Schema$Event, account: string): object {
   return {
     id: event.id,
     account,
+    calendarName: calendarName || "Primary",
+    calendarType: calendarType || "active",
     summary: event.summary || "(No title)",
     start: event.start?.dateTime || event.start?.date,
     end: event.end?.dateTime || event.end?.date,
@@ -79,7 +93,7 @@ function formatEvent(event: calendar_v3.Schema$Event, account: string): object {
   };
 }
 
-// Fetch events from all accounts and merge
+// Fetch events from all accounts and all calendars, then merge
 async function fetchEventsFromAllAccounts(
   timeMin: string,
   timeMax: string,
@@ -88,20 +102,83 @@ async function fetchEventsFromAllAccounts(
   const clients = await getClients();
   const allEvents: object[] = [];
 
+  // Load calendar filter config
+  const filterConfig = loadCalendarFilterConfig();
+
   for (const { account, calendar } of clients) {
     try {
-      const response = await calendar.events.list({
-        calendarId: "primary",
-        timeMin,
-        timeMax,
-        q: query,
-        singleEvents: true,
-        orderBy: "startTime",
-      });
-      const events = response.data.items?.map(e => formatEvent(e, account)) || [];
-      allEvents.push(...events);
+      // Get user email for this account (for attendee checking)
+      const primaryCalendar = await calendar.calendarList.get({ calendarId: "primary" });
+      const userEmail = primaryCalendar.data.id || "";
+
+      // Get all calendars for this account
+      const calendarListResponse = await calendar.calendarList.list();
+      const calendars = calendarListResponse.data.items || [];
+
+      // Fetch events from each calendar
+      for (const cal of calendars) {
+        if (!cal.id) continue;
+
+        // Skip holiday calendars (they add noise)
+        if (cal.id.includes("#holiday@group")) continue;
+
+        // Determine calendar type
+        const calType = getCalendarType(
+          {
+            id: cal.id,
+            summary: cal.summary || cal.id,
+            primary: cal.primary,
+            accessRole: cal.accessRole || "reader",
+          },
+          filterConfig
+        );
+
+        // Skip excluded calendars
+        if (calType === "excluded") continue;
+
+        // Check if this is a shared calendar without explicit type config
+        const hasExplicitType = filterConfig.calendarTypes[cal.summary || ""] !== undefined ||
+                                filterConfig.calendarTypes[cal.id] !== undefined;
+        const isSharedWithoutExplicitType = !cal.primary &&
+                                             cal.accessRole !== "owner" &&
+                                             !hasExplicitType;
+
+        try {
+          const response = await calendar.events.list({
+            calendarId: cal.id,
+            timeMin,
+            timeMax,
+            q: query,
+            singleEvents: true,
+            orderBy: "startTime",
+          });
+
+          const calendarName = cal.primary ? "Primary" : (cal.summary || cal.id);
+
+          for (const event of response.data.items || []) {
+            // For shared calendars without explicit type, filter by attendee status
+            if (isSharedWithoutExplicitType) {
+              const include = shouldIncludeEvent(
+                {
+                  attendees: event.attendees,
+                  organizer: event.organizer,
+                },
+                userEmail,
+                calType,
+                true // isSharedCalendarWithoutExplicitType
+              );
+              if (!include) continue;
+            }
+
+            allEvents.push(formatEvent(event, account, calendarName, calType));
+          }
+        } catch (err) {
+          // Silently skip calendars we can't read (e.g., some shared calendars)
+          console.error(`Failed to fetch events from ${cal.summary || cal.id} for ${account}:`, err);
+        }
+      }
     } catch (err) {
-      console.error(`Failed to fetch events for ${account}:`, err);
+      console.error(`Failed to fetch calendars for ${account}:`, err);
     }
   }
 

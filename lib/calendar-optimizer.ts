@@ -7,6 +7,12 @@
  */
 
 import * as fs from "fs";
+import {
+  loadSchedule,
+  getScheduleForDate,
+  getAvailableHours,
+  type WeeklySchedule,
+} from "./schedule.js";
 
 // ============================================
 // Types
@@ -29,6 +35,7 @@ export interface TimeGoal {
   colorId: string;
   priority: number;
   recurring: boolean;
+  context?: "work" | "personal" | "any"; // Schedule context for slot filtering
 }
 
 export interface OutcomeGoal {
@@ -380,23 +387,81 @@ export function removeRecurringGoal(goalId: string, configPath: string): void {
 // ============================================
 
 /**
+ * Filter slots by schedule constraints based on goal context.
+ *
+ * - "work" goals: Only include slots during work hours
+ * - "personal" goals: Include slots during waking hours
+ * - "any" or undefined: Include all slots during waking hours
+ *
+ * This function clips slots to the appropriate hours if they partially overlap.
+ */
+export function filterSlotsBySchedule(
+  slots: FlexSlot[],
+  goalContext: "work" | "personal" | "any" | undefined,
+  schedule?: WeeklySchedule
+): FlexSlot[] {
+  const effectiveSchedule = schedule || loadSchedule();
+  const effectiveContext = goalContext || "any";
+  const filteredSlots: FlexSlot[] = [];
+
+  for (const slot of slots) {
+    // Get the available hours for this slot's date
+    const availableHours = getAvailableHours(
+      slot.start,
+      effectiveContext,
+      effectiveSchedule
+    );
+
+    // Create date boundaries for the available hours
+    const dayStart = new Date(slot.start);
+    dayStart.setHours(availableHours.start, 0, 0, 0);
+
+    const dayEnd = new Date(slot.start);
+    dayEnd.setHours(availableHours.end, 0, 0, 0);
+
+    // Check if slot overlaps with available hours
+    const overlapStart = Math.max(slot.start.getTime(), dayStart.getTime());
+    const overlapEnd = Math.min(slot.end.getTime(), dayEnd.getTime());
+
+    if (overlapEnd > overlapStart) {
+      // There is overlap - create a clipped slot
+      filteredSlots.push({
+        start: new Date(overlapStart),
+        end: new Date(overlapEnd),
+        durationMinutes: Math.round((overlapEnd - overlapStart) / (60 * 1000)),
+      });
+    }
+  }
+
+  return filteredSlots;
+}
+
+/**
  * Find optimal time slots for a goal from available gaps.
  *
  * Algorithm:
- * 1. Filter gaps by minimum session constraint
- * 2. Sort gaps by preference (morning/afternoon/evening if specified)
- * 3. Allocate time slots respecting max session constraint
- * 4. Continue until goal is fully satisfied or no more suitable gaps
+ * 1. Filter gaps by schedule context (work hours vs waking hours)
+ * 2. Filter gaps by minimum session constraint
+ * 3. Sort gaps by preference (morning/afternoon/evening if specified)
+ * 4. Allocate time slots respecting max session constraint
+ * 5. Continue until goal is fully satisfied or no more suitable gaps
  */
-export function findSlotsForGoal(goal: TimeGoal, gaps: FlexSlot[]): ProposedEvent[] {
+export function findSlotsForGoal(
+  goal: TimeGoal,
+  gaps: FlexSlot[],
+  schedule?: WeeklySchedule
+): ProposedEvent[] {
   const proposed: ProposedEvent[] = [];
   let remainingMinutes = goal.totalMinutes;
 
   const minSession = goal.minSessionMinutes ?? 0;
   const maxSession = goal.maxSessionMinutes ?? Infinity;
 
-  // Filter gaps that meet minimum session requirement
-  const suitableGaps = gaps.filter((g) => g.durationMinutes >= minSession);
+  // First, filter gaps by schedule context (work hours vs waking hours)
+  const scheduleFilteredGaps = filterSlotsBySchedule(gaps, goal.context, schedule);
+
+  // Then filter by minimum session requirement
+  const suitableGaps = scheduleFilteredGaps.filter((g) => g.durationMinutes >= minSession);
 
   if (suitableGaps.length === 0) {
     return [];

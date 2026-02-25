@@ -19,6 +19,17 @@ import {
   formatDuration,
   getWeekStart,
 } from "../lib/time-analysis.js";
+import { loadSchedule } from "../lib/schedule.js";
+
+/**
+ * Format an hour as a simple time string (e.g., 9am, 5pm)
+ */
+function formatHour(hour: number): string {
+  if (hour === 0) return "12am";
+  if (hour === 12) return "12pm";
+  if (hour < 12) return `${hour}am`;
+  return `${hour - 12}pm`;
+}
 
 async function main() {
   const args = process.argv.slice(2);
@@ -95,8 +106,11 @@ Examples:
         }
 
         console.log("## Summary");
+        const hoursLabel = summary.isWorkDay
+          ? `work hours ${formatHour(summary.analysisHours.start)}-${formatHour(summary.analysisHours.end)}`
+          : `waking hours ${formatHour(summary.analysisHours.start)}-${formatHour(summary.analysisHours.end)}`;
         console.log(`- **Total Scheduled:** ${formatDuration(summary.totalScheduledMinutes)} (after merging overlaps)`);
-        console.log(`- **Unstructured Time (9am-6pm):** ${formatDuration(summary.totalGapMinutes)}`);
+        console.log(`- **Unstructured Time (${hoursLabel}):** ${formatDuration(summary.totalGapMinutes)}`);
         console.log(`- **Event Count:** ${summary.events.length} timed events\n`);
 
         console.log("## Time by Category");
@@ -118,6 +132,30 @@ Examples:
           console.log(`- ${startTime} - ${endTime}: ${event.summary} [${event.account}] [${colorLabel}]`);
         }
         console.log("");
+
+        // Show availability context (e.g., on-call)
+        if (summary.availabilityEvents && summary.availabilityEvents.length > 0) {
+          console.log("## Availability Context");
+          console.log("*These events show context (e.g., on-call) but don't count toward time tracking.*\n");
+          for (const event of summary.availabilityEvents) {
+            const startTime = event.start.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+            const endTime = event.end.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+            console.log(`- ${startTime} - ${endTime}: ${event.summary} [${event.calendarName}]`);
+          }
+          console.log("");
+        }
+
+        // Show reference events (FYI)
+        if (summary.referenceEvents && summary.referenceEvents.length > 0) {
+          console.log("## Reference (FYI)");
+          console.log("*Events from reference calendars, shown for context only.*\n");
+          for (const event of summary.referenceEvents) {
+            const startTime = event.start.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+            const endTime = event.end.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+            console.log(`- ${startTime} - ${endTime}: ${event.summary} [${event.calendarName}]`);
+          }
+          console.log("");
+        }
 
         if (summary.gaps.length > 0) {
           console.log("## Unstructured Time Blocks");

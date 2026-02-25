@@ -7,8 +7,8 @@ Build a personal productivity system as Claude Code skills with MCP integration.
 
 ## Current Status
 
-**Phase:** 3 Complete - Calendar Optimizer
-**Status:** Ready for Phase 4 (One-on-One Management)
+**Phase:** 4 Complete - One-on-One Management
+**Status:** Ready for Phase 5 (Project Dashboard)
 
 **What's done:**
 - ✅ Project setup (package.json, tsconfig, dependencies)
@@ -24,11 +24,13 @@ Build a personal productivity system as Claude Code skills with MCP integration.
 - ✅ `/calendar-manager` skill for conflict resolution and flex time blocking
 - ✅ Calendar optimizer library with goal parsing, slot allocation, scoring
 - ✅ `/calendar-optimizer` skill for goal-based schedule optimization
-- ✅ 84 unit tests passing
+- ✅ One-on-one library with person management, entry storage, history retrieval
+- ✅ `/one-on-one` skill for 1:1 note management (voice, image, markdown, text)
+- ✅ 171 unit tests passing
 
 **Next action:**
-1. Proceed to Phase 4: One-on-One Management (when ready)
-2. Or test `/calendar-optimizer` skill in practice
+1. Manual testing of `/one-on-one` skill with real files (audio, image, markdown)
+2. Proceed to Phase 5: Project Dashboard (when ready)
 
 ---
 
@@ -390,25 +392,44 @@ Commands:
 
 ## Phase 4: One-on-One Management
 
-### 4.1 Voice Transcription
-**Location**: `lib/transcription.ts`
+### 4.1 One-on-One Library
+**Location**: `lib/one-on-one.ts`
 
-- Use Claude's audio capabilities or Whisper API
-- Accept audio file path, return transcript
-- Store raw audio in `data/audio/` (gitignored)
+Functions:
+- `loadIndex()` / `saveIndex()` - Manage person index
+- `nameToSlug(name)` - Convert name to URL-safe slug
+- `getPerson(nameOrSlug)` - Find person (case-insensitive)
+- `addPerson(name, frequency?)` - Add new person
+- `listPeople()` - List all people sorted by name
+- `updatePerson(id, updates)` - Update person info
+- `saveRawNotes(personId, content, source, sourcePath?)` - Save raw notes
+- `saveSummary(personId, content)` - Save summary
+- `loadRawNotes(personId, date?)` - Load raw notes
+- `loadSummary(personId, date?)` - Load summary
+- `getHistory(personId, limit?)` - Get entry history
+- `getLatestEntry(personId)` - Get most recent entry
+- Formatting functions for display
 
 ### 4.2 One-on-One Skill
-**Location**: `skills/one-on-one/`
+**Location**: `.claude/skills/one-on-one/`
 
-Skill file: `skills/one-on-one/skill.md`
-- `/one-on-one <name>` - Start 1:1 session
-- `/one-on-one <name> transcribe <audio-path>` - Process voice notes
-- `/one-on-one <name> summary` - Generate summary from recent notes
+Commands:
+- `/one-on-one <name>` - Start or continue 1:1 with person
+- `/one-on-one <name> add <file>` - Process voice/image/markdown file
+- `/one-on-one <name> note` - Add text notes interactively
+- `/one-on-one <name> summary` - Generate summary from today's notes
 - `/one-on-one <name> history` - View past 1:1s
+- `/one-on-one list` - List all direct reports
 
-Data storage: `data/one-on-ones/<name>/`
-- `YYYY-MM-DD-raw.md` - Raw transcript
+Supported file types:
+- Voice notes: `.m4a`, `.mp3`, `.wav`, `.ogg` - transcribed with Claude's native audio
+- Handwritten notes: `.jpg`, `.jpeg`, `.png`, `.heic` - interpreted with Claude's vision
+- Markdown files: `.md`, `.txt` - loaded directly
+
+Data storage: `data/one-on-ones/<person>/`
+- `YYYY-MM-DD-raw.md` - Raw transcript/notes
 - `YYYY-MM-DD-summary.md` - Structured summary
+- `index.json` - Person metadata and last 1:1 dates
 
 ### 4.3 Export Integrations (Future)
 - Google Docs API for document creation
@@ -416,26 +437,42 @@ Data storage: `data/one-on-ones/<name>/`
 
 ### 4.4 Testing Strategy - Phase 4
 
-**How we prove it works:**
-1. Audio transcription produces readable, accurate text
-2. Raw notes are stored correctly per person
-3. Summaries capture key points from raw notes
-4. History retrieval shows correct chronological order
+**Unit Tests** (`tests/one-on-one.test.ts`):
 
-**Tests to run:**
+| Test | Expected |
+|------|----------|
+| nameToSlug("Alice Smith") | "alice-smith" |
+| nameToSlug("O'Brien, John") | "o-brien-john" |
+| getTodayDate() | YYYY-MM-DD format |
+| formatDateForDisplay("2026-02-24") | "February 24, 2026" |
+| formatEntryForDisplay (with summary) | Contains date, source, "Summary" |
+| formatEntryForDisplay (no summary) | Contains "Raw notes only" |
+| formatHistoryList (empty) | "No 1:1 history found." |
+| formatPersonForList (with last date) | Contains name, frequency, date |
+| formatPersonForList (no last date) | Contains "Never" |
+| Person creation structure | Correct id, name, frequency fields |
+| People sorted by name | Alphabetical order |
+| Entry date sorting | Descending (most recent first) |
+| Limit restricts entries | Correct count returned |
 
-| Test | Command/Action | Expected Result |
-|------|----------------|-----------------|
-| Transcription | `/one-on-one Alice transcribe test.m4a` | Produces readable transcript of audio content |
-| Storage | Check `data/one-on-ones/Alice/` | Raw file created with date prefix |
-| Summary generation | `/one-on-one Alice summary` | Produces structured summary with action items |
-| History | `/one-on-one Alice history` | Shows past entries in reverse chronological order |
-| New person | `/one-on-one NewPerson` | Creates new directory, starts fresh |
-| Multiple entries | Add 3 entries for same person | All stored separately, history shows all 3 |
+**Manual Tests:**
+
+| Test | Expected |
+|------|----------|
+| `/one-on-one Alice` (new) | Creates alice directory, adds to index |
+| `/one-on-one alice add voice.m4a` | Transcribes audio, saves raw file |
+| `/one-on-one alice add notes.jpg` | Interprets handwriting, saves raw file |
+| `/one-on-one alice add notes.md` | Loads markdown content, saves raw file |
+| `/one-on-one alice note` | Prompts for text, appends to raw file |
+| `/one-on-one alice summary` | Generates and saves structured summary |
+| `/one-on-one alice history` | Shows past entries with dates |
+| `/one-on-one list` | Shows all people with last 1:1 dates |
 
 **Verification checklist:**
-- [ ] Record a short test audio (30 seconds)
-- [ ] Transcribe and verify accuracy against what was said
+- [ ] Process a voice note and verify transcript accuracy
+- [ ] Process a handwritten note image and verify interpretation
+- [ ] Load a markdown file and verify content
+- [ ] Add multiple notes on same day (verify appending)
 - [ ] Generate summary and confirm it captures main points
 - [ ] Check file system to verify data structure
 - [ ] Retrieve history and confirm ordering
@@ -531,9 +568,10 @@ Leverage existing JIRA MCP from work environment.
 - `data/optimization-proposals/` (directory)
 
 ### Phase 4
-- `lib/transcription.ts`
-- `skills/one-on-one/skill.md`
-- `data/` directory structure
+- `lib/one-on-one.ts`
+- `tests/one-on-one.test.ts`
+- `.claude/skills/one-on-one/SKILL.md`
+- `data/one-on-ones/` (directory)
 
 ### Phase 5
 - `skills/project-dash/skill.md`
@@ -600,3 +638,8 @@ Leverage existing JIRA MCP from work environment.
 | 2026-02-23 | Phase 3.7: MCP tools | Complete | Added update_event_time, delete_event tools |
 | 2026-02-23 | Phase 3.8: Config & skill | Complete | optimization-goals.json, calendar-optimizer/SKILL.md |
 | 2026-02-23 | **Phase 3 Complete** | ✅ | Calendar optimizer ready with 84 passing tests |
+| 2026-02-24 | Phase 4: Planning | Complete | Created plan for one-on-one skill |
+| 2026-02-24 | Phase 4.1: One-on-one library | Complete | TDD - 27 tests + lib/one-on-one.ts |
+| 2026-02-24 | Phase 4.2: Skill definition | Complete | .claude/skills/one-on-one/SKILL.md with all commands |
+| 2026-02-24 | Phase 4.3: Documentation | Complete | README.md updated with Phase 4 features |
+| 2026-02-24 | **Phase 4 Complete** | ✅ | One-on-one management ready with 171 passing tests |
