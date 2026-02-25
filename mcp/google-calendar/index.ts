@@ -45,6 +45,11 @@ const GOOGLE_CALENDAR_COLORS: Record<string, string> = {
   "11": "Tomato",
 };
 
+// Output size limits to prevent token overflow
+const MAX_RESULTS_PER_CALENDAR = 100; // Google API limit per calendar
+const DEFAULT_EVENT_LIMIT = 200; // Default max events returned
+const ABSOLUTE_MAX_EVENTS = 500; // Hard ceiling
+
 // Cache for authenticated clients
 let cachedClients: AuthenticatedAccount[] | null = null;
 
@@ -129,11 +134,62 @@ function deduplicateEvents(events: any[]): any[] {
   return Array.from(seen.values());
 }
 
+/**
+ * Generate summary statistics for a list of events.
+ * Used when summary mode is enabled to return aggregated data instead of full events.
+ */
+function generateEventSummary(events: any[]): object {
+  const byColor: Record<string, number> = {};
+  const byDay: Record<string, number> = {};
+  const byAccount: Record<string, number> = {};
+
+  for (const event of events) {
+    // Count by color
+    const colorName = event.colorName || "Default";
+    byColor[colorName] = (byColor[colorName] || 0) + 1;
+
+    // Count by day
+    const eventDate = new Date(event.start);
+    const dayKey = eventDate.toISOString().split("T")[0];
+    byDay[dayKey] = (byDay[dayKey] || 0) + 1;
+
+    // Count by account
+    const account = event.account || "unknown";
+    byAccount[account] = (byAccount[account] || 0) + 1;
+  }
+
+  return {
+    totalEvents: events.length,
+    byColor,
+    byDay,
+    byAccount,
+  };
+}
+
+/**
+ * Apply event limit and return result with truncation metadata.
+ */
+function applyEventLimit(
+  events: any[],
+  requestedLimit?: number,
+  defaultLimit: number = DEFAULT_EVENT_LIMIT
+): { events: any[]; truncated: number; effectiveLimit: number } {
+  const effectiveLimit = Math.min(
+    requestedLimit || defaultLimit,
+    ABSOLUTE_MAX_EVENTS
+  );
+  const truncated = Math.max(0, events.length - effectiveLimit);
+  const limitedEvents = events.slice(0, effectiveLimit);
+
+  return { events: limitedEvents, truncated, effectiveLimit };
+}
+
 // Fetch events from all accounts and all calendars, then merge
 async function fetchEventsFromAllAccounts(
   timeMin: string,
   timeMax: string,
-  query?: string
+  query?: string,
+  maxResultsPerCalendar: number = MAX_RESULTS_PER_CALENDAR
 ): Promise<object[]> {
   const clients = await getClients();
   const allEvents: object[] = [];
@@ -187,6 +243,7 @@ async function fetchEventsFromAllAccounts(
             q: query,
             singleEvents: true,
             orderBy: "startTime",
+            maxResults: maxResultsPerCalendar,
           });
 
           const calendarName = cal.primary ? "Primary" : (cal.summary || cal.id);
@@ -301,7 +358,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       },
       {
         name: "get_events",
-        description: "Get calendar events for a date range",
+        description: "Get calendar events for a date range. Default limit is 200 events to prevent token overflow.",
         inputSchema: {
           type: "object",
           properties: {
@@ -325,7 +382,12 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             },
             limit: {
               type: "number",
-              description: "Maximum number of events to return",
+              description: "Maximum number of events to return (default: 200, max: 500)",
+            },
+            summary: {
+              type: "boolean",
+              description: "Return summary statistics instead of full event list (useful for large date ranges)",
+              default: false,
             },
           },
           required: ["startDate", "endDate"],
@@ -655,11 +717,12 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       case "get_events": {
-        const { startDate, endDate, compact = true, limit } = args as {
+        const { startDate, endDate, compact = true, limit, summary = false } = args as {
           startDate: string;
           endDate: string;
           compact?: boolean;
           limit?: number;
+          summary?: boolean;
         };
         let events = await fetchEventsFromAllAccounts(
           normalizeDateInput(startDate, false),
@@ -669,21 +732,42 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         // Deduplicate events
         events = deduplicateEvents(events);
 
-        // Apply limit if specified
-        if (limit && limit > 0) {
-          events = events.slice(0, limit);
+        // If summary mode, return statistics instead of event list
+        if (summary) {
+          return {
+            content: [
+              {
+                type: "text",
+                text: JSON.stringify(generateEventSummary(events), null, 2),
+              },
+            ],
+          };
         }
+
+        // Apply limit with truncation tracking
+        const { events: limitedEvents, truncated, effectiveLimit } = applyEventLimit(events, limit);
 
         // Format based on compact mode
         const formattedEvents = compact
-          ? events.map((e: any) => formatEventCompact(e, e.account))
-          : events;
+          ? limitedEvents.map((e: any) => formatEventCompact(e, e.account))
+          : limitedEvents;
+
+        const result: any = {
+          events: formattedEvents,
+          count: formattedEvents.length,
+        };
+
+        // Add truncation warning if events were cut
+        if (truncated > 0) {
+          result.truncated = truncated;
+          result.warning = `Results truncated. Showing ${effectiveLimit} of ${events.length} events. Use 'summary: true' for statistics of large ranges.`;
+        }
 
         return {
           content: [
             {
               type: "text",
-              text: JSON.stringify(formattedEvents, null, 2),
+              text: JSON.stringify(result, null, 2),
             },
           ],
         };
@@ -703,15 +787,13 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         // Deduplicate events
         events = deduplicateEvents(events);
 
-        // Apply limit if specified
-        if (limit && limit > 0) {
-          events = events.slice(0, limit);
-        }
+        // Apply limit with truncation tracking (default 200 for week view)
+        const { events: limitedEvents, truncated, effectiveLimit } = applyEventLimit(events, limit);
 
         // Format based on compact mode
         const formattedEvents = compact
-          ? events.map((e: any) => formatEventCompact(e, e.account))
-          : events;
+          ? limitedEvents.map((e: any) => formatEventCompact(e, e.account))
+          : limitedEvents;
 
         // Group by day
         const byDay: Record<string, object[]> = {};
@@ -727,20 +809,23 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         }
 
         const clients = await getClients();
+        const result: any = {
+          weekOf: start.toLocaleDateString(),
+          accounts: clients.map(c => c.account),
+          eventsByDay: byDay,
+          totalEvents: formattedEvents.length,
+        };
+
+        if (truncated > 0) {
+          result.truncated = truncated;
+          result.warning = `Results truncated. Showing ${effectiveLimit} of ${events.length} events.`;
+        }
+
         return {
           content: [
             {
               type: "text",
-              text: JSON.stringify(
-                {
-                  weekOf: start.toLocaleDateString(),
-                  accounts: clients.map(c => c.account),
-                  eventsByDay: byDay,
-                  totalEvents: formattedEvents.length,
-                },
-                null,
-                2
-              ),
+              text: JSON.stringify(result, null, 2),
             },
           ],
         };
@@ -760,31 +845,32 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         // Deduplicate events
         events = deduplicateEvents(events);
 
-        // Apply limit if specified
-        if (limit && limit > 0) {
-          events = events.slice(0, limit);
-        }
+        // Apply limit with truncation tracking (default 200)
+        const { events: limitedEvents, truncated, effectiveLimit } = applyEventLimit(events, limit);
 
         // Format based on compact mode
         const formattedEvents = compact
-          ? events.map((e: any) => formatEventCompact(e, e.account))
-          : events;
+          ? limitedEvents.map((e: any) => formatEventCompact(e, e.account))
+          : limitedEvents;
 
         const clients = await getClients();
+        const result: any = {
+          date: start.toLocaleDateString(),
+          accounts: clients.map(c => c.account),
+          events: formattedEvents,
+          totalEvents: formattedEvents.length,
+        };
+
+        if (truncated > 0) {
+          result.truncated = truncated;
+          result.warning = `Results truncated. Showing ${effectiveLimit} of ${events.length} events.`;
+        }
+
         return {
           content: [
             {
               type: "text",
-              text: JSON.stringify(
-                {
-                  date: start.toLocaleDateString(),
-                  accounts: clients.map(c => c.account),
-                  events: formattedEvents,
-                  totalEvents: formattedEvents.length,
-                },
-                null,
-                2
-              ),
+              text: JSON.stringify(result, null, 2),
             },
           ],
         };
@@ -932,29 +1018,30 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         // Deduplicate events
         events = deduplicateEvents(events);
 
-        // Apply limit if specified
-        if (limit && limit > 0) {
-          events = events.slice(0, limit);
-        }
+        // Apply limit with truncation tracking (default 200 for search)
+        const { events: limitedEvents, truncated, effectiveLimit } = applyEventLimit(events, limit);
 
         // Format based on compact mode
         const formattedEvents = compact
-          ? events.map((e: any) => formatEventCompact(e, e.account))
-          : events;
+          ? limitedEvents.map((e: any) => formatEventCompact(e, e.account))
+          : limitedEvents;
+
+        const result: any = {
+          query,
+          results: formattedEvents,
+          count: formattedEvents.length,
+        };
+
+        if (truncated > 0) {
+          result.truncated = truncated;
+          result.warning = `Results truncated. Showing ${effectiveLimit} of ${events.length} events.`;
+        }
 
         return {
           content: [
             {
               type: "text",
-              text: JSON.stringify(
-                {
-                  query,
-                  results: formattedEvents,
-                  count: formattedEvents.length,
-                },
-                null,
-                2
-              ),
+              text: JSON.stringify(result, null, 2),
             },
           ],
         };
