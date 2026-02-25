@@ -1,7 +1,6 @@
 ---
 name: calendar
 description: View and manage your Google Calendar. Use for week-at-a-glance views, event color management, and schedule queries. Shows events from ALL authenticated accounts (personal + work).
-user-invocable: true
 ---
 
 # /calendar - Calendar View and Management
@@ -17,19 +16,7 @@ View your Google Calendar and manage event colors with semantic meaning.
 
 ## Available Colors
 
-| Color | Meaning |
-|-------|---------|
-| Lavender | 1:1s / People |
-| Sage | Deep Work / Focus |
-| Grape | Meetings |
-| Flamingo | Blocked / Waiting |
-| Banana | Admin / Ops |
-| Tangerine | External |
-| Peacock | Learning |
-| Graphite | Personal |
-| Blueberry | Unassigned |
-| Basil | Unassigned |
-| Tomato | Urgent / Deadlines |
+Semantic meanings are defined in `config/colors.json` (source of truth).
 
 ## Instructions
 

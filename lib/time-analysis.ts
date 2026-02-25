@@ -26,6 +26,16 @@ import {
   getCalendarTypeBehavior,
   shouldIncludeEvent,
 } from "./calendar-filter.js";
+import {
+  loadDependencyConfig,
+  findCoverageGaps,
+  reconcileCoverageLifecycle,
+  validateDependencyConfigAgainstInventory,
+  type CoverageGap,
+  type CoverageOptOutRecord,
+  type CoverageLifecycleProposal,
+  type DependencyValidationInventory,
+} from "./calendar-manager.js";
 
 // Load color definitions for semantic meanings
 const CONFIG_DIR = path.join(process.cwd(), "config");
@@ -49,12 +59,20 @@ const GOOGLE_CALENDAR_COLORS: Record<string, string> = {
   "11": "Tomato",
 };
 
+let dependencyValidationCache:
+  | {
+      key: string;
+      inventory: DependencyValidationInventory;
+    }
+  | null = null;
+
 export interface CalendarEvent {
   id: string;
   account: string;
   calendarName: string;
   calendarType: CalendarType;
   summary: string;
+  description?: string;
   start: Date;
   end: Date;
   durationMinutes: number;
@@ -94,6 +112,9 @@ export interface DailySummary {
   byColor: ColorSummary[];
   isWorkDay: boolean;
   analysisHours: { start: number; end: number }; // Hours used for gap analysis
+  coverageGaps: CoverageGap[];
+  coverageOptOuts: CoverageOptOutRecord[];
+  coverageLifecycleProposals: CoverageLifecycleProposal[];
 }
 
 export interface WeeklySummary {
@@ -104,6 +125,9 @@ export interface WeeklySummary {
   totalGapMinutes: number;
   byColor: ColorSummary[];
   accounts: string[];
+  coverageGaps: CoverageGap[];
+  coverageOptOuts: CoverageOptOutRecord[];
+  coverageLifecycleProposals: CoverageLifecycleProposal[];
 }
 
 /**
@@ -199,6 +223,7 @@ export async function fetchEvents(startDate: Date, endDate: Date): Promise<Calen
               calendarName: cal.summary || cal.id,
               calendarType: calendarType as CalendarType,
               summary: event.summary || "(No title)",
+              description: event.description || undefined,
               start,
               end,
               durationMinutes,
@@ -223,6 +248,57 @@ export async function fetchEvents(startDate: Date, endDate: Date): Promise<Calen
   // Sort by start time
   allEvents.sort((a, b) => a.start.getTime() - b.start.getTime());
   return allEvents;
+}
+
+async function fetchDependencyValidationInventory(): Promise<DependencyValidationInventory> {
+  const clients = await getAllAuthenticatedClients();
+  const accounts = clients.map(({ account }) => account);
+  const cacheKey = accounts.slice().sort().join("|");
+  if (dependencyValidationCache && dependencyValidationCache.key === cacheKey) {
+    return dependencyValidationCache.inventory;
+  }
+
+  const allCalendars = new Set<string>();
+  const calendarsByAccount: Record<string, string[]> = {};
+
+  for (const { account, calendar } of clients) {
+    const calendarListResponse = await calendar.calendarList.list();
+    const names = new Set<string>();
+    for (const cal of calendarListResponse.data.items || []) {
+      if (cal.summary) {
+        allCalendars.add(cal.summary);
+        names.add(cal.summary);
+      }
+      if (cal.id) {
+        allCalendars.add(cal.id);
+        names.add(cal.id);
+      }
+    }
+    calendarsByAccount[account] = Array.from(names);
+  }
+
+  const inventory: DependencyValidationInventory = {
+    accounts,
+    allCalendars: Array.from(allCalendars),
+    calendarsByAccount,
+  };
+  dependencyValidationCache = { key: cacheKey, inventory };
+  return inventory;
+}
+
+async function validateDependencyConfigurationOrThrow(config: ReturnType<typeof loadDependencyConfig>): Promise<void> {
+  if (!config.enabled) return;
+
+  const inventory = await fetchDependencyValidationInventory();
+  const issues = validateDependencyConfigAgainstInventory(config, inventory);
+  if (issues.length === 0) return;
+
+  const lines = issues.map((issue) => `- ${issue.message}`);
+  throw new Error(
+    `Invalid dependency configuration. Fix these calendar/account references before running reports:\n${lines.join(
+      "\n"
+    )}`
+  );
 }
 
 function parseEventTime(time?: calendar_v3.Schema$EventDateTime): Date | null {
@@ -429,6 +505,14 @@ export async function generateDailySummary(
   startOfDay.setHours(0, 0, 0, 0);
 
   const allEvents = await fetchEvents(startOfDay, nextDay);
+  const dependencyConfig = loadDependencyConfig();
+  await validateDependencyConfigurationOrThrow(dependencyConfig);
+  const coverage = dependencyConfig.enabled
+    ? findCoverageGaps(allEvents, dependencyConfig.rules, dependencyConfig)
+    : { gaps: [], optedOut: [], fulfilled: [] };
+  const lifecycle = dependencyConfig.enabled
+    ? reconcileCoverageLifecycle(allEvents, dependencyConfig.rules)
+    : { orphanedCoverage: [] };
 
   // Separate events by calendar type
   const activeEvents = allEvents.filter(e => e.calendarType === "active");
@@ -473,6 +557,9 @@ export async function generateDailySummary(
     byColor,
     isWorkDay: isWorkDayResult,
     analysisHours: { start: analysisStart, end: analysisEnd },
+    coverageGaps: coverage.gaps,
+    coverageOptOuts: coverage.optedOut,
+    coverageLifecycleProposals: lifecycle.orphanedCoverage,
   };
 }
 
@@ -494,9 +581,24 @@ export async function generateWeeklyReport(
 
   // Fetch all events for the week
   const allEvents = await fetchEvents(weekStart, weekEnd);
+  const dependencyConfig = loadDependencyConfig();
+  await validateDependencyConfigurationOrThrow(dependencyConfig);
 
   // Get unique accounts
   const accounts = [...new Set(allEvents.map(e => e.account))];
+  const coverage = dependencyConfig.enabled
+    ? findCoverageGaps(allEvents, dependencyConfig.rules, dependencyConfig)
+    : { gaps: [], optedOut: [], fulfilled: [] };
+  const lifecycle = dependencyConfig.enabled
+    ? reconcileCoverageLifecycle(allEvents, dependencyConfig.rules)
+    : { orphanedCoverage: [] };
+  const eventDateById = new Map<string, string>();
+  for (const event of allEvents) {
+    const key = new Date(event.start.getFullYear(), event.start.getMonth(), event.start.getDate())
+      .toISOString()
+      .slice(0, 10);
+    eventDateById.set(event.id, key);
+  }
 
   // Generate daily summaries
   const days: DailySummary[] = [];
@@ -576,6 +678,16 @@ export async function generateWeeklyReport(
       byColor,
       isWorkDay: isWorkDayResult,
       analysisHours: { start: analysisStart, end: analysisEnd },
+      coverageGaps: coverage.gaps.filter(
+        (gap) =>
+          new Date(gap.sourceStart.getFullYear(), gap.sourceStart.getMonth(), gap.sourceStart.getDate())
+            .toISOString()
+            .slice(0, 10) === startOfDay.toISOString().slice(0, 10)
+      ),
+      coverageOptOuts: coverage.optedOut.filter(
+        (record) => eventDateById.get(record.sourceEventId) === startOfDay.toISOString().slice(0, 10)
+      ),
+      coverageLifecycleProposals: [],
     });
   }
 
@@ -593,6 +705,9 @@ export async function generateWeeklyReport(
     totalGapMinutes,
     byColor,
     accounts,
+    coverageGaps: coverage.gaps,
+    coverageOptOuts: coverage.optedOut,
+    coverageLifecycleProposals: lifecycle.orphanedCoverage,
   };
 }
 
@@ -742,7 +857,42 @@ export function formatWeeklyReportMarkdown(report: WeeklySummary): string {
     lines.push("");
   }
 
+  if (report.coverageGaps.length > 0) {
+    lines.push("## Dependent Coverage Gaps");
+    for (const gap of report.coverageGaps) {
+      lines.push(
+        `- **${gap.ruleName}**: ${gap.sourceSummary} (${formatDuration(gap.missingMinutes)} missing, ${Math.round(
+          gap.actualCoveragePercent
+        )}% covered) -> target ${gap.createTarget.account}/${gap.createTarget.calendar}`
+      );
+    }
+    lines.push("");
+  }
+
+  if (report.coverageOptOuts.length > 0) {
+    lines.push("## Coverage Opt-Outs");
+    for (const optOut of report.coverageOptOuts) {
+      lines.push(
+        `- ${optOut.sourceSummary} (${optOut.ruleId}) via ${optOut.matchedIn}: "${optOut.token}"`
+      );
+    }
+    lines.push("");
+  }
+
+  if (report.coverageLifecycleProposals.length > 0) {
+    lines.push("## Orphaned Coverage Proposals");
+    for (const orphan of report.coverageLifecycleProposals) {
+      lines.push(`- ${orphan.coverageSummary} (${orphan.ruleId}) -> ${orphan.action}`);
+    }
+    lines.push("");
+  }
+
   return lines.join("\n");
+}
+
+export async function validateDependencyConfiguration(): Promise<void> {
+  const config = loadDependencyConfig();
+  await validateDependencyConfigurationOrThrow(config);
 }
 
 /**

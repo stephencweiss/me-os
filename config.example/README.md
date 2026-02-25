@@ -36,6 +36,16 @@ Your weekly schedule template (waking hours, work hours by day of week).
 ### `calendars.json`
 Calendar type configuration for filtering and time tracking behavior.
 
+### `dependencies.json`
+Rules for dependent coverage requirements (for example, date nights that require babysitter coverage, trips that require dog care).
+
+Controls:
+- Trigger matching (`sourceCalendars`, `summaryPatterns`)
+- Coverage lookup calendars (`coverageSearchCalendars`)
+- Creation target (`createTarget.account`, `createTarget.calendar`)
+- Window buffers and minimum overlap threshold
+- Opt-out markers in event description/title
+
 **Calendar Types:**
 - `active`: Events count toward time tracking, fill gaps, block scheduling (default for owned calendars)
 - `availability`: Context only (e.g., on-call schedules) - doesn't count as time spent

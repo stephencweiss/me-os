@@ -2,6 +2,33 @@
 
 A personal productivity system built as Claude Code skills and MCP integrations. MeOS consolidates calendar, time tracking, one-on-ones, and project management into a conversational interface.
 
+## Source of Truth
+
+- `CLAUDE.md` is the canonical source of truth for project agent instructions.
+- `AGENTS.md` must be a direct symlink to `CLAUDE.md` so Codex reads this exact file.
+- On this filesystem, `CLAUDE.md` and `claude.md` resolve to the same path; do not try to maintain separate content.
+- If a new skill is added under `.claude/skills/`, update the Skills registry below in the same change.
+
+## Skills
+
+A skill is a set of local instructions stored in a `SKILL.md` file. Use these entries as the authoritative skill registry for both Claude and Codex.
+
+### Available skills
+
+- `calendar`: View and manage Google Calendar week/day views and event colors. (file: `/Users/sweiss/code/me-os/.claude/skills/calendar/SKILL.md`)
+- `calendar-setup`: Configure calendar-type behavior for tracking, gap analysis, and scheduling. (file: `/Users/sweiss/code/me-os/.claude/skills/calendar-setup/SKILL.md`)
+- `calendar-manager`: Active calendar management for conflicts, categorization, and flex-time creation. (file: `/Users/sweiss/code/me-os/.claude/skills/calendar-manager/SKILL.md`)
+- `calendar-optimizer`: Goal-based schedule optimization and proposal/apply flow. (file: `/Users/sweiss/code/me-os/.claude/skills/calendar-optimizer/SKILL.md`)
+- `time-report`: Weekly/daily time analysis with gap detection and interactive categorization. (file: `/Users/sweiss/code/me-os/.claude/skills/time-report/SKILL.md`)
+- `one-on-one`: Process and summarize 1:1 notes from voice, images, files, or text. (file: `/Users/sweiss/code/me-os/.claude/skills/one-on-one/SKILL.md`)
+
+### Skill trigger and usage rules
+
+- Use a skill when the user names it (e.g., `$calendar` or plain `calendar`) or when the task clearly matches the skill description.
+- If multiple skills match, use the minimal set that covers the request and state the order briefly.
+- Open and follow each skill's `SKILL.md` instructions directly from the file path listed above.
+- If a required skill file is missing or unreadable, note it briefly and continue with the best fallback.
+
 ## Pre-read
 
 Before getting started, load and internalize .claude/SYSTEM-PROMPT.md.
@@ -11,7 +38,7 @@ For new features, always write a plan first. Plans are saved into plans/
 ## Tech Stack
 
 - **Language**: TypeScript/Node.js
-- **Runtime**: Claude Code skills and MCP servers
+- **Runtime**: Claude Code skills and MCP servers (Codex-compatible via `AGENTS.md -> CLAUDE.md`)
 - **Calendar**: Google Calendar API
 - **Project Management**: JIRA (via existing MCP)
 - **HR/Feedback**: Lattice API
@@ -22,16 +49,17 @@ For new features, always write a plan first. Plans are saved into plans/
 ```
 me-os/
 ├── CLAUDE.md           # This file - project guidelines
-├── .claude/skills/     # Claude Code skills
-│   ├── calendar/           # Calendar viewing and color management
-│   ├── calendar-manager/   # Active management: conflicts, categorization, flex time
-│   ├── calendar-optimizer/ # Goal-based schedule optimization
-│   ├── calendar-setup/     # Calendar type configuration
-│   ├── time-report/        # Weekly time analysis and gap detection
-│   └── one-on-one/         # 1:1 note processing and reporting
+├── AGENTS.md           # Symlink to CLAUDE.md for Codex
+├── .claude/skills/     # Claude skills
+│   ├── calendar/       # Calendar viewing and color management
+│   ├── calendar-setup/ # Calendar type configuration
+│   ├── calendar-manager/# Active conflict/category/flex management
+│   ├── calendar-optimizer/ # Goal-based optimization
+│   ├── time-report/    # Weekly time analysis and gap detection
+│   └── one-on-one/     # 1:1 note processing and reporting
 │
 │   # Planned skill (not yet present in .claude/skills)
-│   └── project-dash/       # JIRA/project status dashboard
+│   └── project-dash/   # JIRA/project status dashboard
 ├── mcp/                # MCP server implementations
 │   └── google-calendar/# Google Calendar MCP server
 ├── plans/              # Plans for new features. Creates a record of work. Used for development. 
@@ -82,11 +110,7 @@ me-os/
 
 ## Color Schema
 
-Define semantic colors for calendar events:
-
-| Color | Meaning |
-|-------|---------|
-| TBD   | Define based on your categories |
+Load `config/colors.json` which is the source of truth.
 
 ## Development Guidelines
 
@@ -98,6 +122,7 @@ Define semantic colors for calendar events:
 - All plans should be committed alongside code changes. 
 - All plans should have a section focusing on how we will prove to ourselves that it works as expected, i.e., a testing plan. 
 - Every pull request is accompanied by a the plan - i.e., a document explaining the purpose of the change set
+- `.claude/settings.local.json` is Claude runtime configuration and permissions. It is not the Codex skill registration mechanism.
 
 ## Getting Started
 
@@ -110,9 +135,9 @@ Define semantic colors for calendar events:
 
 Skills are invoked via Claude Code:
 - `/calendar` - View and manage calendar
-- `/calendar-setup` - Configure calendar types across accounts
-- `/calendar-manager` - Resolve conflicts, categorize, and block flex time
-- `/calendar-optimizer` - Turn goals into proposed schedule changes
+- `/calendar-setup` - Configure calendar types
+- `/calendar-manager` - Resolve conflicts, categorize events, fill flex time
+- `/calendar-optimizer` - Optimize schedule against goals
 - `/time-report` - Generate time analysis
 - `/one-on-one [name]` - Process 1:1 notes
 - `/project-dash` - Project status overview (planned)
