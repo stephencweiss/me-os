@@ -22,11 +22,13 @@ For new features, always write a plan first. Plans are saved into plans/
 ```
 me-os/
 ├── CLAUDE.md           # This file - project guidelines
-├── skills/             # Claude Code skills
-│   ├── calendar/       # Calendar viewing and color management
-│   ├── time-report/    # Weekly time analysis and gap detection
-│   ├── one-on-one/     # 1:1 note processing and reporting
-│   └── project-dash/   # JIRA/project status dashboard
+├── .claude/skills/     # Claude Code skills
+│   ├── calendar/           # Calendar viewing and color management
+│   ├── calendar-manager/   # Active management: conflicts, categorization, flex time
+│   ├── calendar-optimizer/ # Goal-based schedule optimization
+│   ├── calendar-setup/     # Calendar type configuration
+│   ├── time-report/        # Weekly time analysis and gap detection
+│   └── one-on-one/         # 1:1 note processing and reporting
 ├── mcp/                # MCP server implementations
 │   └── google-calendar/# Google Calendar MCP server
 ├── plans/              # Plans for new features. Creates a record of work. Used for development. 
@@ -42,23 +44,32 @@ me-os/
 - Change event colors programmatically
 - Colors have semantic meaning (define your color schema)
 
-### 2. Time Reports (`/time-report`)
+### 2. Calendar Setup (`/calendar-setup`)
+- Configure calendar types for scheduling and reporting behavior
+- Supports active, availability, reference, and blocking calendars
+- Use when adding new accounts or changing calendar intent
+
+### 3. Calendar Management (`/calendar-manager`)
+- Detect and resolve overlapping meetings
+- Categorize unlabeled events with color suggestions
+- Fill open slots with configurable flex blocks
+
+### 4. Calendar Optimization (`/calendar-optimizer`)
+- Convert weekly goals into scheduled calendar blocks
+- Propose changes first, then apply with confirmation
+- Track recurring and ad-hoc goals against available time
+
+### 5. Time Reports (`/time-report`)
 - End-of-week retrospective: what did I do, how did I spend time?
 - Gap analysis: unstructured/uncalendared time by day
 - Interactive color assignment for unlabeled events
 - Exportable/scriptable for automation
 
-### 3. One-on-One Management (`/one-on-one`)
+### 6. One-on-One Management (`/one-on-one`)
 - Input: handwritten notes (image) or voice transcription
 - Output: raw transcript + structured summary
 - Integration: push to Lattice or Google Docs
 - Maintain history per direct report
-
-### 4. Project Dashboard (`/project-dash`)
-- JIRA integration for project status
-- Ticket status changes, blockers, timeline health
-- Code activity (who pushed, what repos)
-- On-demand queries or nightly sync summaries
 
 ## Color Schema
 
@@ -90,7 +101,8 @@ Define semantic colors for calendar events:
 
 Skills are invoked via Claude Code:
 - `/calendar` - View and manage calendar
+- `/calendar-setup` - Configure calendar types across accounts
+- `/calendar-manager` - Resolve conflicts, categorize, and block flex time
+- `/calendar-optimizer` - Turn goals into proposed schedule changes
 - `/time-report` - Generate time analysis
 - `/one-on-one [name]` - Process 1:1 notes
-- `/project-dash` - Project status overview
-
