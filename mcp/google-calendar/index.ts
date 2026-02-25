@@ -13,6 +13,13 @@ import {
   getCalendarClient,
   AuthenticatedAccount
 } from "../../lib/google-auth.js";
+import {
+  CalendarType,
+  loadCalendarFilterConfig,
+  getCalendarType,
+  shouldIncludeEvent,
+  CalendarFilterConfig,
+} from "../../lib/calendar-filter.js";
 import { calendar_v3 } from "googleapis";
 import * as fs from "fs";
 import * as path from "path";
@@ -58,7 +65,12 @@ async function getClientForAccount(account: string): Promise<calendar_v3.Calenda
   return found.calendar;
 }
 
-function formatEvent(event: calendar_v3.Schema$Event, account: string): object {
+function formatEvent(
+  event: calendar_v3.Schema$Event,
+  account: string,
+  calendarName?: string,
+  calendarType?: CalendarType
+): object {
   const colorId = event.colorId || "default";
   const colorName = colorId === "default" ? "Default" : GOOGLE_CALENDAR_COLORS[colorId] || colorId;
   const colorMeaning = colorDefinitions[colorId]?.meaning || "";
@@ -66,6 +78,8 @@ function formatEvent(event: calendar_v3.Schema$Event, account: string): object {
   return {
     id: event.id,
     account,
+    calendarName: calendarName || "Primary",
+    calendarType: calendarType || "active",
     summary: event.summary || "(No title)",
     start: event.start?.dateTime || event.start?.date,
     end: event.end?.dateTime || event.end?.date,
@@ -79,7 +93,43 @@ function formatEvent(event: calendar_v3.Schema$Event, account: string): object {
   };
 }
 
-// Fetch events from all accounts and merge
+/**
+ * Format event in compact mode - minimal fields for reduced output size.
+ * Use compact: false to get full details including description, location, htmlLink.
+ */
+function formatEventCompact(
+  event: calendar_v3.Schema$Event,
+  account: string
+): object {
+  const colorId = event.colorId || "default";
+  const colorName = colorId === "default" ? "Default" : GOOGLE_CALENDAR_COLORS[colorId] || colorId;
+
+  return {
+    id: event.id,
+    account,
+    summary: event.summary || "(No title)",
+    start: event.start?.dateTime || event.start?.date,
+    end: event.end?.dateTime || event.end?.date,
+    colorName,
+  };
+}
+
+/**
+ * Deduplicate events by ID. When same event appears from multiple calendars,
+ * prefer the one from Primary calendar or the first occurrence.
+ */
+function deduplicateEvents(events: any[]): any[] {
+  const seen = new Map<string, any>();
+  for (const event of events) {
+    const existing = seen.get(event.id);
+    if (!existing || event.calendarName === "Primary") {
+      seen.set(event.id, event);
+    }
+  }
+  return Array.from(seen.values());
+}
+
+// Fetch events from all accounts and all calendars, then merge
 async function fetchEventsFromAllAccounts(
   timeMin: string,
   timeMax: string,
@@ -88,20 +138,83 @@ async function fetchEventsFromAllAccounts(
   const clients = await getClients();
   const allEvents: object[] = [];
 
+  // Load calendar filter config
+  const filterConfig = loadCalendarFilterConfig();
+
   for (const { account, calendar } of clients) {
     try {
-      const response = await calendar.events.list({
-        calendarId: "primary",
-        timeMin,
-        timeMax,
-        q: query,
-        singleEvents: true,
-        orderBy: "startTime",
-      });
-      const events = response.data.items?.map(e => formatEvent(e, account)) || [];
-      allEvents.push(...events);
+      // Get user email for this account (for attendee checking)
+      const primaryCalendar = await calendar.calendarList.get({ calendarId: "primary" });
+      const userEmail = primaryCalendar.data.id || "";
+
+      // Get all calendars for this account
+      const calendarListResponse = await calendar.calendarList.list();
+      const calendars = calendarListResponse.data.items || [];
+
+      // Fetch events from each calendar
+      for (const cal of calendars) {
+        if (!cal.id) continue;
+
+        // Skip holiday calendars (they add noise)
+        if (cal.id.includes("#holiday@group")) continue;
+
+        // Determine calendar type
+        const calType = getCalendarType(
+          {
+            id: cal.id,
+            summary: cal.summary || cal.id,
+            primary: cal.primary,
+            accessRole: cal.accessRole || "reader",
+          },
+          filterConfig
+        );
+
+        // Skip excluded calendars
+        if (calType === "excluded") continue;
+
+        // Check if this is a shared calendar without explicit type config
+        const hasExplicitType = filterConfig.calendarTypes[cal.summary || ""] !== undefined ||
+                                filterConfig.calendarTypes[cal.id] !== undefined;
+        const isSharedWithoutExplicitType = !cal.primary &&
+                                             cal.accessRole !== "owner" &&
+                                             !hasExplicitType;
+
+        try {
+          const response = await calendar.events.list({
+            calendarId: cal.id,
+            timeMin,
+            timeMax,
+            q: query,
+            singleEvents: true,
+            orderBy: "startTime",
+          });
+
+          const calendarName = cal.primary ? "Primary" : (cal.summary || cal.id);
+
+          for (const event of response.data.items || []) {
+            // For shared calendars without explicit type, filter by attendee status
+            if (isSharedWithoutExplicitType) {
+              const include = shouldIncludeEvent(
+                {
+                  attendees: event.attendees,
+                  organizer: event.organizer,
+                },
+                userEmail,
+                calType,
+                true // isSharedCalendarWithoutExplicitType
+              );
+              if (!include) continue;
+            }
+
+            allEvents.push(formatEvent(event, account, calendarName, calType));
+          }
+        } catch (err) {
+          // Silently skip calendars we can't read (e.g., some shared calendars)
+          console.error(`Failed to fetch events from ${cal.summary || cal.id} for ${account}:`, err);
+        }
+      }
     } catch (err) {
-      console.error(`Failed to fetch events for ${account}:`, err);
+      console.error(`Failed to fetch calendars for ${account}:`, err);
     }
   }
 
@@ -113,6 +226,32 @@ async function fetchEventsFromAllAccounts(
   });
 
   return allEvents;
+}
+
+/**
+ * Normalizes date input for calendar queries.
+ * - Date-only strings (YYYY-MM-DD) are converted to local timezone
+ * - For end dates, date-only strings get +1 day to make the range inclusive
+ */
+function normalizeDateInput(dateStr: string, isEndDate: boolean = false): string {
+  // Check if it's a date-only format (no time component)
+  const isDateOnly = !dateStr.includes('T');
+
+  if (isDateOnly) {
+    // Parse as local date, not UTC
+    const [year, month, day] = dateStr.split('-').map(Number);
+    const date = new Date(year, month - 1, day);
+
+    if (isEndDate) {
+      // For end date, set to start of NEXT day to make range inclusive
+      date.setDate(date.getDate() + 1);
+    }
+
+    return date.toISOString();
+  }
+
+  // Already has time component, parse normally
+  return new Date(dateStr).toISOString();
 }
 
 function getWeekBounds(): { start: Date; end: Date } {
@@ -179,6 +318,15 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
               description: "Calendar ID (default: primary)",
               default: "primary",
             },
+            compact: {
+              type: "boolean",
+              description: "Return compact format with fewer fields (default: true). Set to false for full details including description, location, htmlLink.",
+              default: true,
+            },
+            limit: {
+              type: "number",
+              description: "Maximum number of events to return",
+            },
           },
           required: ["startDate", "endDate"],
         },
@@ -194,6 +342,15 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
               description: "Calendar ID (default: primary)",
               default: "primary",
             },
+            compact: {
+              type: "boolean",
+              description: "Return compact format with fewer fields (default: true). Set to false for full details.",
+              default: true,
+            },
+            limit: {
+              type: "number",
+              description: "Maximum number of events to return",
+            },
           },
           required: [],
         },
@@ -208,6 +365,15 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
               type: "string",
               description: "Calendar ID (default: primary)",
               default: "primary",
+            },
+            compact: {
+              type: "boolean",
+              description: "Return compact format with fewer fields (default: true). Set to false for full details.",
+              default: true,
+            },
+            limit: {
+              type: "number",
+              description: "Maximum number of events to return",
             },
           },
           required: [],
@@ -268,8 +434,186 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
               description: "Calendar ID (default: primary)",
               default: "primary",
             },
+            compact: {
+              type: "boolean",
+              description: "Return compact format with fewer fields (default: true). Set to false for full details.",
+              default: true,
+            },
+            limit: {
+              type: "number",
+              description: "Maximum number of events to return",
+            },
           },
           required: ["query"],
+        },
+      },
+      {
+        name: "create_event",
+        description: "Create a new calendar event (for flex time blocking or manual events)",
+        inputSchema: {
+          type: "object",
+          properties: {
+            summary: {
+              type: "string",
+              description: "Event title/summary",
+            },
+            start: {
+              type: "string",
+              description: "Start time in ISO format (e.g., 2026-02-23T09:00:00)",
+            },
+            end: {
+              type: "string",
+              description: "End time in ISO format (e.g., 2026-02-23T10:00:00)",
+            },
+            colorId: {
+              type: "string",
+              description: "Color ID (1-11) or color name. Default is Blueberry (9) for flex events.",
+              default: "9",
+            },
+            visibility: {
+              type: "string",
+              enum: ["default", "public", "private", "confidential"],
+              description: "Event visibility. Use 'private' for flex events.",
+              default: "private",
+            },
+            account: {
+              type: "string",
+              description: "Which account to create the event on (e.g., 'personal', 'work'). Required.",
+            },
+            description: {
+              type: "string",
+              description: "Event description (optional)",
+            },
+            calendarId: {
+              type: "string",
+              description: "Calendar ID (default: primary)",
+              default: "primary",
+            },
+          },
+          required: ["summary", "start", "end", "account"],
+        },
+      },
+      {
+        name: "update_event_status",
+        description: "Update RSVP status for an event (accept, decline, or tentative)",
+        inputSchema: {
+          type: "object",
+          properties: {
+            eventId: {
+              type: "string",
+              description: "The event ID to update",
+            },
+            status: {
+              type: "string",
+              enum: ["accepted", "declined", "tentative", "needsAction"],
+              description: "The RSVP status to set",
+            },
+            account: {
+              type: "string",
+              description: "Which account the event is on. If not provided, will search all accounts.",
+            },
+            calendarId: {
+              type: "string",
+              description: "Calendar ID (default: primary)",
+              default: "primary",
+            },
+          },
+          required: ["eventId", "status"],
+        },
+      },
+      {
+        name: "decline_event",
+        description: "Smart decline: If you're an attendee, declines the invitation. If you're the organizer with active attendees, declines but keeps the event. If you're the organizer with no active attendees, deletes the event.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            eventId: {
+              type: "string",
+              description: "The event ID to decline",
+            },
+            calendarId: {
+              type: "string",
+              description: "Calendar ID (default: primary)",
+              default: "primary",
+            },
+            sendUpdates: {
+              type: "string",
+              description: "Whether to send notifications: 'all' (notify organizer), 'none' (silent). Default: 'all'",
+              enum: ["all", "none"],
+              default: "all",
+            },
+            account: {
+              type: "string",
+              description: "Which account to use (personal/work). Auto-detected if not specified.",
+            },
+          },
+          required: ["eventId"],
+        },
+      },
+      {
+        name: "update_event_time",
+        description: "Move/reschedule an event to a new time",
+        inputSchema: {
+          type: "object",
+          properties: {
+            eventId: {
+              type: "string",
+              description: "The event ID to update",
+            },
+            newStart: {
+              type: "string",
+              description: "New start time in ISO format (e.g., 2026-02-23T09:00:00)",
+            },
+            newEnd: {
+              type: "string",
+              description: "New end time in ISO format (e.g., 2026-02-23T10:00:00)",
+            },
+            account: {
+              type: "string",
+              description: "Which account the event is on. Auto-detected if not specified.",
+            },
+            calendarId: {
+              type: "string",
+              description: "Calendar ID (default: primary)",
+              default: "primary",
+            },
+            sendUpdates: {
+              type: "string",
+              description: "Whether to send notifications: 'all' (notify attendees), 'none' (silent). Default: 'all'",
+              enum: ["all", "none"],
+              default: "all",
+            },
+          },
+          required: ["eventId", "newStart", "newEnd"],
+        },
+      },
+      {
+        name: "delete_event",
+        description: "Delete a calendar event",
+        inputSchema: {
+          type: "object",
+          properties: {
+            eventId: {
+              type: "string",
+              description: "The event ID to delete",
+            },
+            account: {
+              type: "string",
+              description: "Which account the event is on. Auto-detected if not specified.",
+            },
+            calendarId: {
+              type: "string",
+              description: "Calendar ID (default: primary)",
+              default: "primary",
+            },
+            sendUpdates: {
+              type: "string",
+              description: "Whether to send notifications: 'all' (notify attendees), 'none' (silent). Default: 'all'",
+              enum: ["all", "none"],
+              default: "all",
+            },
+          },
+          required: ["eventId"],
         },
       },
     ],
@@ -311,34 +655,67 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       case "get_events": {
-        const { startDate, endDate } = args as {
+        const { startDate, endDate, compact = true, limit } = args as {
           startDate: string;
           endDate: string;
+          compact?: boolean;
+          limit?: number;
         };
-        const events = await fetchEventsFromAllAccounts(
-          new Date(startDate).toISOString(),
-          new Date(endDate).toISOString()
+        let events = await fetchEventsFromAllAccounts(
+          normalizeDateInput(startDate, false),
+          normalizeDateInput(endDate, true)
         );
+
+        // Deduplicate events
+        events = deduplicateEvents(events);
+
+        // Apply limit if specified
+        if (limit && limit > 0) {
+          events = events.slice(0, limit);
+        }
+
+        // Format based on compact mode
+        const formattedEvents = compact
+          ? events.map((e: any) => formatEventCompact(e, e.account))
+          : events;
+
         return {
           content: [
             {
               type: "text",
-              text: JSON.stringify(events, null, 2),
+              text: JSON.stringify(formattedEvents, null, 2),
             },
           ],
         };
       }
 
       case "get_week_view": {
+        const { compact = true, limit } = args as {
+          compact?: boolean;
+          limit?: number;
+        };
         const { start, end } = getWeekBounds();
-        const events = await fetchEventsFromAllAccounts(
+        let events = await fetchEventsFromAllAccounts(
           start.toISOString(),
           end.toISOString()
         );
 
+        // Deduplicate events
+        events = deduplicateEvents(events);
+
+        // Apply limit if specified
+        if (limit && limit > 0) {
+          events = events.slice(0, limit);
+        }
+
+        // Format based on compact mode
+        const formattedEvents = compact
+          ? events.map((e: any) => formatEventCompact(e, e.account))
+          : events;
+
         // Group by day
         const byDay: Record<string, object[]> = {};
-        for (const event of events) {
+        for (const event of formattedEvents) {
           const eventDate = new Date((event as any).start);
           const dayKey = eventDate.toLocaleDateString("en-US", {
             weekday: "long",
@@ -359,7 +736,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                   weekOf: start.toLocaleDateString(),
                   accounts: clients.map(c => c.account),
                   eventsByDay: byDay,
-                  totalEvents: events.length,
+                  totalEvents: formattedEvents.length,
                 },
                 null,
                 2
@@ -370,11 +747,29 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       case "get_today": {
+        const { compact = true, limit } = args as {
+          compact?: boolean;
+          limit?: number;
+        };
         const { start, end } = getTodayBounds();
-        const events = await fetchEventsFromAllAccounts(
+        let events = await fetchEventsFromAllAccounts(
           start.toISOString(),
           end.toISOString()
         );
+
+        // Deduplicate events
+        events = deduplicateEvents(events);
+
+        // Apply limit if specified
+        if (limit && limit > 0) {
+          events = events.slice(0, limit);
+        }
+
+        // Format based on compact mode
+        const formattedEvents = compact
+          ? events.map((e: any) => formatEventCompact(e, e.account))
+          : events;
+
         const clients = await getClients();
         return {
           content: [
@@ -384,8 +779,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                 {
                   date: start.toLocaleDateString(),
                   accounts: clients.map(c => c.account),
-                  events,
-                  totalEvents: events.length,
+                  events: formattedEvents,
+                  totalEvents: formattedEvents.length,
                 },
                 null,
                 2
@@ -499,28 +894,53 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       case "search_events": {
-        const { query, startDate, endDate } = args as {
+        const { query, startDate, endDate, compact = true, limit } = args as {
           query: string;
           startDate?: string;
           endDate?: string;
+          compact?: boolean;
+          limit?: number;
         };
 
         // Default to searching current month if no dates provided
-        const start = startDate ? new Date(startDate) : new Date();
-        if (!startDate) {
+        let timeMin: string;
+        let timeMax: string;
+
+        if (startDate) {
+          timeMin = normalizeDateInput(startDate, false);
+        } else {
+          const start = new Date();
           start.setDate(1);
           start.setHours(0, 0, 0, 0);
-        }
-        const end = endDate ? new Date(endDate) : new Date(start);
-        if (!endDate) {
-          end.setMonth(end.getMonth() + 1);
+          timeMin = start.toISOString();
         }
 
-        const events = await fetchEventsFromAllAccounts(
-          start.toISOString(),
-          end.toISOString(),
+        if (endDate) {
+          timeMax = normalizeDateInput(endDate, true);
+        } else {
+          const end = new Date(timeMin);
+          end.setMonth(end.getMonth() + 1);
+          timeMax = end.toISOString();
+        }
+
+        let events = await fetchEventsFromAllAccounts(
+          timeMin,
+          timeMax,
           query
         );
+
+        // Deduplicate events
+        events = deduplicateEvents(events);
+
+        // Apply limit if specified
+        if (limit && limit > 0) {
+          events = events.slice(0, limit);
+        }
+
+        // Format based on compact mode
+        const formattedEvents = compact
+          ? events.map((e: any) => formatEventCompact(e, e.account))
+          : events;
 
         return {
           content: [
@@ -529,12 +949,532 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
               text: JSON.stringify(
                 {
                   query,
-                  results: events,
-                  count: events.length,
+                  results: formattedEvents,
+                  count: formattedEvents.length,
                 },
                 null,
                 2
               ),
+            },
+          ],
+        };
+      }
+
+      case "create_event": {
+        const {
+          summary,
+          start,
+          end,
+          colorId = "9",
+          visibility = "private",
+          account,
+          description,
+          calendarId = "primary",
+        } = args as {
+          summary: string;
+          start: string;
+          end: string;
+          colorId?: string;
+          visibility?: string;
+          account: string;
+          description?: string;
+          calendarId?: string;
+        };
+
+        // Resolve color name to ID if needed
+        let resolvedColorId = colorId;
+        if (isNaN(parseInt(colorId))) {
+          const colorEntry = Object.entries(GOOGLE_CALENDAR_COLORS).find(
+            ([_, name]) => name.toLowerCase() === colorId.toLowerCase()
+          );
+          if (colorEntry) {
+            resolvedColorId = colorEntry[0];
+          }
+        }
+
+        const calendar = await getClientForAccount(account);
+
+        // Determine timezone from start date or use local
+        const startDate = new Date(start);
+        const endDate = new Date(end);
+
+        const response = await calendar.events.insert({
+          calendarId,
+          requestBody: {
+            summary,
+            description,
+            start: {
+              dateTime: startDate.toISOString(),
+              timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+            },
+            end: {
+              dateTime: endDate.toISOString(),
+              timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+            },
+            colorId: resolvedColorId,
+            visibility,
+          },
+        });
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify(
+                {
+                  success: true,
+                  account,
+                  event: formatEvent(response.data, account),
+                },
+                null,
+                2
+              ),
+            },
+          ],
+        };
+      }
+
+      case "update_event_status": {
+        const { eventId, status, account, calendarId = "primary" } = args as {
+          eventId: string;
+          status: "accepted" | "declined" | "tentative" | "needsAction";
+          account?: string;
+          calendarId?: string;
+        };
+
+        const clients = await getClients();
+        let targetAccount = account;
+        let targetCalendar: calendar_v3.Calendar | null = null;
+        let existingEvent: calendar_v3.Schema$Event | null = null;
+
+        // Find the event and get the user's email for this account
+        if (!targetAccount) {
+          for (const { account: acct, calendar } of clients) {
+            try {
+              const eventResponse = await calendar.events.get({
+                calendarId,
+                eventId,
+              });
+              existingEvent = eventResponse.data;
+              targetAccount = acct;
+              targetCalendar = calendar;
+              break;
+            } catch {
+              // Event not found in this account, continue
+            }
+          }
+        } else {
+          targetCalendar = await getClientForAccount(targetAccount);
+          const eventResponse = await targetCalendar.events.get({
+            calendarId,
+            eventId,
+          });
+          existingEvent = eventResponse.data;
+        }
+
+        if (!targetAccount || !targetCalendar || !existingEvent) {
+          return {
+            content: [
+              {
+                type: "text",
+                text: `Event not found in any account. Please specify the account parameter.`,
+              },
+            ],
+            isError: true,
+          };
+        }
+
+        // Get the user's email for this account
+        const calendarList = await targetCalendar.calendarList.get({
+          calendarId: "primary",
+        });
+        const userEmail = calendarList.data.id;
+
+        // Update the attendee status
+        const updatedAttendees = existingEvent.attendees?.map((attendee) => {
+          if (attendee.self || attendee.email === userEmail) {
+            return { ...attendee, responseStatus: status };
+          }
+          return attendee;
+        });
+
+        // If no attendees list (user is organizer), just update the event
+        const response = await targetCalendar.events.patch({
+          calendarId,
+          eventId,
+          requestBody: {
+            attendees: updatedAttendees || undefined,
+          },
+        });
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify(
+                {
+                  success: true,
+                  account: targetAccount,
+                  newStatus: status,
+                  event: formatEvent(response.data, targetAccount),
+                },
+                null,
+                2
+              ),
+            },
+          ],
+        };
+      }
+
+      case "decline_event": {
+        const {
+          eventId,
+          calendarId = "primary",
+          sendUpdates = "all",
+          account,
+        } = args as {
+          eventId: string;
+          calendarId?: string;
+          sendUpdates?: "all" | "none";
+          account?: string;
+        };
+
+        const clients = await getClients();
+        let targetAccount = account;
+        let targetCalendar: calendar_v3.Calendar | null = null;
+        let event: calendar_v3.Schema$Event | null = null;
+
+        // Find the event and determine which account owns it
+        if (targetAccount) {
+          targetCalendar = await getClientForAccount(targetAccount);
+          const response = await targetCalendar.events.get({ calendarId, eventId });
+          event = response.data;
+        } else {
+          for (const { account: acct, calendar } of clients) {
+            try {
+              const response = await calendar.events.get({ calendarId, eventId });
+              event = response.data;
+              targetAccount = acct;
+              targetCalendar = calendar;
+              break;
+            } catch {
+              // Event not found in this account, continue
+            }
+          }
+        }
+
+        if (!event || !targetCalendar || !targetAccount) {
+          return {
+            content: [
+              {
+                type: "text",
+                text: "Event not found in any account. Please specify the account parameter.",
+              },
+            ],
+            isError: true,
+          };
+        }
+
+        // Get the authenticated user's email for this account
+        const calendarListResponse = await targetCalendar.calendarList.get({ calendarId: "primary" });
+        const userEmail = calendarListResponse.data.id || "";
+
+        // Get attendees list
+        const attendees = event.attendees || [];
+        const selfAttendee = attendees.find(
+          (a) => a.email?.toLowerCase() === userEmail.toLowerCase() || a.self === true
+        );
+
+        // Check if user is the organizer
+        const isOrganizer = event.organizer?.self === true ||
+                            event.organizer?.email?.toLowerCase() === userEmail.toLowerCase();
+
+        // Check if there are other attendees (excluding self)
+        const otherAttendees = attendees.filter(
+          (a) => a.email?.toLowerCase() !== userEmail.toLowerCase() && a.self !== true
+        );
+
+        // Check if any other attendees are still "active" (not declined)
+        const activeAttendees = otherAttendees.filter(
+          (a) => a.responseStatus !== "declined"
+        );
+        const hasActiveAttendees = activeAttendees.length > 0;
+
+        if (isOrganizer && !hasActiveAttendees) {
+          // User is organizer with no other attendees OR all have declined - delete the event
+          await targetCalendar.events.delete({
+            calendarId,
+            eventId,
+            sendUpdates,
+          });
+
+          return {
+            content: [
+              {
+                type: "text",
+                text: JSON.stringify({
+                  success: true,
+                  account: targetAccount,
+                  action: "deleted",
+                  message: `Deleted event: ${event.summary} (no active attendees remaining)`,
+                  sendUpdates,
+                }, null, 2),
+              },
+            ],
+          };
+        }
+
+        // If organizer with active attendees, decline our own attendance
+        if (isOrganizer && hasActiveAttendees) {
+          let organizerAttendee = attendees.find(
+            (a) => a.email?.toLowerCase() === userEmail.toLowerCase() || a.self === true
+          );
+
+          if (!organizerAttendee) {
+            // Add organizer as an attendee so we can decline
+            organizerAttendee = { email: userEmail, responseStatus: "declined" };
+            attendees.push(organizerAttendee);
+          } else {
+            organizerAttendee.responseStatus = "declined";
+          }
+
+          const response = await targetCalendar.events.patch({
+            calendarId,
+            eventId,
+            sendUpdates,
+            requestBody: { attendees },
+          });
+
+          return {
+            content: [
+              {
+                type: "text",
+                text: JSON.stringify({
+                  success: true,
+                  account: targetAccount,
+                  action: "declined",
+                  message: `Declined event: ${event.summary} (you were the organizer, event continues for ${activeAttendees.length} active attendee(s))`,
+                  sendUpdates,
+                  event: formatEvent(response.data, targetAccount),
+                }, null, 2),
+              },
+            ],
+          };
+        }
+
+        if (!selfAttendee) {
+          // User is not an attendee and not the organizer - edge case
+          return {
+            content: [
+              {
+                type: "text",
+                text: JSON.stringify({
+                  success: false,
+                  error: "You are not an attendee or organizer of this event.",
+                  event: formatEvent(event, targetAccount),
+                }, null, 2),
+              },
+            ],
+            isError: true,
+          };
+        }
+
+        // Update the response status to declined
+        selfAttendee.responseStatus = "declined";
+
+        // Patch the event with updated attendees
+        const response = await targetCalendar.events.patch({
+          calendarId,
+          eventId,
+          sendUpdates,
+          requestBody: {
+            attendees,
+          },
+        });
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify({
+                success: true,
+                account: targetAccount,
+                action: "declined",
+                message: `Declined event: ${event.summary}`,
+                sendUpdates,
+                event: formatEvent(response.data, targetAccount),
+              }, null, 2),
+            },
+          ],
+        };
+      }
+
+      case "update_event_time": {
+        const {
+          eventId,
+          newStart,
+          newEnd,
+          account,
+          calendarId = "primary",
+          sendUpdates = "all",
+        } = args as {
+          eventId: string;
+          newStart: string;
+          newEnd: string;
+          account?: string;
+          calendarId?: string;
+          sendUpdates?: "all" | "none";
+        };
+
+        const clients = await getClients();
+        let targetAccount = account;
+        let targetCalendar: calendar_v3.Calendar | null = null;
+        let existingEvent: calendar_v3.Schema$Event | null = null;
+
+        // Find the event if account not specified
+        if (!targetAccount) {
+          for (const { account: acct, calendar } of clients) {
+            try {
+              const response = await calendar.events.get({ calendarId, eventId });
+              existingEvent = response.data;
+              targetAccount = acct;
+              targetCalendar = calendar;
+              break;
+            } catch {
+              // Event not found in this account, continue
+            }
+          }
+        } else {
+          targetCalendar = await getClientForAccount(targetAccount);
+          const response = await targetCalendar.events.get({ calendarId, eventId });
+          existingEvent = response.data;
+        }
+
+        if (!targetAccount || !targetCalendar || !existingEvent) {
+          return {
+            content: [
+              {
+                type: "text",
+                text: "Event not found in any account. Please specify the account parameter.",
+              },
+            ],
+            isError: true,
+          };
+        }
+
+        // Update the event with new times
+        const startDate = new Date(newStart);
+        const endDate = new Date(newEnd);
+
+        const response = await targetCalendar.events.patch({
+          calendarId,
+          eventId,
+          sendUpdates,
+          requestBody: {
+            start: {
+              dateTime: startDate.toISOString(),
+              timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+            },
+            end: {
+              dateTime: endDate.toISOString(),
+              timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+            },
+          },
+        });
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify({
+                success: true,
+                account: targetAccount,
+                action: "rescheduled",
+                oldStart: existingEvent.start?.dateTime || existingEvent.start?.date,
+                oldEnd: existingEvent.end?.dateTime || existingEvent.end?.date,
+                newStart: newStart,
+                newEnd: newEnd,
+                sendUpdates,
+                event: formatEvent(response.data, targetAccount),
+              }, null, 2),
+            },
+          ],
+        };
+      }
+
+      case "delete_event": {
+        const {
+          eventId,
+          account,
+          calendarId = "primary",
+          sendUpdates = "all",
+        } = args as {
+          eventId: string;
+          account?: string;
+          calendarId?: string;
+          sendUpdates?: "all" | "none";
+        };
+
+        const clients = await getClients();
+        let targetAccount = account;
+        let targetCalendar: calendar_v3.Calendar | null = null;
+        let existingEvent: calendar_v3.Schema$Event | null = null;
+
+        // Find the event if account not specified
+        if (!targetAccount) {
+          for (const { account: acct, calendar } of clients) {
+            try {
+              const response = await calendar.events.get({ calendarId, eventId });
+              existingEvent = response.data;
+              targetAccount = acct;
+              targetCalendar = calendar;
+              break;
+            } catch {
+              // Event not found in this account, continue
+            }
+          }
+        } else {
+          targetCalendar = await getClientForAccount(targetAccount);
+          const response = await targetCalendar.events.get({ calendarId, eventId });
+          existingEvent = response.data;
+        }
+
+        if (!targetAccount || !targetCalendar || !existingEvent) {
+          return {
+            content: [
+              {
+                type: "text",
+                text: "Event not found in any account. Please specify the account parameter.",
+              },
+            ],
+            isError: true,
+          };
+        }
+
+        // Delete the event
+        await targetCalendar.events.delete({
+          calendarId,
+          eventId,
+          sendUpdates,
+        });
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify({
+                success: true,
+                account: targetAccount,
+                action: "deleted",
+                message: `Deleted event: ${existingEvent.summary}`,
+                sendUpdates,
+                deletedEvent: {
+                  id: existingEvent.id,
+                  summary: existingEvent.summary,
+                  start: existingEvent.start?.dateTime || existingEvent.start?.date,
+                  end: existingEvent.end?.dateTime || existingEvent.end?.date,
+                },
+              }, null, 2),
             },
           ],
         };

@@ -4,11 +4,9 @@ node_modules/
 # Build output
 dist/
 
-# Credentials and tokens (sensitive)
-config/credentials.json
-config/tokens.json
-config/*.json
-!config/colors.json
+# Config directory (contains credentials and personal settings)
+# See config.example/ for templates
+config/
 
 # Data files (personal)
 data/
