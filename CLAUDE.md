@@ -22,11 +22,13 @@ For new features, always write a plan first. Plans are saved into plans/
 ```
 me-os/
 ├── CLAUDE.md           # This file - project guidelines
-├── skills/             # Claude Code skills
-│   ├── calendar/       # Calendar viewing and color management
-│   ├── time-report/    # Weekly time analysis and gap detection
-│   ├── one-on-one/     # 1:1 note processing and reporting
-│   └── project-dash/   # JIRA/project status dashboard
+├── .claude/skills/     # Claude Code skills
+│   ├── calendar/           # Week-at-a-glance and event color management
+│   ├── calendar-manager/   # Conflict detection, categorization, and flex time
+│   ├── calendar-optimizer/ # Goal-based weekly schedule optimization
+│   ├── calendar-setup/     # Interactive calendar type configuration
+│   ├── one-on-one/         # 1:1 note processing and reporting
+│   └── time-report/        # Weekly time analysis and gap detection
 ├── mcp/                # MCP server implementations
 │   └── google-calendar/# Google Calendar MCP server
 ├── plans/              # Plans for new features. Creates a record of work. Used for development. 
@@ -54,11 +56,20 @@ me-os/
 - Integration: push to Lattice or Google Docs
 - Maintain history per direct report
 
-### 4. Project Dashboard (`/project-dash`)
-- JIRA integration for project status
-- Ticket status changes, blockers, timeline health
-- Code activity (who pushed, what repos)
-- On-demand queries or nightly sync summaries
+### 4. Calendar Setup (`/calendar-setup`)
+- Configure calendar types (active, availability, reference, blocking)
+- Control which calendars affect tracking, gap analysis, and scheduling
+- Support multi-account calendar environments
+
+### 5. Calendar Management (`/calendar-manager`)
+- Detect and resolve scheduling conflicts
+- Categorize unlabeled events with suggested color semantics
+- Fill schedule gaps with optional flex blocks
+
+### 6. Calendar Optimization (`/calendar-optimizer`)
+- Define recurring weekly goals
+- Analyze availability and propose time allocation
+- Apply approved optimization events to calendar
 
 ## Color Schema
 
@@ -90,7 +101,8 @@ Define semantic colors for calendar events:
 
 Skills are invoked via Claude Code:
 - `/calendar` - View and manage calendar
+- `/calendar-setup` - Configure calendar behavior across accounts
+- `/calendar-manager` - Resolve conflicts, label events, and add flex blocks
+- `/calendar-optimizer` - Plan schedule against weekly goals
 - `/time-report` - Generate time analysis
 - `/one-on-one [name]` - Process 1:1 notes
-- `/project-dash` - Project status overview
-
