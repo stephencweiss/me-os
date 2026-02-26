@@ -5,6 +5,8 @@
  */
 
 import type { CalendarEvent } from "./time-analysis.js";
+import * as fs from "fs";
+import * as path from "path";
 
 // ============================================================================
 // Types
@@ -629,4 +631,512 @@ export function calculateFlexSlots(
   flexSlots.sort((a, b) => a.start.getTime() - b.start.getTime());
 
   return flexSlots;
+}
+
+// ============================================================================
+// Dependent Coverage Rules
+// ============================================================================
+
+export type CoverageActionMode = "notify" | "propose" | "auto-create";
+export type CoverageLifecycleAction = "propose-delete";
+export type CoverageOrphanPolicy = "propose-delete";
+
+export interface RuleTrigger {
+  sourceCalendars: string[];
+  summaryPatterns: string[];
+  allDaySummaryPatterns?: string[];
+  timedSummaryPatterns?: string[];
+}
+
+export interface CoverageCreateTarget {
+  account: string;
+  calendar: string;
+}
+
+export interface CoverageRequirement {
+  coverageSummaryPatterns: string[];
+  coverageSearchCalendars: string[];
+  createTarget: CoverageCreateTarget;
+  coverageColorId?: string;
+  windowStartOffsetMinutes: number;
+  windowEndOffsetMinutes: number;
+  minCoveragePercent: number;
+}
+
+export interface DependencyRule {
+  id: string;
+  enabled?: boolean;
+  name: string;
+  actionMode?: CoverageActionMode;
+  orphanPolicy?: CoverageOrphanPolicy;
+  trigger: RuleTrigger;
+  requirement: CoverageRequirement;
+}
+
+export interface CoverageOptOutConfig {
+  enabled: boolean;
+  precedence: Array<"description" | "title">;
+  globalTokens: string[];
+  ruleScopedTokenTemplate: string;
+}
+
+export interface DependencyConfig {
+  enabled: boolean;
+  defaultActionMode: CoverageActionMode;
+  optOut: CoverageOptOutConfig;
+  rules: DependencyRule[];
+}
+
+export interface DependencyValidationInventory {
+  accounts: string[];
+  allCalendars: string[];
+  calendarsByAccount: Record<string, string[]>;
+}
+
+export interface DependencyValidationIssue {
+  ruleId: string;
+  field:
+    | "trigger.sourceCalendars"
+    | "requirement.coverageSearchCalendars"
+    | "requirement.createTarget.account"
+    | "requirement.createTarget.calendar";
+  value: string;
+  message: string;
+}
+
+export interface CoverageGap {
+  ruleId: string;
+  ruleName: string;
+  sourceEventId: string;
+  sourceSummary: string;
+  sourceCalendarName: string;
+  sourceStart: Date;
+  sourceEnd: Date;
+  requiredStart: Date;
+  requiredEnd: Date;
+  requiredDurationMinutes: number;
+  coveredDurationMinutes: number;
+  actualCoveragePercent: number;
+  requiredCoveragePercent: number;
+  missingMinutes: number;
+  actionMode: CoverageActionMode;
+  createTarget: CoverageCreateTarget;
+  coverageColorId?: string;
+}
+
+export interface CoverageOptOutRecord {
+  ruleId: string;
+  sourceEventId: string;
+  sourceSummary: string;
+  matchedIn: "description" | "title";
+  token: string;
+}
+
+export interface CoverageFulfillment {
+  ruleId: string;
+  sourceEventId: string;
+  coveredDurationMinutes: number;
+  coveragePercent: number;
+}
+
+export interface CoverageEvaluationResult {
+  gaps: CoverageGap[];
+  optedOut: CoverageOptOutRecord[];
+  fulfilled: CoverageFulfillment[];
+}
+
+export interface CoverageLifecycleLink {
+  ruleId: string;
+  sourceEventId: string;
+  coverageEventId: string;
+}
+
+export interface CoverageLifecycleProposal {
+  ruleId: string;
+  coverageEventId: string;
+  coverageSummary: string;
+  action: CoverageLifecycleAction;
+}
+
+export interface CoverageReconciliationResult {
+  orphanedCoverage: CoverageLifecycleProposal[];
+}
+
+export interface CoverageEventDraft {
+  account: string;
+  calendar: string;
+  summary: string;
+  start: Date;
+  end: Date;
+  colorId?: string;
+}
+
+const DEFAULT_DEPENDENCY_CONFIG: DependencyConfig = {
+  enabled: false,
+  defaultActionMode: "propose",
+  optOut: {
+    enabled: true,
+    precedence: ["description", "title"],
+    globalTokens: ["no coverage needed", "#no-coverage"],
+    ruleScopedTokenTemplate: "no {ruleId} coverage needed",
+  },
+  rules: [],
+};
+
+export function loadDependencyConfig(configPath?: string): DependencyConfig {
+  const resolvedPath = configPath || path.join(process.cwd(), "config", "dependencies.json");
+  if (!fs.existsSync(resolvedPath)) {
+    return { ...DEFAULT_DEPENDENCY_CONFIG };
+  }
+
+  const raw = JSON.parse(fs.readFileSync(resolvedPath, "utf-8")) as Partial<DependencyConfig>;
+  const rules = (raw.rules || []).map((rule) => normalizeRule(rule));
+  validateRuleRegexes(rules);
+
+  return {
+    enabled: raw.enabled ?? DEFAULT_DEPENDENCY_CONFIG.enabled,
+    defaultActionMode: raw.defaultActionMode ?? DEFAULT_DEPENDENCY_CONFIG.defaultActionMode,
+    optOut: {
+      enabled: raw.optOut?.enabled ?? DEFAULT_DEPENDENCY_CONFIG.optOut.enabled,
+      precedence: raw.optOut?.precedence ?? DEFAULT_DEPENDENCY_CONFIG.optOut.precedence,
+      globalTokens: raw.optOut?.globalTokens ?? DEFAULT_DEPENDENCY_CONFIG.optOut.globalTokens,
+      ruleScopedTokenTemplate:
+        raw.optOut?.ruleScopedTokenTemplate ?? DEFAULT_DEPENDENCY_CONFIG.optOut.ruleScopedTokenTemplate,
+    },
+    rules,
+  };
+}
+
+export function findCoverageGaps(
+  events: CalendarEvent[],
+  rules: DependencyRule[],
+  config?: DependencyConfig
+): CoverageEvaluationResult {
+  const gaps: CoverageGap[] = [];
+  const optedOut: CoverageOptOutRecord[] = [];
+  const fulfilled: CoverageFulfillment[] = [];
+  const effectiveConfig = config || DEFAULT_DEPENDENCY_CONFIG;
+
+  for (const rule of rules) {
+    if (rule.enabled === false) continue;
+
+    const triggerRegexes = compileRegexes(rule.trigger.summaryPatterns, `${rule.id}.trigger.summaryPatterns`);
+    const allDayTriggerRegexes = compileRegexes(
+      rule.trigger.allDaySummaryPatterns || [],
+      `${rule.id}.trigger.allDaySummaryPatterns`
+    );
+    const timedTriggerRegexes = compileRegexes(
+      rule.trigger.timedSummaryPatterns || [],
+      `${rule.id}.trigger.timedSummaryPatterns`
+    );
+    const coverageRegexes = compileRegexes(
+      rule.requirement.coverageSummaryPatterns,
+      `${rule.id}.requirement.coverageSummaryPatterns`
+    );
+    const sourceEvents = events.filter(
+      (event) =>
+        rule.trigger.sourceCalendars.includes(event.calendarName) &&
+        eventMatchesTrigger(event, triggerRegexes, allDayTriggerRegexes, timedTriggerRegexes)
+    );
+
+    for (const sourceEvent of sourceEvents) {
+      const optOut = detectOptOut(sourceEvent, rule, effectiveConfig.optOut);
+      if (optOut) {
+        optedOut.push({
+          ruleId: rule.id,
+          sourceEventId: sourceEvent.id,
+          sourceSummary: sourceEvent.summary,
+          matchedIn: optOut.matchedIn,
+          token: optOut.token,
+        });
+        continue;
+      }
+
+      const requiredStart = new Date(
+        sourceEvent.start.getTime() + rule.requirement.windowStartOffsetMinutes * 60000
+      );
+      const requiredEnd = new Date(
+        sourceEvent.end.getTime() + rule.requirement.windowEndOffsetMinutes * 60000
+      );
+      const requiredDurationMinutes = Math.max(
+        0,
+        Math.round((requiredEnd.getTime() - requiredStart.getTime()) / 60000)
+      );
+
+      if (requiredDurationMinutes === 0) {
+        fulfilled.push({
+          ruleId: rule.id,
+          sourceEventId: sourceEvent.id,
+          coveredDurationMinutes: 0,
+          coveragePercent: 100,
+        });
+        continue;
+      }
+
+      const coverageIntervals = events
+        .filter(
+          (event) =>
+            !event.isAllDay &&
+            rule.requirement.coverageSearchCalendars.includes(event.calendarName) &&
+            coverageRegexes.some((pattern) => pattern.test(event.summary))
+        )
+        .map((event) => ({
+          start: Math.max(requiredStart.getTime(), event.start.getTime()),
+          end: Math.min(requiredEnd.getTime(), event.end.getTime()),
+        }))
+        .filter((interval) => interval.end > interval.start);
+
+      const coveredDurationMinutes = sumMergedIntervalMinutes(coverageIntervals);
+      const actualCoveragePercent = Math.min(
+        100,
+        (coveredDurationMinutes / requiredDurationMinutes) * 100
+      );
+      const requiredCoveragePercent = rule.requirement.minCoveragePercent;
+
+      if (actualCoveragePercent + 1e-9 < requiredCoveragePercent) {
+        gaps.push({
+          ruleId: rule.id,
+          ruleName: rule.name,
+          sourceEventId: sourceEvent.id,
+          sourceSummary: sourceEvent.summary,
+          sourceCalendarName: sourceEvent.calendarName,
+          sourceStart: sourceEvent.start,
+          sourceEnd: sourceEvent.end,
+          requiredStart,
+          requiredEnd,
+          requiredDurationMinutes,
+          coveredDurationMinutes,
+          actualCoveragePercent,
+          requiredCoveragePercent,
+          missingMinutes: Math.max(0, requiredDurationMinutes - coveredDurationMinutes),
+          actionMode: rule.actionMode ?? effectiveConfig.defaultActionMode,
+          createTarget: rule.requirement.createTarget,
+          coverageColorId: rule.requirement.coverageColorId,
+        });
+      } else {
+        fulfilled.push({
+          ruleId: rule.id,
+          sourceEventId: sourceEvent.id,
+          coveredDurationMinutes,
+          coveragePercent: actualCoveragePercent,
+        });
+      }
+    }
+  }
+
+  return { gaps, optedOut, fulfilled };
+}
+
+export function validateDependencyConfigAgainstInventory(
+  config: DependencyConfig,
+  inventory: DependencyValidationInventory
+): DependencyValidationIssue[] {
+  const issues: DependencyValidationIssue[] = [];
+  const allCalendars = new Set(inventory.allCalendars);
+  const accounts = new Set(inventory.accounts);
+  const calendarsByAccount = new Map<string, Set<string>>();
+  for (const [account, calendars] of Object.entries(inventory.calendarsByAccount)) {
+    calendarsByAccount.set(account, new Set(calendars));
+  }
+
+  for (const rule of config.rules) {
+    for (const calendar of rule.trigger.sourceCalendars) {
+      if (!allCalendars.has(calendar)) {
+        issues.push({
+          ruleId: rule.id,
+          field: "trigger.sourceCalendars",
+          value: calendar,
+          message: `Rule "${rule.id}" references unknown source calendar "${calendar}".`,
+        });
+      }
+    }
+
+    for (const calendar of rule.requirement.coverageSearchCalendars) {
+      if (!allCalendars.has(calendar)) {
+        issues.push({
+          ruleId: rule.id,
+          field: "requirement.coverageSearchCalendars",
+          value: calendar,
+          message: `Rule "${rule.id}" references unknown coverage search calendar "${calendar}".`,
+        });
+      }
+    }
+
+    const targetAccount = rule.requirement.createTarget.account;
+    const targetCalendar = rule.requirement.createTarget.calendar;
+    if (!accounts.has(targetAccount)) {
+      issues.push({
+        ruleId: rule.id,
+        field: "requirement.createTarget.account",
+        value: targetAccount,
+        message: `Rule "${rule.id}" targets unknown account "${targetAccount}".`,
+      });
+      continue;
+    }
+
+    const accountCalendars = calendarsByAccount.get(targetAccount) || new Set<string>();
+    if (!accountCalendars.has(targetCalendar)) {
+      issues.push({
+        ruleId: rule.id,
+        field: "requirement.createTarget.calendar",
+        value: targetCalendar,
+        message: `Rule "${rule.id}" targets unknown calendar "${targetCalendar}" for account "${targetAccount}".`,
+      });
+    }
+  }
+
+  return issues;
+}
+
+export function buildCoverageEventDraft(gap: CoverageGap): CoverageEventDraft {
+  return {
+    account: gap.createTarget.account,
+    calendar: gap.createTarget.calendar,
+    summary: `${gap.ruleName}: ${gap.sourceSummary}`,
+    start: gap.requiredStart,
+    end: gap.requiredEnd,
+    colorId: gap.coverageColorId,
+  };
+}
+
+export function reconcileCoverageLifecycle(
+  events: CalendarEvent[],
+  rules: DependencyRule[],
+  historicalLinks: CoverageLifecycleLink[] = []
+): CoverageReconciliationResult {
+  const orphanedCoverage: CoverageLifecycleProposal[] = [];
+  const eventById = new Map(events.map((event) => [event.id, event]));
+  const ruleById = new Map(rules.map((rule) => [rule.id, rule]));
+
+  for (const link of historicalLinks) {
+    const sourceExists = eventById.has(link.sourceEventId);
+    const coverageEvent = eventById.get(link.coverageEventId);
+    const rule = ruleById.get(link.ruleId);
+
+    if (!sourceExists && coverageEvent && rule && (rule.orphanPolicy ?? "propose-delete") === "propose-delete") {
+      orphanedCoverage.push({
+        ruleId: link.ruleId,
+        coverageEventId: link.coverageEventId,
+        coverageSummary: coverageEvent.summary,
+        action: "propose-delete",
+      });
+    }
+  }
+
+  return { orphanedCoverage };
+}
+
+function normalizeRule(rule: Partial<DependencyRule>): DependencyRule {
+  if (!rule.id || !rule.name || !rule.trigger || !rule.requirement) {
+    throw new Error("Invalid dependency rule: missing required fields");
+  }
+
+  return {
+    id: rule.id,
+    enabled: rule.enabled ?? true,
+    name: rule.name,
+    actionMode: rule.actionMode ?? "propose",
+    orphanPolicy: rule.orphanPolicy ?? "propose-delete",
+    trigger: {
+      sourceCalendars: rule.trigger.sourceCalendars || [],
+      summaryPatterns: rule.trigger.summaryPatterns || [],
+      allDaySummaryPatterns: rule.trigger.allDaySummaryPatterns || [],
+      timedSummaryPatterns: rule.trigger.timedSummaryPatterns || [],
+    },
+    requirement: {
+      coverageSummaryPatterns: rule.requirement.coverageSummaryPatterns || [],
+      coverageSearchCalendars: rule.requirement.coverageSearchCalendars || [],
+      createTarget: rule.requirement.createTarget || { account: "personal", calendar: "Primary" },
+      coverageColorId: rule.requirement.coverageColorId,
+      windowStartOffsetMinutes: rule.requirement.windowStartOffsetMinutes ?? 0,
+      windowEndOffsetMinutes: rule.requirement.windowEndOffsetMinutes ?? 0,
+      minCoveragePercent: rule.requirement.minCoveragePercent ?? 100,
+    },
+  };
+}
+
+function validateRuleRegexes(rules: DependencyRule[]): void {
+  for (const rule of rules) {
+    compileRegexes(rule.trigger.summaryPatterns, `${rule.id}.trigger.summaryPatterns`);
+    compileRegexes(rule.trigger.allDaySummaryPatterns || [], `${rule.id}.trigger.allDaySummaryPatterns`);
+    compileRegexes(rule.trigger.timedSummaryPatterns || [], `${rule.id}.trigger.timedSummaryPatterns`);
+    compileRegexes(
+      rule.requirement.coverageSummaryPatterns,
+      `${rule.id}.requirement.coverageSummaryPatterns`
+    );
+  }
+}
+
+function compileRegexes(patterns: string[], context: string): RegExp[] {
+  return patterns.map((pattern) => {
+    try {
+      return new RegExp(pattern, "i");
+    } catch (error) {
+      throw new Error(`Invalid regex in ${context}: "${pattern}"`);
+    }
+  });
+}
+
+function detectOptOut(
+  event: CalendarEvent,
+  rule: DependencyRule,
+  config: CoverageOptOutConfig
+): { matchedIn: "description" | "title"; token: string } | null {
+  if (!config.enabled) return null;
+
+  const scopedToken = config.ruleScopedTokenTemplate.replace("{ruleId}", rule.id);
+  const tokens = [...config.globalTokens, scopedToken];
+  const title = (event.summary || "").toLowerCase();
+  const description = (event.description || "").toLowerCase();
+
+  for (const source of config.precedence) {
+    const haystack = source === "description" ? description : title;
+    for (const token of tokens) {
+      if (haystack.includes(token.toLowerCase())) {
+        return { matchedIn: source, token };
+      }
+    }
+  }
+
+  return null;
+}
+
+function eventMatchesTrigger(
+  event: CalendarEvent,
+  summaryPatterns: RegExp[],
+  allDaySummaryPatterns: RegExp[],
+  timedSummaryPatterns: RegExp[]
+): boolean {
+  const summary = event.summary || "";
+  if (event.isAllDay) {
+    if (allDaySummaryPatterns.length > 0) {
+      return allDaySummaryPatterns.some((pattern) => pattern.test(summary));
+    }
+    return summaryPatterns.some((pattern) => pattern.test(summary));
+  }
+
+  if (timedSummaryPatterns.length > 0) {
+    return timedSummaryPatterns.some((pattern) => pattern.test(summary));
+  }
+
+  return summaryPatterns.some((pattern) => pattern.test(summary));
+}
+
+function sumMergedIntervalMinutes(intervals: Array<{ start: number; end: number }>): number {
+  if (intervals.length === 0) return 0;
+
+  const sorted = [...intervals].sort((a, b) => a.start - b.start);
+  const merged: Array<{ start: number; end: number }> = [sorted[0]];
+
+  for (let i = 1; i < sorted.length; i++) {
+    const current = sorted[i];
+    const last = merged[merged.length - 1];
+    if (current.start <= last.end) {
+      last.end = Math.max(last.end, current.end);
+    } else {
+      merged.push(current);
+    }
+  }
+
+  return merged.reduce((sum, interval) => sum + (interval.end - interval.start) / 60000, 0);
 }

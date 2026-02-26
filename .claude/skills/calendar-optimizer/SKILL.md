@@ -153,10 +153,12 @@ From `lib/calendar-manager.ts`:
 
 ## Color Reference
 
-See `config/colors.json` for semantic color definitions. Common assignments:
-- Sage (2) - Deep Work / Focus
-- Graphite (8) - Personal
-- Blueberry (9) - Flex / Blocked time
+See `config/colors.json` for semantic color definitions (source of truth). Common assignments:
+- Sage (2) - Deep Work / Focus / Learning
+- Grape (3) - Project Work
+- Flamingo (4) - Meetings
+- Blueberry (9) - Fitness
+- Graphite (8) - Travel / Commute
 
 ## Configuration
 
