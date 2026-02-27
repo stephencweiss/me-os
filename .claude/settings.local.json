@@ -19,7 +19,10 @@
       "mcp__google-calendar__get_today",
       "Bash(npm run report:today:*)",
       "mcp__google-calendar__create_event",
-      "Skill(calendar)"
+      "Skill(calendar)",
+      "mcp__google-calendar__get_color_definitions",
+      "mcp__google-calendar__decline_event",
+      "Skill(calendar-manager)"
     ]
   },
   "enableAllProjectMcpServers": true,
