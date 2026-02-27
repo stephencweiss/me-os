@@ -7,16 +7,17 @@ import { URL } from "url";
 
 const SCOPES = ["https://www.googleapis.com/auth/calendar"];
 const CONFIG_DIR = path.join(process.cwd(), "config");
+const SENSITIVE_DIR = path.join(CONFIG_DIR, "sensitive");
 
 // Default account can be overridden via GOOGLE_ACCOUNT env var
 const DEFAULT_ACCOUNT = process.env.GOOGLE_ACCOUNT || "personal";
 
 function getCredentialsPath(account: string): string {
-  return path.join(CONFIG_DIR, `credentials-${account}.json`);
+  return path.join(SENSITIVE_DIR, `credentials-${account}.json`);
 }
 
 function getTokensPath(account: string): string {
-  return path.join(CONFIG_DIR, `tokens-${account}.json`);
+  return path.join(SENSITIVE_DIR, `tokens-${account}.json`);
 }
 
 interface Credentials {
@@ -48,7 +49,7 @@ function loadCredentials(account: string): Credentials {
         "Please download OAuth2 credentials from Google Cloud Console:\n" +
         "1. Go to https://console.cloud.google.com/apis/credentials\n" +
         "2. Create OAuth 2.0 Client ID (Desktop app)\n" +
-        `3. Download JSON and save as config/credentials-${account}.json`
+        `3. Download JSON and save as config/sensitive/credentials-${account}.json`
     );
   }
   const content = fs.readFileSync(credPath, "utf-8");
@@ -180,16 +181,16 @@ export function getCalendarClient(auth: OAuth2Client) {
 
 // List available accounts (have credentials)
 export function listAvailableAccounts(): string[] {
-  if (!fs.existsSync(CONFIG_DIR)) return [];
-  return fs.readdirSync(CONFIG_DIR)
+  if (!fs.existsSync(SENSITIVE_DIR)) return [];
+  return fs.readdirSync(SENSITIVE_DIR)
     .filter(f => f.startsWith("credentials-") && f.endsWith(".json"))
     .map(f => f.replace("credentials-", "").replace(".json", ""));
 }
 
 // List authenticated accounts (have tokens)
 export function listAuthenticatedAccounts(): string[] {
-  if (!fs.existsSync(CONFIG_DIR)) return [];
-  return fs.readdirSync(CONFIG_DIR)
+  if (!fs.existsSync(SENSITIVE_DIR)) return [];
+  return fs.readdirSync(SENSITIVE_DIR)
     .filter(f => f.startsWith("tokens-") && f.endsWith(".json"))
     .map(f => f.replace("tokens-", "").replace(".json", ""));
 }
@@ -228,7 +229,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     console.log("Available accounts:");
     accounts.forEach(a => console.log(`  - ${a}`));
     if (accounts.length === 0) {
-      console.log("  (none found - add credentials-<name>.json to config/)");
+      console.log("  (none found - add credentials-<name>.json to config/sensitive/)");
     }
     process.exit(0);
   }
