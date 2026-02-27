@@ -10,7 +10,11 @@
     "validate:dependencies": "node --loader ts-node/esm scripts/validate-dependencies.ts",
     "auth": "node --loader ts-node/esm lib/google-auth.ts",
     "auth:list": "node --loader ts-node/esm lib/google-auth.ts --list",
-    "mcp:calendar": "node --loader ts-node/esm mcp/google-calendar/index.ts"
+    "mcp:calendar": "node --loader ts-node/esm mcp/google-calendar/index.ts",
+    "sync": "node --loader ts-node/esm scripts/sync-calendar.ts",
+    "dashboard": "node --loader ts-node/esm scripts/generate-dashboard.ts --open",
+    "report": "node --loader ts-node/esm scripts/weekly-report.ts",
+    "report:today": "node --loader ts-node/esm scripts/weekly-report.ts --today"
   },
   "keywords": [
     "productivity",
@@ -21,13 +25,17 @@
   "author": "",
   "license": "MIT",
   "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^20.11.0",
     "ts-node": "^10.9.2",
     "typescript": "^5.3.3",
     "vitest": "^4.0.18"
   },
   "dependencies": {
+    "@libsql/client": "^0.17.0",
     "@modelcontextprotocol/sdk": "^1.0.0",
-    "googleapis": "^130.0.0"
+    "better-sqlite3": "^12.6.2",
+    "googleapis": "^130.0.0",
+    "recharts": "^3.7.0"
   }
 }

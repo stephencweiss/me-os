@@ -19,10 +19,19 @@
       "mcp__google-calendar__get_today",
       "Bash(npm run report:today:*)",
       "mcp__google-calendar__create_event",
-      "Skill(calendar)"
+      "Skill(calendar)",
+      "Bash(npm run sync:*)",
+      "Bash(turso --version:*)",
+      "Bash(npm install:*)",
+      "Bash(turso db shell:*)",
+      "Bash(npx:*)",
+      "Bash(curl:*)"
     ]
   },
   "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "google-calendar"
+  ],
   "disabledMcpjsonServers": [
     "plaid-mcp"
   ]

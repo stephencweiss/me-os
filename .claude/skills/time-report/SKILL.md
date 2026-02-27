@@ -15,6 +15,8 @@ Analyze how you spend your time based on calendar data. Identifies scheduled vs.
 - `/time-report today` - Today's breakdown
 - `/time-report week <date>` - Specific week (e.g., `/time-report week 2024-01-15`)
 - `/time-report gaps` - Focus on unstructured time analysis
+- `/time-report sync` - Sync calendar to local database for historical tracking
+- `/time-report dashboard` - Generate and open HTML visualization dashboard
 
 ## What It Shows
 
@@ -60,6 +62,26 @@ When the user invokes this skill:
 5. **For `/time-report gaps`**:
    - Run the weekly report and focus on the "Unstructured Time" section
    - Analyze patterns: Which days have most gaps? What times?
+
+6. **For `/time-report sync`**:
+   - Run: `node --loader ts-node/esm scripts/sync-calendar.ts`
+   - By default syncs last 30 days
+   - Use `--days N` for different range (e.g., `--days 90` for 90 days)
+   - Use `--verbose` to show each change
+   - This stores events in a local SQLite database (`data/calendar.db`)
+   - Detects additions, modifications, and removals since last sync
+
+7. **For `/time-report dashboard`**:
+   - First ensure sync has been run at least once
+   - Run: `node --loader ts-node/esm scripts/generate-dashboard.ts --open`
+   - Generates `output/dashboard.html` and opens in browser
+   - Use `--days N` to control date range (default: 30)
+   - Dashboard shows:
+     - Summary cards (total time, gaps, week-over-week comparison)
+     - Time by category (donut chart)
+     - Daily trends (line chart)
+     - Daily breakdown by category (stacked bar chart)
+     - Recent calendar changes log
 
 ## Interactive Features
 
@@ -185,8 +207,50 @@ You had 2h 45m of unscheduled time yesterday. Let's categorize it:
 **2:00 PM - 3:30 PM (1h 30m)** - What did you do during this time?
 ```
 
+## Historical Tracking & Visualization
+
+The sync and dashboard features enable historical tracking:
+
+### Database Storage
+
+Calendar events are synced to a local SQLite database:
+```
+data/calendar.db
+```
+
+Tables:
+- `events` - Full event details with first_seen/last_seen timestamps
+- `daily_summaries` - Aggregated daily stats by category
+- `event_changes` - Log of additions, modifications, and removals
+
+### Dashboard Features
+
+The HTML dashboard (`output/dashboard.html`) provides:
+
+1. **Summary Cards** - Total scheduled time, gaps, week-over-week comparison
+2. **Time by Category** - Interactive donut chart with hover details
+3. **Daily Trends** - Line chart showing scheduled vs gap time over time
+4. **Daily Breakdown** - Stacked bar chart showing categories per day
+5. **Change Log** - Recent calendar modifications
+
+### Typical Workflow
+
+1. **Initial sync**: `node --loader ts-node/esm scripts/sync-calendar.ts --days 90`
+2. **Daily updates**: `node --loader ts-node/esm scripts/sync-calendar.ts --days 7`
+3. **View dashboard**: `node --loader ts-node/esm scripts/generate-dashboard.ts --open`
+
+### Change Detection
+
+The sync process detects:
+- **Added** events (new in Google Calendar)
+- **Modified** events (time, title, color changes)
+- **Removed** events (deleted from Google Calendar)
+
+All changes are logged in `event_changes` table for analysis.
+
 ## Prerequisites
 
 - Google Calendar MCP server must be configured and authenticated
 - Both personal and work accounts should be authenticated for complete view
 - Create `data/time-tracking/` directory for gap categorization storage
+- For dashboard: Run sync at least once before generating
