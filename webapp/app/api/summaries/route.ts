@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getDailySummaries, type Category } from "@/lib/db";
+import {
+  getDailySummaries,
+  computeSummariesFromEvents,
+  type Category,
+} from "@/lib/db";
 
 /**
  * Parsed daily summary with categories
@@ -21,12 +25,19 @@ interface ParsedDailySummary {
  * Query params:
  *   - start: Start date (YYYY-MM-DD) - required
  *   - end: End date (YYYY-MM-DD) - required
+ *   - accounts: Comma-separated account names (optional)
+ *   - calendars: Comma-separated calendar names (optional)
+ *
+ * When filters are provided, summaries are computed on-the-fly from events.
+ * Without filters, pre-computed summaries from daily_summaries table are used.
  */
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
 
   const start = searchParams.get("start");
   const end = searchParams.get("end");
+  const accountsParam = searchParams.get("accounts");
+  const calendarsParam = searchParams.get("calendars");
 
   if (!start || !end) {
     return NextResponse.json(
@@ -44,20 +55,42 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  try {
-    const rawSummaries = await getDailySummaries(start, end);
+  const hasFilters = accountsParam || calendarsParam;
 
-    // Parse the JSON categories field
-    const summaries: ParsedDailySummary[] = rawSummaries.map((s) => ({
-      date: s.date,
-      totalScheduledMinutes: s.total_scheduled_minutes,
-      totalGapMinutes: s.total_gap_minutes,
-      categories: JSON.parse(s.categories_json) as Category[],
-      isWorkDay: s.is_work_day === 1,
-      analysisHoursStart: s.analysis_hours_start,
-      analysisHoursEnd: s.analysis_hours_end,
-      snapshotTime: s.snapshot_time,
-    }));
+  try {
+    let summaries: ParsedDailySummary[];
+
+    if (hasFilters) {
+      // Compute from filtered events when filters are applied
+      const options = {
+        accounts: accountsParam
+          ? accountsParam.split(",").map((a) => a.trim())
+          : undefined,
+        calendars: calendarsParam
+          ? calendarsParam.split(",").map((c) => c.trim())
+          : undefined,
+      };
+      const computed = await computeSummariesFromEvents(start, end, options);
+      summaries = computed.summaries.map((s) => ({
+        ...s,
+        analysisHoursStart: 9,
+        analysisHoursEnd: 17,
+        snapshotTime: new Date().toISOString(),
+      }));
+    } else {
+      // Use pre-computed summaries (faster) when no filters
+      const rawSummaries = await getDailySummaries(start, end);
+      summaries = rawSummaries.map((s) => ({
+        date: s.date,
+        totalScheduledMinutes: s.total_scheduled_minutes,
+        totalGapMinutes: s.total_gap_minutes,
+        categories: JSON.parse(s.categories_json) as Category[],
+        isWorkDay: s.is_work_day === 1,
+        analysisHoursStart: s.analysis_hours_start,
+        analysisHoursEnd: s.analysis_hours_end,
+        snapshotTime: s.snapshot_time,
+      }));
+    }
 
     // Calculate aggregate stats
     const totalMinutes = summaries.reduce(

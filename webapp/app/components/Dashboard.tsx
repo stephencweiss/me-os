@@ -16,6 +16,7 @@ import {
   ReferenceArea,
 } from "recharts";
 import EventList from "./EventList";
+import FilterBar from "./FilterBar";
 
 // Color mapping from colorId to hex color (matching Google Calendar colors)
 const COLOR_MAP: Record<string, string> = {
@@ -113,6 +114,10 @@ export default function Dashboard() {
   const [eventListTitle, setEventListTitle] = useState("Events");
   const [eventsLoading, setEventsLoading] = useState(false);
 
+  // Filter state
+  const [selectedAccounts, setSelectedAccounts] = useState<string[]>([]);
+  const [selectedCalendars, setSelectedCalendars] = useState<string[]>([]);
+
   useEffect(() => {
     async function fetchData() {
       setLoading(true);
@@ -122,11 +127,21 @@ export default function Dashboard() {
       const start = new Date();
       start.setDate(start.getDate() - days);
 
+      // Build URL with filters
+      const params = new URLSearchParams({
+        start: formatDate(start),
+        end: formatDate(end),
+      });
+      if (selectedAccounts.length > 0) {
+        params.set("accounts", selectedAccounts.join(","));
+      }
+      if (selectedCalendars.length > 0) {
+        params.set("calendars", selectedCalendars.join(","));
+      }
+
       try {
         const [summariesRes, calendarsRes] = await Promise.all([
-          fetch(
-            `/api/summaries?start=${formatDate(start)}&end=${formatDate(end)}`
-          ),
+          fetch(`/api/summaries?${params.toString()}`),
           fetch("/api/calendars"),
         ]);
 
@@ -149,7 +164,7 @@ export default function Dashboard() {
     }
 
     fetchData();
-  }, [days]);
+  }, [days, selectedAccounts, selectedCalendars]);
 
   // Fetch events for a date range
   async function fetchEvents(start: string, end: string, title: string) {
@@ -303,6 +318,20 @@ export default function Dashboard() {
             ))}
           </div>
         </div>
+
+        {/* Filter Bar */}
+        {calendars && (
+          <div className="mb-6">
+            <FilterBar
+              accounts={calendars.accounts}
+              calendars={calendars.calendars}
+              selectedAccounts={selectedAccounts}
+              selectedCalendars={selectedCalendars}
+              onAccountsChange={setSelectedAccounts}
+              onCalendarsChange={setSelectedCalendars}
+            />
+          </div>
+        )}
 
         {/* Summary Cards */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">

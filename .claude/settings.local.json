@@ -25,7 +25,8 @@
       "Bash(npm install:*)",
       "Bash(turso db shell:*)",
       "Bash(npx:*)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(JJ_EDITOR=\"cat\" jj squash --from rvkypqlk --into xmlpkuwq -m \"chore: add phase 2 completion plan\n\nAlso documents that date range buttons work correctly - the perceived issue\nwas due to limited data in database \\(only 8 days synced\\).\")"
     ]
   },
   "enableAllProjectMcpServers": true,
