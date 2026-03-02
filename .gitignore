@@ -4,9 +4,11 @@ node_modules/
 # Build output
 dist/
 
-# Config directory (contains credentials and personal settings)
-# See config.example/ for templates
-config/
+# Sensitive config (credentials, tokens)
+config/sensitive/
+
+# Personal calendar config (contains emails, calendar names)
+config/calendars.json
 
 # Data files (personal)
 data/

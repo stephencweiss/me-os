@@ -74,7 +74,8 @@ function formatEvent(
   event: calendar_v3.Schema$Event,
   account: string,
   calendarName?: string,
-  calendarType?: CalendarType
+  calendarType?: CalendarType,
+  calendarId?: string
 ): object {
   const colorId = event.colorId || "default";
   const colorName = colorId === "default" ? "Default" : GOOGLE_CALENDAR_COLORS[colorId] || colorId;
@@ -83,6 +84,7 @@ function formatEvent(
   return {
     id: event.id,
     account,
+    calendarId: calendarId || "primary",
     calendarName: calendarName || "Primary",
     calendarType: calendarType || "active",
     summary: event.summary || "(No title)",
@@ -100,22 +102,18 @@ function formatEvent(
 
 /**
  * Format event in compact mode - minimal fields for reduced output size.
+ * Expects a formatted event (from formatEvent) with account and calendarId.
  * Use compact: false to get full details including description, location, htmlLink.
  */
-function formatEventCompact(
-  event: calendar_v3.Schema$Event,
-  account: string
-): object {
-  const colorId = event.colorId || "default";
-  const colorName = colorId === "default" ? "Default" : GOOGLE_CALENDAR_COLORS[colorId] || colorId;
-
+function formatEventCompact(event: any): object {
   return {
     id: event.id,
-    account,
+    account: event.account,
+    calendarId: event.calendarId || "primary",
     summary: event.summary || "(No title)",
-    start: event.start?.dateTime || event.start?.date,
-    end: event.end?.dateTime || event.end?.date,
-    colorName,
+    start: event.start,
+    end: event.end,
+    colorName: event.colorName || "Default",
   };
 }
 
@@ -263,7 +261,7 @@ async function fetchEventsFromAllAccounts(
               if (!include) continue;
             }
 
-            allEvents.push(formatEvent(event, account, calendarName, calType));
+            allEvents.push(formatEvent(event, account, calendarName, calType, cal.id));
           }
         } catch (err) {
           // Silently skip calendars we can't read (e.g., some shared calendars)
@@ -283,6 +281,128 @@ async function fetchEventsFromAllAccounts(
   });
 
   return allEvents;
+}
+
+/**
+ * Find an event by ID across all calendars in all accounts.
+ * Returns the account, calendarId, and event when found.
+ * Prefers calendars where the user has write access (owner > writer > reader).
+ * This allows update operations to target the correct calendar.
+ */
+async function findEventInAllCalendars(
+  eventId: string,
+  clients: AuthenticatedAccount[],
+  preferredCalendarId?: string
+): Promise<{
+  account: string;
+  calendarId: string;
+  calendar: calendar_v3.Calendar;
+  event: calendar_v3.Schema$Event;
+} | null> {
+  // Collect all matches with their access levels and ownership info
+  const matches: Array<{
+    account: string;
+    calendarId: string;
+    calendar: calendar_v3.Calendar;
+    event: calendar_v3.Schema$Event;
+    accessRole: string;
+    isPrimary: boolean;
+    isEventOrganizer: boolean;  // True if this calendar is the event's source
+  }> = [];
+
+  for (const { account, calendar } of clients) {
+    // First try the preferred calendarId if provided
+    if (preferredCalendarId) {
+      try {
+        const response = await calendar.events.get({
+          calendarId: preferredCalendarId,
+          eventId,
+        });
+        // If preferred calendar is specified and found, use it immediately
+        return {
+          account,
+          calendarId: preferredCalendarId,
+          calendar,
+          event: response.data,
+        };
+      } catch {
+        // Not found on preferred calendar, continue searching
+      }
+    }
+
+    // Get all calendars for this account and search each one
+    try {
+      const calendarListResponse = await calendar.calendarList.list();
+      const calendars = calendarListResponse.data.items || [];
+
+      for (const cal of calendars) {
+        if (!cal.id) continue;
+        // Skip if this is the preferred calendar we already tried
+        if (preferredCalendarId && cal.id === preferredCalendarId) continue;
+
+        try {
+          const response = await calendar.events.get({
+            calendarId: cal.id,
+            eventId,
+          });
+          matches.push({
+            account,
+            calendarId: cal.id,
+            calendar,
+            event: response.data,
+            accessRole: cal.accessRole || "reader",
+            isPrimary: cal.primary || false,
+            isEventOrganizer: response.data.organizer?.self === true,
+          });
+        } catch {
+          // Not found on this calendar, continue
+        }
+      }
+    } catch {
+      // Failed to list calendars for this account, continue to next
+    }
+  }
+
+  if (matches.length === 0) {
+    return null;
+  }
+
+  // Sort matches to find the best calendar for updating:
+  // 1. Prefer calendars where we're the event organizer (source calendar)
+  // 2. Then by access level: owner > writer > others
+  // 3. Then prefer non-primary calendars
+  const accessPriority: Record<string, number> = {
+    owner: 3,
+    writer: 2,
+    reader: 1,
+    freeBusyReader: 0,
+  };
+
+  matches.sort((a, b) => {
+    // First priority: prefer calendar where we're the event organizer
+    if (a.isEventOrganizer !== b.isEventOrganizer) {
+      return a.isEventOrganizer ? -1 : 1; // Organizer first
+    }
+    // Second priority: access level
+    const aPriority = accessPriority[a.accessRole] ?? 0;
+    const bPriority = accessPriority[b.accessRole] ?? 0;
+    if (aPriority !== bPriority) {
+      return bPriority - aPriority; // Higher priority first
+    }
+    // Third priority: prefer non-primary (shared calendar is likely the source)
+    if (a.isPrimary !== b.isPrimary) {
+      return a.isPrimary ? 1 : -1; // Non-primary first
+    }
+    return 0;
+  });
+
+  const best = matches[0];
+  return {
+    account: best.account,
+    calendarId: best.calendarId,
+    calendar: best.calendar,
+    event: best.event,
+  };
 }
 
 /**
@@ -749,7 +869,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
         // Format based on compact mode
         const formattedEvents = compact
-          ? limitedEvents.map((e: any) => formatEventCompact(e, e.account))
+          ? limitedEvents.map((e: any) => formatEventCompact(e))
           : limitedEvents;
 
         const result: any = {
@@ -792,7 +912,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
         // Format based on compact mode
         const formattedEvents = compact
-          ? limitedEvents.map((e: any) => formatEventCompact(e, e.account))
+          ? limitedEvents.map((e: any) => formatEventCompact(e))
           : limitedEvents;
 
         // Group by day
@@ -850,7 +970,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
         // Format based on compact mode
         const formattedEvents = compact
-          ? limitedEvents.map((e: any) => formatEventCompact(e, e.account))
+          ? limitedEvents.map((e: any) => formatEventCompact(e))
           : limitedEvents;
 
         const clients = await getClients();
@@ -877,7 +997,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       case "update_event_color": {
-        const { eventId, colorId, calendarId = "primary", account } = args as {
+        const { eventId, colorId, calendarId, account } = args as {
           eventId: string;
           colorId: string;
           calendarId?: string;
@@ -905,60 +1025,81 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           }
         }
 
-        // Get the appropriate account's calendar
         const clients = await getClients();
-        let targetAccount = account;
 
-        // If no account specified, try to find the event in any account
-        if (!targetAccount) {
-          for (const { account: acct, calendar } of clients) {
-            try {
-              await calendar.events.get({ calendarId, eventId });
-              targetAccount = acct;
-              break;
-            } catch {
-              // Event not found in this account, continue
-            }
+        // If account is specified, get that specific calendar client
+        // Otherwise, search all calendars to find the event
+        let targetAccount: string;
+        let targetCalendarId: string;
+        let targetCalendar: calendar_v3.Calendar;
+
+        if (account) {
+          targetAccount = account;
+          targetCalendarId = calendarId || "primary";
+          targetCalendar = await getClientForAccount(account);
+        } else {
+          // Search all calendars for the event
+          const found = await findEventInAllCalendars(eventId, clients, calendarId);
+          if (!found) {
+            return {
+              content: [
+                {
+                  type: "text",
+                  text: `Event not found in any calendar. Please specify the account and calendarId parameters.`,
+                },
+              ],
+              isError: true,
+            };
           }
+          targetAccount = found.account;
+          targetCalendarId = found.calendarId;
+          targetCalendar = found.calendar;
         }
 
-        if (!targetAccount) {
+        try {
+          const response = await targetCalendar.events.patch({
+            calendarId: targetCalendarId,
+            eventId,
+            requestBody: {
+              colorId: resolvedColorId,
+            },
+          });
+
           return {
             content: [
               {
                 type: "text",
-                text: `Event not found in any account. Please specify the account parameter.`,
+                text: JSON.stringify(
+                  {
+                    success: true,
+                    account: targetAccount,
+                    calendarId: targetCalendarId,
+                    event: formatEvent(response.data, targetAccount, undefined, undefined, targetCalendarId),
+                  },
+                  null,
+                  2
+                ),
+              },
+            ],
+          };
+        } catch (err: any) {
+          return {
+            content: [
+              {
+                type: "text",
+                text: JSON.stringify({
+                  error: err.message,
+                  debug: {
+                    attemptedAccount: targetAccount,
+                    attemptedCalendarId: targetCalendarId,
+                    eventId,
+                  },
+                }, null, 2),
               },
             ],
             isError: true,
           };
         }
-
-        const calendar = await getClientForAccount(targetAccount);
-        const response = await calendar.events.patch({
-          calendarId,
-          eventId,
-          requestBody: {
-            colorId: resolvedColorId,
-          },
-        });
-
-        return {
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify(
-                {
-                  success: true,
-                  account: targetAccount,
-                  event: formatEvent(response.data, targetAccount),
-                },
-                null,
-                2
-              ),
-            },
-          ],
-        };
       }
 
       case "get_color_definitions": {
@@ -1023,7 +1164,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
         // Format based on compact mode
         const formattedEvents = compact
-          ? limitedEvents.map((e: any) => formatEventCompact(e, e.account))
+          ? limitedEvents.map((e: any) => formatEventCompact(e))
           : limitedEvents;
 
         const result: any = {
@@ -1122,7 +1263,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       case "update_event_status": {
-        const { eventId, status, account, calendarId = "primary" } = args as {
+        const { eventId, status, account, calendarId } = args as {
           eventId: string;
           status: "accepted" | "declined" | "tentative" | "needsAction";
           account?: string;
@@ -1130,45 +1271,38 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         };
 
         const clients = await getClients();
-        let targetAccount = account;
-        let targetCalendar: calendar_v3.Calendar | null = null;
-        let existingEvent: calendar_v3.Schema$Event | null = null;
+        let targetAccount: string;
+        let targetCalendarId: string;
+        let targetCalendar: calendar_v3.Calendar;
+        let existingEvent: calendar_v3.Schema$Event;
 
-        // Find the event and get the user's email for this account
-        if (!targetAccount) {
-          for (const { account: acct, calendar } of clients) {
-            try {
-              const eventResponse = await calendar.events.get({
-                calendarId,
-                eventId,
-              });
-              existingEvent = eventResponse.data;
-              targetAccount = acct;
-              targetCalendar = calendar;
-              break;
-            } catch {
-              // Event not found in this account, continue
-            }
-          }
-        } else {
-          targetCalendar = await getClientForAccount(targetAccount);
+        // Find the event - search all calendars if account not specified
+        if (account) {
+          targetAccount = account;
+          targetCalendarId = calendarId || "primary";
+          targetCalendar = await getClientForAccount(account);
           const eventResponse = await targetCalendar.events.get({
-            calendarId,
+            calendarId: targetCalendarId,
             eventId,
           });
           existingEvent = eventResponse.data;
-        }
-
-        if (!targetAccount || !targetCalendar || !existingEvent) {
-          return {
-            content: [
-              {
-                type: "text",
-                text: `Event not found in any account. Please specify the account parameter.`,
-              },
-            ],
-            isError: true,
-          };
+        } else {
+          const found = await findEventInAllCalendars(eventId, clients, calendarId);
+          if (!found) {
+            return {
+              content: [
+                {
+                  type: "text",
+                  text: `Event not found in any calendar. Please specify the account and calendarId parameters.`,
+                },
+              ],
+              isError: true,
+            };
+          }
+          targetAccount = found.account;
+          targetCalendarId = found.calendarId;
+          targetCalendar = found.calendar;
+          existingEvent = found.event;
         }
 
         // Get the user's email for this account
@@ -1187,7 +1321,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
         // If no attendees list (user is organizer), just update the event
         const response = await targetCalendar.events.patch({
-          calendarId,
+          calendarId: targetCalendarId,
           eventId,
           requestBody: {
             attendees: updatedAttendees || undefined,
@@ -1202,8 +1336,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                 {
                   success: true,
                   account: targetAccount,
+                  calendarId: targetCalendarId,
                   newStatus: status,
-                  event: formatEvent(response.data, targetAccount),
+                  event: formatEvent(response.data, targetAccount, undefined, undefined, targetCalendarId),
                 },
                 null,
                 2
@@ -1216,7 +1351,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       case "decline_event": {
         const {
           eventId,
-          calendarId = "primary",
+          calendarId,
           sendUpdates = "all",
           account,
         } = args as {
@@ -1227,39 +1362,35 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         };
 
         const clients = await getClients();
-        let targetAccount = account;
-        let targetCalendar: calendar_v3.Calendar | null = null;
-        let event: calendar_v3.Schema$Event | null = null;
+        let targetAccount: string;
+        let targetCalendarId: string;
+        let targetCalendar: calendar_v3.Calendar;
+        let event: calendar_v3.Schema$Event;
 
         // Find the event and determine which account owns it
-        if (targetAccount) {
-          targetCalendar = await getClientForAccount(targetAccount);
-          const response = await targetCalendar.events.get({ calendarId, eventId });
+        if (account) {
+          targetAccount = account;
+          targetCalendarId = calendarId || "primary";
+          targetCalendar = await getClientForAccount(account);
+          const response = await targetCalendar.events.get({ calendarId: targetCalendarId, eventId });
           event = response.data;
         } else {
-          for (const { account: acct, calendar } of clients) {
-            try {
-              const response = await calendar.events.get({ calendarId, eventId });
-              event = response.data;
-              targetAccount = acct;
-              targetCalendar = calendar;
-              break;
-            } catch {
-              // Event not found in this account, continue
-            }
+          const found = await findEventInAllCalendars(eventId, clients, calendarId);
+          if (!found) {
+            return {
+              content: [
+                {
+                  type: "text",
+                  text: "Event not found in any calendar. Please specify the account and calendarId parameters.",
+                },
+              ],
+              isError: true,
+            };
           }
-        }
-
-        if (!event || !targetCalendar || !targetAccount) {
-          return {
-            content: [
-              {
-                type: "text",
-                text: "Event not found in any account. Please specify the account parameter.",
-              },
-            ],
-            isError: true,
-          };
+          targetAccount = found.account;
+          targetCalendarId = found.calendarId;
+          targetCalendar = found.calendar;
+          event = found.event;
         }
 
         // Get the authenticated user's email for this account
@@ -1290,7 +1421,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         if (isOrganizer && !hasActiveAttendees) {
           // User is organizer with no other attendees OR all have declined - delete the event
           await targetCalendar.events.delete({
-            calendarId,
+            calendarId: targetCalendarId,
             eventId,
             sendUpdates,
           });
@@ -1302,6 +1433,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                 text: JSON.stringify({
                   success: true,
                   account: targetAccount,
+                  calendarId: targetCalendarId,
                   action: "deleted",
                   message: `Deleted event: ${event.summary} (no active attendees remaining)`,
                   sendUpdates,
@@ -1326,7 +1458,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           }
 
           const response = await targetCalendar.events.patch({
-            calendarId,
+            calendarId: targetCalendarId,
             eventId,
             sendUpdates,
             requestBody: { attendees },
@@ -1339,10 +1471,11 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                 text: JSON.stringify({
                   success: true,
                   account: targetAccount,
+                  calendarId: targetCalendarId,
                   action: "declined",
                   message: `Declined event: ${event.summary} (you were the organizer, event continues for ${activeAttendees.length} active attendee(s))`,
                   sendUpdates,
-                  event: formatEvent(response.data, targetAccount),
+                  event: formatEvent(response.data, targetAccount, undefined, undefined, targetCalendarId),
                 }, null, 2),
               },
             ],
@@ -1358,7 +1491,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                 text: JSON.stringify({
                   success: false,
                   error: "You are not an attendee or organizer of this event.",
-                  event: formatEvent(event, targetAccount),
+                  event: formatEvent(event, targetAccount, undefined, undefined, targetCalendarId),
                 }, null, 2),
               },
             ],
@@ -1371,7 +1504,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
         // Patch the event with updated attendees
         const response = await targetCalendar.events.patch({
-          calendarId,
+          calendarId: targetCalendarId,
           eventId,
           sendUpdates,
           requestBody: {
@@ -1386,10 +1519,11 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
               text: JSON.stringify({
                 success: true,
                 account: targetAccount,
+                calendarId: targetCalendarId,
                 action: "declined",
                 message: `Declined event: ${event.summary}`,
                 sendUpdates,
-                event: formatEvent(response.data, targetAccount),
+                event: formatEvent(response.data, targetAccount, undefined, undefined, targetCalendarId),
               }, null, 2),
             },
           ],
@@ -1402,7 +1536,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           newStart,
           newEnd,
           account,
-          calendarId = "primary",
+          calendarId,
           sendUpdates = "all",
         } = args as {
           eventId: string;
@@ -1414,39 +1548,35 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         };
 
         const clients = await getClients();
-        let targetAccount = account;
-        let targetCalendar: calendar_v3.Calendar | null = null;
-        let existingEvent: calendar_v3.Schema$Event | null = null;
+        let targetAccount: string;
+        let targetCalendarId: string;
+        let targetCalendar: calendar_v3.Calendar;
+        let existingEvent: calendar_v3.Schema$Event;
 
-        // Find the event if account not specified
-        if (!targetAccount) {
-          for (const { account: acct, calendar } of clients) {
-            try {
-              const response = await calendar.events.get({ calendarId, eventId });
-              existingEvent = response.data;
-              targetAccount = acct;
-              targetCalendar = calendar;
-              break;
-            } catch {
-              // Event not found in this account, continue
-            }
-          }
-        } else {
-          targetCalendar = await getClientForAccount(targetAccount);
-          const response = await targetCalendar.events.get({ calendarId, eventId });
+        // Find the event - search all calendars if account not specified
+        if (account) {
+          targetAccount = account;
+          targetCalendarId = calendarId || "primary";
+          targetCalendar = await getClientForAccount(account);
+          const response = await targetCalendar.events.get({ calendarId: targetCalendarId, eventId });
           existingEvent = response.data;
-        }
-
-        if (!targetAccount || !targetCalendar || !existingEvent) {
-          return {
-            content: [
-              {
-                type: "text",
-                text: "Event not found in any account. Please specify the account parameter.",
-              },
-            ],
-            isError: true,
-          };
+        } else {
+          const found = await findEventInAllCalendars(eventId, clients, calendarId);
+          if (!found) {
+            return {
+              content: [
+                {
+                  type: "text",
+                  text: "Event not found in any calendar. Please specify the account and calendarId parameters.",
+                },
+              ],
+              isError: true,
+            };
+          }
+          targetAccount = found.account;
+          targetCalendarId = found.calendarId;
+          targetCalendar = found.calendar;
+          existingEvent = found.event;
         }
 
         // Update the event with new times
@@ -1454,7 +1584,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const endDate = new Date(newEnd);
 
         const response = await targetCalendar.events.patch({
-          calendarId,
+          calendarId: targetCalendarId,
           eventId,
           sendUpdates,
           requestBody: {
@@ -1476,13 +1606,14 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
               text: JSON.stringify({
                 success: true,
                 account: targetAccount,
+                calendarId: targetCalendarId,
                 action: "rescheduled",
                 oldStart: existingEvent.start?.dateTime || existingEvent.start?.date,
                 oldEnd: existingEvent.end?.dateTime || existingEvent.end?.date,
                 newStart: newStart,
                 newEnd: newEnd,
                 sendUpdates,
-                event: formatEvent(response.data, targetAccount),
+                event: formatEvent(response.data, targetAccount, undefined, undefined, targetCalendarId),
               }, null, 2),
             },
           ],
@@ -1493,7 +1624,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const {
           eventId,
           account,
-          calendarId = "primary",
+          calendarId,
           sendUpdates = "all",
         } = args as {
           eventId: string;
@@ -1503,44 +1634,40 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         };
 
         const clients = await getClients();
-        let targetAccount = account;
-        let targetCalendar: calendar_v3.Calendar | null = null;
-        let existingEvent: calendar_v3.Schema$Event | null = null;
+        let targetAccount: string;
+        let targetCalendarId: string;
+        let targetCalendar: calendar_v3.Calendar;
+        let existingEvent: calendar_v3.Schema$Event;
 
-        // Find the event if account not specified
-        if (!targetAccount) {
-          for (const { account: acct, calendar } of clients) {
-            try {
-              const response = await calendar.events.get({ calendarId, eventId });
-              existingEvent = response.data;
-              targetAccount = acct;
-              targetCalendar = calendar;
-              break;
-            } catch {
-              // Event not found in this account, continue
-            }
-          }
-        } else {
-          targetCalendar = await getClientForAccount(targetAccount);
-          const response = await targetCalendar.events.get({ calendarId, eventId });
+        // Find the event - search all calendars if account not specified
+        if (account) {
+          targetAccount = account;
+          targetCalendarId = calendarId || "primary";
+          targetCalendar = await getClientForAccount(account);
+          const response = await targetCalendar.events.get({ calendarId: targetCalendarId, eventId });
           existingEvent = response.data;
-        }
-
-        if (!targetAccount || !targetCalendar || !existingEvent) {
-          return {
-            content: [
-              {
-                type: "text",
-                text: "Event not found in any account. Please specify the account parameter.",
-              },
-            ],
-            isError: true,
-          };
+        } else {
+          const found = await findEventInAllCalendars(eventId, clients, calendarId);
+          if (!found) {
+            return {
+              content: [
+                {
+                  type: "text",
+                  text: "Event not found in any calendar. Please specify the account and calendarId parameters.",
+                },
+              ],
+              isError: true,
+            };
+          }
+          targetAccount = found.account;
+          targetCalendarId = found.calendarId;
+          targetCalendar = found.calendar;
+          existingEvent = found.event;
         }
 
         // Delete the event
         await targetCalendar.events.delete({
-          calendarId,
+          calendarId: targetCalendarId,
           eventId,
           sendUpdates,
         });
@@ -1552,6 +1679,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
               text: JSON.stringify({
                 success: true,
                 account: targetAccount,
+                calendarId: targetCalendarId,
                 action: "deleted",
                 message: `Deleted event: ${existingEvent.summary}`,
                 sendUpdates,
