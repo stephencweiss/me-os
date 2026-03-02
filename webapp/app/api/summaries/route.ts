@@ -21,12 +21,17 @@ interface ParsedDailySummary {
  * Query params:
  *   - start: Start date (YYYY-MM-DD) - required
  *   - end: End date (YYYY-MM-DD) - required
+ *   - accounts: Comma-separated account names (optional) - TODO: not yet implemented
+ *   - calendars: Comma-separated calendar names (optional) - TODO: not yet implemented
  */
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
 
   const start = searchParams.get("start");
   const end = searchParams.get("end");
+  // TODO: Implement filtering - currently summaries are pre-computed without account/calendar breakdown
+  // const accountsParam = searchParams.get("accounts");
+  // const calendarsParam = searchParams.get("calendars");
 
   if (!start || !end) {
     return NextResponse.json(
