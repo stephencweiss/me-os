@@ -15,6 +15,7 @@ import {
   CartesianGrid,
   ReferenceArea,
 } from "recharts";
+import EventList from "./EventList";
 
 // Color mapping from colorId to hex color (matching Google Calendar colors)
 const COLOR_MAP: Record<string, string> = {
@@ -75,6 +76,18 @@ interface CalendarsResponse {
   byAccount: { account: string; calendars: string[] }[];
 }
 
+interface Event {
+  id: string;
+  date: string;
+  summary: string;
+  calendar_name: string;
+  start_time: string;
+  end_time: string;
+  duration_minutes: number;
+  color_id: string;
+  attended: string;
+}
+
 function formatDate(date: Date): string {
   return date.toISOString().split("T")[0];
 }
@@ -93,6 +106,12 @@ export default function Dashboard() {
   const [calendars, setCalendars] = useState<CalendarsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Event list state
+  const [events, setEvents] = useState<Event[]>([]);
+  const [showEventList, setShowEventList] = useState(false);
+  const [eventListTitle, setEventListTitle] = useState("Events");
+  const [eventsLoading, setEventsLoading] = useState(false);
 
   useEffect(() => {
     async function fetchData() {
@@ -131,6 +150,76 @@ export default function Dashboard() {
 
     fetchData();
   }, [days]);
+
+  // Fetch events for a date range
+  async function fetchEvents(start: string, end: string, title: string) {
+    setEventsLoading(true);
+    setEventListTitle(title);
+    setShowEventList(true);
+
+    try {
+      const res = await fetch(`/api/events?start=${start}&end=${end}`);
+      if (!res.ok) throw new Error("Failed to fetch events");
+      const data = await res.json();
+      setEvents(data.events);
+    } catch (err) {
+      console.error("Error fetching events:", err);
+      setEvents([]);
+    } finally {
+      setEventsLoading(false);
+    }
+  }
+
+  // Fetch events for a specific date
+  async function fetchEventsForDate(date: string) {
+    await fetchEvents(date, date, `Events on ${new Date(date + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}`);
+  }
+
+  // Fetch events for a color category
+  async function fetchEventsForCategory(colorId: string, colorName: string) {
+    if (!summaries) return;
+
+    setEventsLoading(true);
+    setEventListTitle(`${colorName} Events`);
+    setShowEventList(true);
+
+    try {
+      const res = await fetch(
+        `/api/events?start=${summaries.dateRange.start}&end=${summaries.dateRange.end}`
+      );
+      if (!res.ok) throw new Error("Failed to fetch events");
+      const data = await res.json();
+      // Filter events by color
+      const filtered = data.events.filter(
+        (e: Event) => e.color_id === colorId
+      );
+      setEvents(filtered);
+    } catch (err) {
+      console.error("Error fetching events:", err);
+      setEvents([]);
+    } finally {
+      setEventsLoading(false);
+    }
+  }
+
+  // Update event attendance
+  async function handleAttendanceChange(eventId: string, attended: string) {
+    try {
+      const res = await fetch("/api/events", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ eventId, attended }),
+      });
+      if (!res.ok) throw new Error("Failed to update attendance");
+
+      // Update local state
+      setEvents((prev) =>
+        prev.map((e) => (e.id === eventId ? { ...e, attended } : e))
+      );
+    } catch (err) {
+      console.error("Error updating attendance:", err);
+    }
+  }
 
   if (loading) {
     return (
@@ -419,6 +508,25 @@ export default function Dashboard() {
           Last synced from Google Calendar
         </div>
       </div>
+
+      {/* Event List Side Panel */}
+      {showEventList && (
+        <div className="fixed inset-y-0 right-0 w-full sm:w-96 z-50">
+          <div
+            className="absolute inset-0 bg-black/20 sm:hidden"
+            onClick={() => setShowEventList(false)}
+          />
+          <div className="absolute inset-y-0 right-0 w-full sm:w-96 shadow-xl">
+            <EventList
+              events={events}
+              onAttendanceChange={handleAttendanceChange}
+              title={eventListTitle}
+              onClose={() => setShowEventList(false)}
+              loading={eventsLoading}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
