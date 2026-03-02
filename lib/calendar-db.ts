@@ -109,6 +109,63 @@ export interface UserPreference {
 }
 
 /**
+ * Weekly goal record synced from Things 3
+ */
+export interface StoredWeeklyGoal {
+  id: string; // Composite: things3_id + week_id
+  things3_id: string;
+  week_id: string; // ISO week: "2026-W14"
+  title: string;
+  notes: string | null;
+  estimated_minutes: number | null;
+  goal_type: "time" | "outcome" | "habit";
+  color_id: string | null;
+  status: "active" | "completed" | "cancelled";
+  progress_percent: number;
+  completed_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/**
+ * Non-goal (anti-pattern) record - week-scoped
+ */
+export interface StoredNonGoal {
+  id: string;
+  week_id: string; // ISO week: "2026-W14"
+  title: string;
+  pattern: string; // Regex pattern to match events
+  color_id: string | null;
+  reason: string | null;
+  active: number; // 0 or 1
+  created_at: string;
+}
+
+/**
+ * Goal progress record linking goals to events
+ */
+export interface StoredGoalProgress {
+  id?: number; // AUTO INCREMENT
+  goal_id: string;
+  event_id: string;
+  matched_at: string;
+  match_type: "auto" | "manual";
+  match_confidence: number | null;
+  minutes_contributed: number;
+}
+
+/**
+ * Non-goal alert record
+ */
+export interface StoredNonGoalAlert {
+  id?: number; // AUTO INCREMENT
+  non_goal_id: string;
+  event_id: string;
+  detected_at: string;
+  acknowledged: number; // 0 or 1
+}
+
+/**
  * Initialize the database, creating tables if they don't exist
  * @param dbPath Optional path to the database file. Use ":memory:" for in-memory testing.
  *               If not provided, uses Turso cloud if configured, otherwise local SQLite.
@@ -224,6 +281,71 @@ export async function initDatabase(dbPath?: string): Promise<Client> {
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL
     );
+
+    -- Weekly goals synced from Things 3
+    CREATE TABLE IF NOT EXISTS weekly_goals (
+      id TEXT PRIMARY KEY,
+      things3_id TEXT NOT NULL,
+      week_id TEXT NOT NULL,
+      title TEXT NOT NULL,
+      notes TEXT,
+      estimated_minutes INTEGER,
+      goal_type TEXT NOT NULL CHECK(goal_type IN ('time', 'outcome', 'habit')),
+      color_id TEXT,
+      status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active', 'completed', 'cancelled')),
+      progress_percent INTEGER NOT NULL DEFAULT 0,
+      completed_at TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      UNIQUE(things3_id, week_id)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_goals_week ON weekly_goals(week_id);
+    CREATE INDEX IF NOT EXISTS idx_goals_status ON weekly_goals(status);
+    CREATE INDEX IF NOT EXISTS idx_goals_things3 ON weekly_goals(things3_id);
+
+    -- Non-goals (anti-patterns) - week-scoped
+    CREATE TABLE IF NOT EXISTS non_goals (
+      id TEXT PRIMARY KEY,
+      week_id TEXT NOT NULL,
+      title TEXT NOT NULL,
+      pattern TEXT NOT NULL,
+      color_id TEXT,
+      reason TEXT,
+      active INTEGER NOT NULL DEFAULT 1,
+      created_at TEXT NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_non_goals_week ON non_goals(week_id);
+    CREATE INDEX IF NOT EXISTS idx_non_goals_active ON non_goals(active);
+
+    -- Goal-to-event matching for progress tracking
+    CREATE TABLE IF NOT EXISTS goal_progress (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      goal_id TEXT NOT NULL,
+      event_id TEXT NOT NULL,
+      matched_at TEXT NOT NULL,
+      match_type TEXT NOT NULL CHECK(match_type IN ('auto', 'manual')),
+      match_confidence REAL,
+      minutes_contributed INTEGER NOT NULL,
+      UNIQUE(goal_id, event_id)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_progress_goal ON goal_progress(goal_id);
+    CREATE INDEX IF NOT EXISTS idx_progress_event ON goal_progress(event_id);
+
+    -- Alerts when events match non-goals
+    CREATE TABLE IF NOT EXISTS non_goal_alerts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      non_goal_id TEXT NOT NULL,
+      event_id TEXT NOT NULL,
+      detected_at TEXT NOT NULL,
+      acknowledged INTEGER NOT NULL DEFAULT 0,
+      UNIQUE(non_goal_id, event_id)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_alerts_non_goal ON non_goal_alerts(non_goal_id);
+    CREATE INDEX IF NOT EXISTS idx_alerts_acknowledged ON non_goal_alerts(acknowledged);
   `);
 
   return client;
@@ -801,4 +923,475 @@ export async function getAllPreferences(): Promise<Record<string, string>> {
     prefs[row.key as string] = row.value as string;
   }
   return prefs;
+}
+
+// ============================================================================
+// Weekly Goals CRUD Operations
+// ============================================================================
+
+/**
+ * Convert a libsql row to StoredWeeklyGoal
+ */
+function rowToStoredGoal(row: Record<string, unknown>): StoredWeeklyGoal {
+  return {
+    id: row.id as string,
+    things3_id: row.things3_id as string,
+    week_id: row.week_id as string,
+    title: row.title as string,
+    notes: row.notes as string | null,
+    estimated_minutes: row.estimated_minutes as number | null,
+    goal_type: row.goal_type as "time" | "outcome" | "habit",
+    color_id: row.color_id as string | null,
+    status: row.status as "active" | "completed" | "cancelled",
+    progress_percent: row.progress_percent as number,
+    completed_at: row.completed_at as string | null,
+    created_at: row.created_at as string,
+    updated_at: row.updated_at as string,
+  };
+}
+
+/**
+ * Generate a composite ID for a weekly goal (things3_id + week_id)
+ */
+function generateGoalId(things3Id: string, weekId: string): string {
+  return `${things3Id}:${weekId}`;
+}
+
+/**
+ * Get goals for a specific week
+ */
+export async function getGoalsForWeek(weekId: string): Promise<StoredWeeklyGoal[]> {
+  const database = await getDatabase();
+  const result = await database.execute({
+    sql: "SELECT * FROM weekly_goals WHERE week_id = ? ORDER BY created_at",
+    args: [weekId],
+  });
+  return result.rows.map((row) => rowToStoredGoal(row as Record<string, unknown>));
+}
+
+/**
+ * Get a single goal by ID
+ */
+export async function getGoalById(goalId: string): Promise<StoredWeeklyGoal | null> {
+  const database = await getDatabase();
+  const result = await database.execute({
+    sql: "SELECT * FROM weekly_goals WHERE id = ?",
+    args: [goalId],
+  });
+  return result.rows.length > 0 ? rowToStoredGoal(result.rows[0] as Record<string, unknown>) : null;
+}
+
+/**
+ * Insert or update a weekly goal
+ */
+export async function upsertWeeklyGoal(
+  goal: Omit<StoredWeeklyGoal, "id" | "created_at" | "updated_at">
+): Promise<StoredWeeklyGoal> {
+  const database = await getDatabase();
+  const now = new Date().toISOString();
+  const id = generateGoalId(goal.things3_id, goal.week_id);
+
+  // Check if goal exists
+  const existing = await getGoalById(id);
+
+  if (!existing) {
+    // Insert new goal
+    await database.execute({
+      sql: `
+        INSERT INTO weekly_goals (
+          id, things3_id, week_id, title, notes, estimated_minutes,
+          goal_type, color_id, status, progress_percent, completed_at,
+          created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `,
+      args: [
+        id,
+        goal.things3_id,
+        goal.week_id,
+        goal.title,
+        goal.notes,
+        goal.estimated_minutes,
+        goal.goal_type,
+        goal.color_id,
+        goal.status,
+        goal.progress_percent,
+        goal.completed_at,
+        now,
+        now,
+      ],
+    });
+  } else {
+    // Update existing goal
+    await database.execute({
+      sql: `
+        UPDATE weekly_goals SET
+          title = ?, notes = ?, estimated_minutes = ?, goal_type = ?,
+          color_id = ?, status = ?, progress_percent = ?, completed_at = ?,
+          updated_at = ?
+        WHERE id = ?
+      `,
+      args: [
+        goal.title,
+        goal.notes,
+        goal.estimated_minutes,
+        goal.goal_type,
+        goal.color_id,
+        goal.status,
+        goal.progress_percent,
+        goal.completed_at,
+        now,
+        id,
+      ],
+    });
+  }
+
+  return (await getGoalById(id))!;
+}
+
+/**
+ * Update goal progress
+ */
+export async function updateGoalProgress(goalId: string, progressPercent: number): Promise<void> {
+  const database = await getDatabase();
+  const now = new Date().toISOString();
+
+  await database.execute({
+    sql: "UPDATE weekly_goals SET progress_percent = ?, updated_at = ? WHERE id = ?",
+    args: [progressPercent, now, goalId],
+  });
+}
+
+/**
+ * Update goal status
+ */
+export async function updateGoalStatus(
+  goalId: string,
+  status: "active" | "completed" | "cancelled"
+): Promise<void> {
+  const database = await getDatabase();
+  const now = new Date().toISOString();
+  const completedAt = status === "completed" ? now : null;
+
+  await database.execute({
+    sql: "UPDATE weekly_goals SET status = ?, completed_at = ?, updated_at = ? WHERE id = ?",
+    args: [status, completedAt, now, goalId],
+  });
+}
+
+/**
+ * Delete a weekly goal
+ */
+export async function deleteWeeklyGoal(goalId: string): Promise<void> {
+  const database = await getDatabase();
+  // Also delete associated progress records
+  await database.execute({
+    sql: "DELETE FROM goal_progress WHERE goal_id = ?",
+    args: [goalId],
+  });
+  await database.execute({
+    sql: "DELETE FROM weekly_goals WHERE id = ?",
+    args: [goalId],
+  });
+}
+
+// ============================================================================
+// Non-Goals CRUD Operations
+// ============================================================================
+
+/**
+ * Convert a libsql row to StoredNonGoal
+ */
+function rowToStoredNonGoal(row: Record<string, unknown>): StoredNonGoal {
+  return {
+    id: row.id as string,
+    week_id: row.week_id as string,
+    title: row.title as string,
+    pattern: row.pattern as string,
+    color_id: row.color_id as string | null,
+    reason: row.reason as string | null,
+    active: row.active as number,
+    created_at: row.created_at as string,
+  };
+}
+
+/**
+ * Get non-goals for a specific week
+ */
+export async function getNonGoalsForWeek(weekId: string): Promise<StoredNonGoal[]> {
+  const database = await getDatabase();
+  const result = await database.execute({
+    sql: "SELECT * FROM non_goals WHERE week_id = ? AND active = 1 ORDER BY created_at",
+    args: [weekId],
+  });
+  return result.rows.map((row) => rowToStoredNonGoal(row as Record<string, unknown>));
+}
+
+/**
+ * Get a single non-goal by ID
+ */
+export async function getNonGoalById(nonGoalId: string): Promise<StoredNonGoal | null> {
+  const database = await getDatabase();
+  const result = await database.execute({
+    sql: "SELECT * FROM non_goals WHERE id = ?",
+    args: [nonGoalId],
+  });
+  return result.rows.length > 0 ? rowToStoredNonGoal(result.rows[0] as Record<string, unknown>) : null;
+}
+
+/**
+ * Create a new non-goal
+ */
+export async function createNonGoal(
+  nonGoal: Omit<StoredNonGoal, "id" | "created_at">
+): Promise<StoredNonGoal> {
+  const database = await getDatabase();
+  const now = new Date().toISOString();
+  const id = `ng-${nonGoal.week_id}-${Date.now()}`;
+
+  await database.execute({
+    sql: `
+      INSERT INTO non_goals (id, week_id, title, pattern, color_id, reason, active, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `,
+    args: [
+      id,
+      nonGoal.week_id,
+      nonGoal.title,
+      nonGoal.pattern,
+      nonGoal.color_id,
+      nonGoal.reason,
+      nonGoal.active,
+      now,
+    ],
+  });
+
+  return (await getNonGoalById(id))!;
+}
+
+/**
+ * Update a non-goal
+ */
+export async function updateNonGoal(
+  nonGoalId: string,
+  updates: Partial<Omit<StoredNonGoal, "id" | "week_id" | "created_at">>
+): Promise<void> {
+  const database = await getDatabase();
+  const existing = await getNonGoalById(nonGoalId);
+  if (!existing) return;
+
+  await database.execute({
+    sql: `
+      UPDATE non_goals SET
+        title = ?, pattern = ?, color_id = ?, reason = ?, active = ?
+      WHERE id = ?
+    `,
+    args: [
+      updates.title ?? existing.title,
+      updates.pattern ?? existing.pattern,
+      updates.color_id ?? existing.color_id,
+      updates.reason ?? existing.reason,
+      updates.active ?? existing.active,
+      nonGoalId,
+    ],
+  });
+}
+
+/**
+ * Delete a non-goal (also deletes associated alerts)
+ */
+export async function deleteNonGoal(nonGoalId: string): Promise<void> {
+  const database = await getDatabase();
+  await database.execute({
+    sql: "DELETE FROM non_goal_alerts WHERE non_goal_id = ?",
+    args: [nonGoalId],
+  });
+  await database.execute({
+    sql: "DELETE FROM non_goals WHERE id = ?",
+    args: [nonGoalId],
+  });
+}
+
+// ============================================================================
+// Goal Progress CRUD Operations
+// ============================================================================
+
+/**
+ * Convert a libsql row to StoredGoalProgress
+ */
+function rowToStoredProgress(row: Record<string, unknown>): StoredGoalProgress {
+  return {
+    id: row.id as number,
+    goal_id: row.goal_id as string,
+    event_id: row.event_id as string,
+    matched_at: row.matched_at as string,
+    match_type: row.match_type as "auto" | "manual",
+    match_confidence: row.match_confidence as number | null,
+    minutes_contributed: row.minutes_contributed as number,
+  };
+}
+
+/**
+ * Get all progress records for a goal
+ */
+export async function getProgressForGoal(goalId: string): Promise<StoredGoalProgress[]> {
+  const database = await getDatabase();
+  const result = await database.execute({
+    sql: "SELECT * FROM goal_progress WHERE goal_id = ? ORDER BY matched_at",
+    args: [goalId],
+  });
+  return result.rows.map((row) => rowToStoredProgress(row as Record<string, unknown>));
+}
+
+/**
+ * Record progress (link an event to a goal)
+ */
+export async function recordGoalProgress(
+  progress: Omit<StoredGoalProgress, "id">
+): Promise<StoredGoalProgress> {
+  const database = await getDatabase();
+
+  await database.execute({
+    sql: `
+      INSERT OR REPLACE INTO goal_progress (
+        goal_id, event_id, matched_at, match_type, match_confidence, minutes_contributed
+      ) VALUES (?, ?, ?, ?, ?, ?)
+    `,
+    args: [
+      progress.goal_id,
+      progress.event_id,
+      progress.matched_at,
+      progress.match_type,
+      progress.match_confidence,
+      progress.minutes_contributed,
+    ],
+  });
+
+  // Get the inserted/updated record
+  const result = await database.execute({
+    sql: "SELECT * FROM goal_progress WHERE goal_id = ? AND event_id = ?",
+    args: [progress.goal_id, progress.event_id],
+  });
+
+  return rowToStoredProgress(result.rows[0] as Record<string, unknown>);
+}
+
+/**
+ * Remove progress record
+ */
+export async function removeGoalProgress(goalId: string, eventId: string): Promise<void> {
+  const database = await getDatabase();
+  await database.execute({
+    sql: "DELETE FROM goal_progress WHERE goal_id = ? AND event_id = ?",
+    args: [goalId, eventId],
+  });
+}
+
+/**
+ * Calculate total minutes contributed to a goal
+ */
+export async function calculateGoalTotalMinutes(goalId: string): Promise<number> {
+  const database = await getDatabase();
+  const result = await database.execute({
+    sql: "SELECT SUM(minutes_contributed) as total FROM goal_progress WHERE goal_id = ?",
+    args: [goalId],
+  });
+  return (result.rows[0]?.total as number) || 0;
+}
+
+// ============================================================================
+// Non-Goal Alerts CRUD Operations
+// ============================================================================
+
+/**
+ * Convert a libsql row to StoredNonGoalAlert
+ */
+function rowToStoredAlert(row: Record<string, unknown>): StoredNonGoalAlert {
+  return {
+    id: row.id as number,
+    non_goal_id: row.non_goal_id as string,
+    event_id: row.event_id as string,
+    detected_at: row.detected_at as string,
+    acknowledged: row.acknowledged as number,
+  };
+}
+
+/**
+ * Get unacknowledged alerts for a week
+ */
+export async function getUnacknowledgedAlerts(weekId: string): Promise<StoredNonGoalAlert[]> {
+  const database = await getDatabase();
+  const result = await database.execute({
+    sql: `
+      SELECT a.* FROM non_goal_alerts a
+      JOIN non_goals ng ON a.non_goal_id = ng.id
+      WHERE ng.week_id = ? AND a.acknowledged = 0
+      ORDER BY a.detected_at DESC
+    `,
+    args: [weekId],
+  });
+  return result.rows.map((row) => rowToStoredAlert(row as Record<string, unknown>));
+}
+
+/**
+ * Get all alerts for a week (including acknowledged)
+ */
+export async function getAllAlertsForWeek(weekId: string): Promise<StoredNonGoalAlert[]> {
+  const database = await getDatabase();
+  const result = await database.execute({
+    sql: `
+      SELECT a.* FROM non_goal_alerts a
+      JOIN non_goals ng ON a.non_goal_id = ng.id
+      WHERE ng.week_id = ?
+      ORDER BY a.detected_at DESC
+    `,
+    args: [weekId],
+  });
+  return result.rows.map((row) => rowToStoredAlert(row as Record<string, unknown>));
+}
+
+/**
+ * Create a non-goal alert
+ */
+export async function createNonGoalAlert(
+  alert: Omit<StoredNonGoalAlert, "id">
+): Promise<StoredNonGoalAlert> {
+  const database = await getDatabase();
+
+  await database.execute({
+    sql: `
+      INSERT OR IGNORE INTO non_goal_alerts (non_goal_id, event_id, detected_at, acknowledged)
+      VALUES (?, ?, ?, ?)
+    `,
+    args: [alert.non_goal_id, alert.event_id, alert.detected_at, alert.acknowledged],
+  });
+
+  // Get the inserted record
+  const result = await database.execute({
+    sql: "SELECT * FROM non_goal_alerts WHERE non_goal_id = ? AND event_id = ?",
+    args: [alert.non_goal_id, alert.event_id],
+  });
+
+  return rowToStoredAlert(result.rows[0] as Record<string, unknown>);
+}
+
+/**
+ * Acknowledge an alert
+ */
+export async function acknowledgeAlert(alertId: number): Promise<void> {
+  const database = await getDatabase();
+  await database.execute({
+    sql: "UPDATE non_goal_alerts SET acknowledged = 1 WHERE id = ?",
+    args: [alertId],
+  });
+}
+
+/**
+ * Delete an alert
+ */
+export async function deleteAlert(alertId: number): Promise<void> {
+  const database = await getDatabase();
+  await database.execute({
+    sql: "DELETE FROM non_goal_alerts WHERE id = ?",
+    args: [alertId],
+  });
 }
