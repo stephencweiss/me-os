@@ -3,23 +3,35 @@
 Copy these example files to `../config/` and customize them for your setup.
 
 ```bash
-cp config.example/*.json config/
+# Copy non-sensitive config files
+cp config.example/colors.json config/
+cp config.example/calendar-manager.json config/
+cp config.example/optimization-goals.json config/
+cp config.example/schedule.json config/
+cp config.example/calendars.json config/
+
+# Create sensitive directory for credentials
+mkdir -p config/sensitive
 ```
 
-## Required Files
+## Sensitive Files (config/sensitive/)
+
+These files are gitignored and must be set up manually.
 
 ### `credentials-personal.json` / `credentials-work.json`
 Google OAuth2 credentials. Download from Google Cloud Console:
 1. Go to [Google Cloud Console](https://console.cloud.google.com/)
 2. Create a project and enable the Google Calendar API
 3. Create OAuth2 credentials (Desktop app)
-4. Download and rename to `credentials-{account}.json`
+4. Download and save to `config/sensitive/credentials-{account}.json`
 
 ### `tokens-personal.json` / `tokens-work.json`
 OAuth tokens - generated automatically when you first authenticate.
-Do not commit these files.
+Stored in `config/sensitive/`. Do not commit these files.
 
-## Optional Files
+## Configuration Files (config/)
+
+These files are version-controlled (except `calendars.json` which contains personal info).
 
 ### `colors.json`
 Semantic meanings for Google Calendar colors. Customize based on your categories.

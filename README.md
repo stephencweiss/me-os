@@ -64,13 +64,15 @@ me-os/
 │   └── one-on-one.ts     # 1:1 note management
 ├── scripts/
 │   └── weekly-report.ts  # Standalone time report CLI
-├── config/               # Personal config (gitignored)
-│   ├── credentials-*.json
-│   ├── tokens-*.json
-│   ├── colors.json
-│   ├── schedule.json
+├── config/               # Configuration files
+│   ├── sensitive/        # Credentials & tokens (gitignored)
+│   │   ├── credentials-*.json
+│   │   └── tokens-*.json
+│   ├── colors.json       # Semantic color definitions
+│   ├── calendars.json    # Calendar type config (gitignored - personal)
+│   ├── schedule.json     # Weekly schedule template
 │   └── optimization-goals.json
-├── config.example/       # Config templates (copy to config/)
+├── config.example/       # Config templates
 ├── tests/                # Unit tests (Vitest)
 └── plans/                # Implementation plans
 ```
@@ -136,7 +138,7 @@ npm run build
 1. Create a Google Cloud project
 2. Enable the Google Calendar API
 3. Create OAuth2 credentials (Desktop app)
-4. Save credentials to `config/credentials-{account}.json`
+4. Save credentials to `config/sensitive/credentials-{account}.json`
 5. Authenticate each account:
 
 ```bash
