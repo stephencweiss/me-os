@@ -243,3 +243,175 @@ export async function getAllPreferences(): Promise<Record<string, string>> {
 
   return prefs;
 }
+
+// ============================================================================
+// Weekly Goals
+// ============================================================================
+
+/**
+ * Weekly goal from database
+ */
+export interface DbWeeklyGoal {
+  id: string;
+  things3_id: string;
+  week_id: string;
+  title: string;
+  notes: string | null;
+  estimated_minutes: number | null;
+  goal_type: "time" | "outcome" | "habit";
+  color_id: string | null;
+  status: "active" | "completed" | "cancelled";
+  progress_percent: number;
+  completed_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/**
+ * Non-goal from database
+ */
+export interface DbNonGoal {
+  id: string;
+  week_id: string;
+  title: string;
+  pattern: string;
+  color_id: string | null;
+  reason: string | null;
+  active: number;
+  created_at: string;
+}
+
+/**
+ * Non-goal alert from database
+ */
+export interface DbNonGoalAlert {
+  id: number;
+  non_goal_id: string;
+  event_id: string;
+  detected_at: string;
+  acknowledged: number;
+}
+
+/**
+ * Get goals for a week
+ */
+export async function getGoalsForWeek(weekId: string): Promise<DbWeeklyGoal[]> {
+  const db = getDb();
+
+  const result = await db.execute({
+    sql: `SELECT * FROM weekly_goals WHERE week_id = ? ORDER BY created_at`,
+    args: [weekId],
+  });
+
+  return result.rows as unknown as DbWeeklyGoal[];
+}
+
+/**
+ * Get a single goal by ID
+ */
+export async function getGoalById(goalId: string): Promise<DbWeeklyGoal | null> {
+  const db = getDb();
+
+  const result = await db.execute({
+    sql: `SELECT * FROM weekly_goals WHERE id = ?`,
+    args: [goalId],
+  });
+
+  if (result.rows.length === 0) return null;
+  return result.rows[0] as unknown as DbWeeklyGoal;
+}
+
+/**
+ * Update goal progress
+ */
+export async function updateGoalProgress(
+  goalId: string,
+  progressPercent: number
+): Promise<void> {
+  const db = getDb();
+
+  await db.execute({
+    sql: `UPDATE weekly_goals SET progress_percent = ?, updated_at = ? WHERE id = ?`,
+    args: [progressPercent, new Date().toISOString(), goalId],
+  });
+}
+
+/**
+ * Update goal status
+ */
+export async function updateGoalStatus(
+  goalId: string,
+  status: "active" | "completed" | "cancelled"
+): Promise<void> {
+  const db = getDb();
+  const now = new Date().toISOString();
+  const completedAt = status === "completed" ? now : null;
+
+  await db.execute({
+    sql: `UPDATE weekly_goals SET status = ?, completed_at = ?, updated_at = ? WHERE id = ?`,
+    args: [status, completedAt, now, goalId],
+  });
+}
+
+/**
+ * Get goal progress records
+ */
+export async function getGoalProgress(goalId: string): Promise<number> {
+  const db = getDb();
+
+  const result = await db.execute({
+    sql: `SELECT SUM(minutes_contributed) as total FROM goal_progress WHERE goal_id = ?`,
+    args: [goalId],
+  });
+
+  return (result.rows[0]?.total as number) || 0;
+}
+
+// ============================================================================
+// Non-Goals
+// ============================================================================
+
+/**
+ * Get non-goals for a week
+ */
+export async function getNonGoalsForWeek(weekId: string): Promise<DbNonGoal[]> {
+  const db = getDb();
+
+  const result = await db.execute({
+    sql: `SELECT * FROM non_goals WHERE week_id = ? AND active = 1 ORDER BY created_at`,
+    args: [weekId],
+  });
+
+  return result.rows as unknown as DbNonGoal[];
+}
+
+/**
+ * Get unacknowledged alerts for a week
+ */
+export async function getUnacknowledgedAlerts(weekId: string): Promise<DbNonGoalAlert[]> {
+  const db = getDb();
+
+  const result = await db.execute({
+    sql: `
+      SELECT a.* FROM non_goal_alerts a
+      JOIN non_goals ng ON a.non_goal_id = ng.id
+      WHERE ng.week_id = ? AND a.acknowledged = 0
+      ORDER BY a.detected_at DESC
+    `,
+    args: [weekId],
+  });
+
+  return result.rows as unknown as DbNonGoalAlert[];
+}
+
+/**
+ * Acknowledge an alert
+ */
+export async function acknowledgeAlert(alertId: number): Promise<void> {
+  const db = getDb();
+
+  await db.execute({
+    sql: `UPDATE non_goal_alerts SET acknowledged = 1 WHERE id = ?`,
+    args: [alertId],
+  });
+}

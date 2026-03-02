@@ -1,0 +1,99 @@
+import { NextRequest, NextResponse } from "next/server";
+import {
+  getNonGoalsForWeek,
+  getUnacknowledgedAlerts,
+  acknowledgeAlert,
+} from "@/lib/db";
+
+/**
+ * GET /api/non-goals
+ *
+ * Query params:
+ *   - week: Week ID in ISO format (YYYY-WWW) - required
+ *   - includeAlerts: Include unacknowledged alerts (default: true)
+ */
+export async function GET(request: NextRequest) {
+  const searchParams = request.nextUrl.searchParams;
+  const week = searchParams.get("week");
+  const includeAlerts = searchParams.get("includeAlerts") !== "false";
+
+  if (!week) {
+    return NextResponse.json(
+      { error: "week query parameter is required (format: YYYY-WWW)" },
+      { status: 400 }
+    );
+  }
+
+  // Validate week format
+  const weekRegex = /^\d{4}-W\d{2}$/;
+  if (!weekRegex.test(week)) {
+    return NextResponse.json(
+      { error: "Week must be in YYYY-WWW format (e.g., 2026-W10)" },
+      { status: 400 }
+    );
+  }
+
+  try {
+    const nonGoals = await getNonGoalsForWeek(week);
+
+    let alerts: Awaited<ReturnType<typeof getUnacknowledgedAlerts>> = [];
+    if (includeAlerts) {
+      alerts = await getUnacknowledgedAlerts(week);
+    }
+
+    return NextResponse.json({
+      nonGoals,
+      alerts,
+      count: nonGoals.length,
+      alertCount: alerts.length,
+      weekId: week,
+    });
+  } catch (error) {
+    console.error("Error fetching non-goals:", error);
+    return NextResponse.json(
+      { error: "Failed to fetch non-goals" },
+      { status: 500 }
+    );
+  }
+}
+
+/**
+ * PATCH /api/non-goals
+ *
+ * Body:
+ *   - alertId: Alert ID to acknowledge
+ */
+export async function PATCH(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const { alertId } = body;
+
+    if (!alertId) {
+      return NextResponse.json(
+        { error: "alertId is required" },
+        { status: 400 }
+      );
+    }
+
+    if (typeof alertId !== "number") {
+      return NextResponse.json(
+        { error: "alertId must be a number" },
+        { status: 400 }
+      );
+    }
+
+    await acknowledgeAlert(alertId);
+
+    return NextResponse.json({
+      success: true,
+      alertId,
+      acknowledged: true,
+    });
+  } catch (error) {
+    console.error("Error acknowledging alert:", error);
+    return NextResponse.json(
+      { error: "Failed to acknowledge alert" },
+      { status: 500 }
+    );
+  }
+}
