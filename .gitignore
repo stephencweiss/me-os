@@ -13,6 +13,9 @@ config/calendars.json
 # Data files (personal)
 data/
 
+# Generated output (dashboard, etc.)
+output/
+
 # Environment
 .env
 .env.local
@@ -30,3 +33,4 @@ Thumbs.db
 # Logs
 *.log
 npm-debug.log*
+config/turso.json
