@@ -13,6 +13,7 @@ import {
   XAxis,
   YAxis,
   CartesianGrid,
+  ReferenceArea,
 } from "recharts";
 
 // Color mapping from colorId to hex color (matching Google Calendar colors)
@@ -315,6 +316,19 @@ export default function Dashboard() {
             <ResponsiveContainer width="100%" height={300}>
               <BarChart data={dailyData}>
                 <CartesianGrid strokeDasharray="3 3" />
+                {/* Shade weekend days */}
+                {dailyData.map(
+                  (d, i) =>
+                    d.isWeekend && (
+                      <ReferenceArea
+                        key={`weekend-${i}`}
+                        x1={d.label}
+                        x2={d.label}
+                        fill="#9ca3af"
+                        fillOpacity={0.15}
+                      />
+                    )
+                )}
                 <XAxis
                   dataKey="label"
                   tick={{ fontSize: 10 }}
