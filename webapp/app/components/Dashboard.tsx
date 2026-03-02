@@ -254,6 +254,7 @@ export default function Dashboard() {
       hours: c.totalHours,
       percentage: c.percentage,
       color: COLOR_MAP[c.colorId] || COLOR_MAP.default,
+      colorId: c.colorId,
     }));
 
   // Prepare daily bar chart data (reversed to show oldest first)
@@ -377,9 +378,17 @@ export default function Dashboard() {
                     label={({ name, payload }) =>
                       `${name} (${payload?.percentage || 0}%)`
                     }
+                    style={{ cursor: "pointer" }}
                   >
                     {pieData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
+                      <Cell
+                        key={`cell-${index}`}
+                        fill={entry.color}
+                        onClick={() =>
+                          fetchEventsForCategory(entry.colorId, entry.name)
+                        }
+                        style={{ cursor: "pointer" }}
+                      />
                     ))}
                   </Pie>
                   <Tooltip
@@ -436,7 +445,19 @@ export default function Dashboard() {
                 <Tooltip
                   formatter={(value) => [`${value}h`, "Scheduled"]}
                 />
-                <Bar dataKey="hours" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                <Bar
+                  dataKey="hours"
+                  fill="#3b82f6"
+                  radius={[4, 4, 0, 0]}
+                  style={{ cursor: "pointer" }}
+                  onClick={(data) => {
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    const payload = (data as any)?.payload;
+                    if (payload?.date) {
+                      fetchEventsForDate(payload.date);
+                    }
+                  }}
+                />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -469,7 +490,13 @@ export default function Dashboard() {
                 {summaries.aggregatedCategories.map((cat) => (
                   <tr
                     key={cat.colorId}
-                    className="border-b border-gray-100 dark:border-gray-700/50"
+                    className="border-b border-gray-100 dark:border-gray-700/50 hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer transition-colors"
+                    onClick={() =>
+                      fetchEventsForCategory(
+                        cat.colorId,
+                        cat.colorMeaning || cat.colorName
+                      )
+                    }
                   >
                     <td className="py-3 px-4">
                       <div className="flex items-center gap-2">
