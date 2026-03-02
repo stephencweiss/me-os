@@ -734,3 +734,60 @@ function getDayPartMatchScore(
       return 0;
   }
 }
+
+// ============================================
+// Weekly Goals Integration
+// ============================================
+
+/**
+ * Load weekly goals from the database and convert to optimizer TimeGoal format.
+ * Only includes active time-based goals with remaining time to allocate.
+ *
+ * @param weekId - ISO week ID (e.g., "2026-W14")
+ * @returns Array of TimeGoal objects compatible with the optimizer
+ */
+export async function loadWeeklyGoalsForOptimizer(weekId: string): Promise<TimeGoal[]> {
+  // Dynamic import to avoid circular dependencies
+  const { getGoalsForOptimizer } = await import("./weekly-goals.js");
+
+  const optimizerGoals = await getGoalsForOptimizer(weekId);
+
+  return optimizerGoals.map((g) => ({
+    type: "time" as const,
+    id: g.id,
+    name: g.name,
+    totalMinutes: g.remainingMinutes, // Use remaining, not total
+    colorId: g.colorId,
+    priority: g.priority,
+    recurring: false, // Weekly goals are not recurring in the optimizer sense
+  }));
+}
+
+/**
+ * Load all goals for optimization: recurring goals from config + weekly goals from database.
+ * Filters out weekly goals that have already been fully allocated.
+ *
+ * @param configPath - Path to recurring goals config
+ * @param weekId - ISO week ID for weekly goals
+ * @param includeWeeklyGoals - Whether to include weekly goals (default: true)
+ * @returns Combined array of TimeGoal objects
+ */
+export async function loadAllGoalsForOptimizer(
+  configPath: string,
+  weekId: string,
+  includeWeeklyGoals: boolean = true
+): Promise<TimeGoal[]> {
+  const recurringGoals = loadRecurringGoals(configPath);
+
+  if (!includeWeeklyGoals) {
+    return recurringGoals;
+  }
+
+  const weeklyGoals = await loadWeeklyGoalsForOptimizer(weekId);
+
+  // Filter out weekly goals with no remaining time
+  const activeWeeklyGoals = weeklyGoals.filter((g) => g.totalMinutes > 0);
+
+  // Combine, with recurring goals taking priority (they come first)
+  return [...recurringGoals, ...activeWeeklyGoals];
+}

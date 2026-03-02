@@ -176,8 +176,39 @@ Goals config: `config/optimization-goals.json`
 }
 ```
 
+## Weekly Goals Integration
+
+The optimizer automatically includes active weekly goals from the `/weekly-goals` skill:
+
+```typescript
+import { loadAllGoalsForOptimizer } from "../../lib/calendar-optimizer.js";
+import { getCurrentWeekId } from "../../lib/weekly-goals.js";
+
+const allGoals = await loadAllGoalsForOptimizer(
+  "config/optimization-goals.json",
+  getCurrentWeekId(),
+  true // includeWeeklyGoals
+);
+```
+
+**How it works:**
+1. Recurring goals from config are loaded first (higher priority)
+2. Weekly goals from Things 3 (synced to database) are added
+3. Progress already made on weekly goals is subtracted (only remaining time is scheduled)
+4. Goals with 0 remaining time are excluded
+
+**To disable weekly goals for a single optimization:**
+```
+/calendar-optimizer --no-weekly-goals
+```
+
+**Key functions:**
+- `loadWeeklyGoalsForOptimizer(weekId)` - Load weekly goals only
+- `loadAllGoalsForOptimizer(configPath, weekId, include)` - Load both recurring and weekly goals
+
 ## Prerequisites
 
 - Google Calendar MCP server configured and authenticated
 - `config/optimization-goals.json` exists (will be created on first goal add)
 - `lib/calendar-optimizer.ts` available
+- For weekly goals: database initialized with weekly_goals table
