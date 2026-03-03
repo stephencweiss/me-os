@@ -138,14 +138,18 @@ describe("DayView", () => {
       expect(screen.getByText("Morning Standup")).toBeInTheDocument();
     });
 
-    // Each event has 3 attendance buttons
+    // Each event has 3 attendance buttons PLUS the filter bar has 3 buttons
+    // Filter bar: Attended, Skipped, Unknown (1 each)
+    // Events: 2 events x 3 buttons = 6 buttons
+    // Total: 3 + 6 = 9 buttons (3 of each type)
     const attendedButtons = screen.getAllByText("Attended");
     const skippedButtons = screen.getAllByText("Skipped");
     const unknownButtons = screen.getAllByText("Unknown");
 
-    expect(attendedButtons).toHaveLength(2);
-    expect(skippedButtons).toHaveLength(2);
-    expect(unknownButtons).toHaveLength(2);
+    // 1 filter button + 2 event buttons = 3 each
+    expect(attendedButtons).toHaveLength(3);
+    expect(skippedButtons).toHaveLength(3);
+    expect(unknownButtons).toHaveLength(3);
   });
 
   it("calls API when attendance button is clicked", async () => {
@@ -165,7 +169,7 @@ describe("DayView", () => {
         json: async () => ({
           success: true,
           eventId: "event1:2026-03-03",
-          attended: "attended",
+          attended: "skipped",
         }),
       });
 
@@ -175,18 +179,20 @@ describe("DayView", () => {
       expect(screen.getByText("Morning Standup")).toBeInTheDocument();
     });
 
-    // Click the first "Attended" button
-    const attendedButtons = screen.getAllByText("Attended");
-    await user.click(attendedButtons[0]);
+    // Find the event's "Skipped" button (not the filter button)
+    // Filter buttons have different styling (rounded-lg) vs event buttons (rounded-full)
+    const skippedButtons = screen.getAllByText("Skipped");
+    // The second "Skipped" button is the one for the first event (first is filter)
+    await user.click(skippedButtons[1]);
 
-    // Verify PATCH was called
+    // Verify PATCH was called to update attendance
     await waitFor(() => {
       expect(mockFetch).toHaveBeenCalledWith("/api/events", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           eventId: "event1:2026-03-03",
-          attended: "attended",
+          attended: "skipped",
         }),
       });
     });

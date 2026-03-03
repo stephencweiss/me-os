@@ -91,6 +91,7 @@ export async function getEvents(
   options?: {
     calendars?: string[];
     accounts?: string[];
+    attended?: string[];
   }
 ): Promise<DbEvent[]> {
   const db = getDb();
@@ -111,6 +112,12 @@ export async function getEvents(
     const placeholders = options.accounts.map(() => "?").join(", ");
     query += ` AND account IN (${placeholders})`;
     params.push(...options.accounts);
+  }
+
+  if (options?.attended && options.attended.length > 0) {
+    const placeholders = options.attended.map(() => "?").join(", ");
+    query += ` AND attended IN (${placeholders})`;
+    params.push(...options.attended);
   }
 
   query += " ORDER BY date DESC, start_time ASC";

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import AttendanceFilter, { type AttendanceStatus } from "./AttendanceFilter";
 
 interface Event {
   id: string;
@@ -72,6 +73,7 @@ export default function DayView() {
   const [events, setEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [attendanceFilter, setAttendanceFilter] = useState<AttendanceStatus[]>([]);
 
   const today = new Date();
   const todayStr = formatDate(today);
@@ -85,6 +87,11 @@ export default function DayView() {
         start: todayStr,
         end: todayStr,
       });
+
+      // Add attendance filter if any selected
+      if (attendanceFilter.length > 0) {
+        params.set("attended", attendanceFilter.join(","));
+      }
 
       const response = await fetch(`/api/events?${params.toString()}`);
 
@@ -105,7 +112,7 @@ export default function DayView() {
     } finally {
       setLoading(false);
     }
-  }, [todayStr]);
+  }, [todayStr, attendanceFilter]);
 
   useEffect(() => {
     fetchEvents();
@@ -190,6 +197,14 @@ export default function DayView() {
               </p>
             </div>
           </div>
+        </div>
+
+        {/* Attendance Filter */}
+        <div className="mb-4">
+          <AttendanceFilter
+            selected={attendanceFilter}
+            onChange={setAttendanceFilter}
+          />
         </div>
 
         {/* Event List */}
