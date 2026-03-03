@@ -37,9 +37,11 @@ const COLOR_MAP: Record<string, string> = {
 };
 
 function formatTime(time: string): string {
-  // time is in HH:MM:SS format
-  const [hours, minutes] = time.split(":");
-  const h = parseInt(hours);
+  // time is stored as ISO timestamp (e.g., "2026-03-02T15:00:00.000Z")
+  // Convert to local time and format as 12-hour time
+  const date = new Date(time);
+  const h = date.getHours();
+  const minutes = date.getMinutes().toString().padStart(2, "0");
   const ampm = h >= 12 ? "PM" : "AM";
   const h12 = h % 12 || 12;
   return `${h12}:${minutes} ${ampm}`;

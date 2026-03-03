@@ -28,7 +28,16 @@
       "mcp__google-calendar__create_event",
       "Skill(time-report)",
       "Skill(calendar-manager)",
-      "Skill(calendar)"
+      "Skill(calendar)",
+      "Skill(calendar-optimizer)",
+      "WebFetch(domain:developers.google.com)",
+      "WebSearch",
+      "Bash(npm run dev:*)",
+      "Bash(open http://localhost:3001)",
+      "Bash(turso db list:*)",
+      "Bash(turso db show:*)",
+      "Bash(turso db tokens create:*)",
+      "Bash(./node_modules/.bin/tsc:*)"
     ]
   },
   "enableAllProjectMcpServers": true,
