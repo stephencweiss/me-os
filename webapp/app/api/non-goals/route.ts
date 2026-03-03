@@ -3,6 +3,7 @@ import {
   getNonGoalsForWeek,
   getUnacknowledgedAlerts,
   acknowledgeAlert,
+  createNonGoal,
 } from "@/lib/db";
 
 /**
@@ -93,6 +94,95 @@ export async function PATCH(request: NextRequest) {
     console.error("Error acknowledging alert:", error);
     return NextResponse.json(
       { error: "Failed to acknowledge alert" },
+      { status: 500 }
+    );
+  }
+}
+
+/**
+ * POST /api/non-goals
+ *
+ * Create a new non-goal (anti-pattern to avoid).
+ *
+ * Body:
+ *   - weekId: Week ID in ISO format (YYYY-WWW) - required
+ *   - title: Non-goal title - required
+ *   - pattern?: Regex pattern to match events (default: ".*")
+ *   - colorId?: Google Calendar color ID to match
+ *   - reason?: Why this should be avoided
+ */
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const { weekId, title, pattern, colorId, reason } = body;
+
+    // Validate required fields
+    if (!weekId) {
+      return NextResponse.json(
+        { error: "weekId is required" },
+        { status: 400 }
+      );
+    }
+
+    if (!title) {
+      return NextResponse.json(
+        { error: "title is required" },
+        { status: 400 }
+      );
+    }
+
+    // Validate week format
+    const weekRegex = /^\d{4}-W\d{2}$/;
+    if (!weekRegex.test(weekId)) {
+      return NextResponse.json(
+        { error: "weekId must be in YYYY-WWW format (e.g., 2026-W10)" },
+        { status: 400 }
+      );
+    }
+
+    // Validate title is a non-empty string
+    if (typeof title !== "string" || title.trim().length === 0) {
+      return NextResponse.json(
+        { error: "title must be a non-empty string" },
+        { status: 400 }
+      );
+    }
+
+    // Validate pattern if provided (must be valid regex)
+    if (pattern !== undefined && pattern !== null) {
+      if (typeof pattern !== "string") {
+        return NextResponse.json(
+          { error: "pattern must be a string" },
+          { status: 400 }
+        );
+      }
+      try {
+        new RegExp(pattern);
+      } catch {
+        return NextResponse.json(
+          { error: "pattern must be a valid regular expression" },
+          { status: 400 }
+        );
+      }
+    }
+
+    // Create the non-goal
+    const nonGoal = await createNonGoal({
+      weekId,
+      title: title.trim(),
+      pattern: pattern ?? null,
+      colorId: colorId ?? null,
+      reason: reason ?? null,
+    });
+
+    return NextResponse.json({
+      success: true,
+      nonGoal,
+    });
+  } catch (error) {
+    console.error("Error creating non-goal:", error);
+    return NextResponse.json(
+      { error: "Failed to create non-goal" },
       { status: 500 }
     );
   }

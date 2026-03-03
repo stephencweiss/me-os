@@ -514,3 +514,136 @@ export async function acknowledgeAlert(alertId: number): Promise<void> {
     args: [alertId],
   });
 }
+
+// ============================================================================
+// Goal Creation
+// ============================================================================
+
+/**
+ * Parameters for creating a new goal
+ */
+export interface CreateGoalParams {
+  weekId: string;
+  title: string;
+  colorId?: string | null;
+  estimatedMinutes?: number | null;
+  notes?: string | null;
+  goalType?: "time" | "outcome" | "habit";
+}
+
+/**
+ * Generate a unique things3_id for webapp-created goals
+ */
+function generateWebappThings3Id(): string {
+  return `webapp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+/**
+ * Generate composite goal ID
+ */
+function generateGoalId(things3Id: string, weekId: string): string {
+  return `${things3Id}:${weekId}`;
+}
+
+/**
+ * Create a new weekly goal
+ */
+export async function createGoal(params: CreateGoalParams): Promise<DbWeeklyGoal> {
+  const db = getDb();
+  const now = new Date().toISOString();
+  const things3Id = generateWebappThings3Id();
+  const id = generateGoalId(things3Id, params.weekId);
+
+  await db.execute({
+    sql: `
+      INSERT INTO weekly_goals (
+        id, things3_id, week_id, title, notes, estimated_minutes,
+        goal_type, color_id, status, progress_percent, completed_at,
+        created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `,
+    args: [
+      id,
+      things3Id,
+      params.weekId,
+      params.title,
+      params.notes ?? null,
+      params.estimatedMinutes ?? null,
+      params.goalType ?? "outcome",
+      params.colorId ?? null,
+      "active",
+      0,
+      null,
+      now,
+      now,
+    ],
+  });
+
+  const created = await getGoalById(id);
+  if (!created) {
+    throw new Error("Failed to create goal");
+  }
+  return created;
+}
+
+// ============================================================================
+// Non-Goal Creation
+// ============================================================================
+
+/**
+ * Parameters for creating a new non-goal
+ */
+export interface CreateNonGoalParams {
+  weekId: string;
+  title: string;
+  pattern?: string | null;
+  colorId?: string | null;
+  reason?: string | null;
+}
+
+/**
+ * Create a new non-goal
+ */
+export async function createNonGoal(params: CreateNonGoalParams): Promise<DbNonGoal> {
+  const db = getDb();
+  const now = new Date().toISOString();
+  const id = `ng-${params.weekId}-${Date.now()}`;
+
+  await db.execute({
+    sql: `
+      INSERT INTO non_goals (id, week_id, title, pattern, color_id, reason, active, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `,
+    args: [
+      id,
+      params.weekId,
+      params.title,
+      params.pattern ?? ".*",
+      params.colorId ?? null,
+      params.reason ?? null,
+      1,
+      now,
+    ],
+  });
+
+  const created = await getNonGoalById(id);
+  if (!created) {
+    throw new Error("Failed to create non-goal");
+  }
+  return created;
+}
+
+/**
+ * Get a single non-goal by ID
+ */
+export async function getNonGoalById(nonGoalId: string): Promise<DbNonGoal | null> {
+  const db = getDb();
+
+  const result = await db.execute({
+    sql: `SELECT * FROM non_goals WHERE id = ?`,
+    args: [nonGoalId],
+  });
+
+  if (result.rows.length === 0) return null;
+  return result.rows[0] as unknown as DbNonGoal;
+}
