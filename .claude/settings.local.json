@@ -27,7 +27,7 @@
       "mcp__google-calendar__get_today",
       "mcp__google-calendar__create_event",
       "Skill(time-report)",
-      "Skill(calendar-manager)"
+      "Skill(calendar-manager)",
       "Skill(calendar)"
     ]
   },

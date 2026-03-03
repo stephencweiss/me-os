@@ -245,6 +245,105 @@ export async function getAllPreferences(): Promise<Record<string, string>> {
 }
 
 // ============================================================================
+// Computed Summaries (for filtering)
+// ============================================================================
+
+/**
+ * Computed summary for a single day (used when filtering)
+ */
+export interface ComputedDailySummary {
+  date: string;
+  totalScheduledMinutes: number;
+  totalGapMinutes: number;
+  categories: Category[];
+  isWorkDay: boolean;
+}
+
+/**
+ * Compute summaries from events on-the-fly (used when filters are applied)
+ *
+ * This function queries the events table directly and computes summaries
+ * dynamically, allowing for account/calendar filtering that isn't possible
+ * with pre-computed daily_summaries.
+ */
+export async function computeSummariesFromEvents(
+  startDate: string,
+  endDate: string,
+  options?: { accounts?: string[]; calendars?: string[] }
+): Promise<{ summaries: ComputedDailySummary[] }> {
+  // 1. Fetch filtered events
+  const events = await getEvents(startDate, endDate, options);
+
+  // 2. Group events by date
+  const eventsByDate = new Map<string, DbEvent[]>();
+  for (const event of events) {
+    const existing = eventsByDate.get(event.date) || [];
+    existing.push(event);
+    eventsByDate.set(event.date, existing);
+  }
+
+  // 3. Compute summary for each date
+  const summaries: ComputedDailySummary[] = [];
+  for (const [date, dayEvents] of eventsByDate) {
+    // Calculate total scheduled minutes (sum of all event durations)
+    const totalScheduledMinutes = dayEvents.reduce(
+      (sum, e) => sum + e.duration_minutes,
+      0
+    );
+
+    // Group by color to compute categories
+    const colorGroups = new Map<
+      string,
+      { minutes: number; count: number; name: string; meaning: string; eventIds: string[] }
+    >();
+    for (const event of dayEvents) {
+      const existing = colorGroups.get(event.color_id) || {
+        minutes: 0,
+        count: 0,
+        name: event.color_name,
+        meaning: event.color_meaning,
+        eventIds: [],
+      };
+      existing.minutes += event.duration_minutes;
+      existing.count += 1;
+      existing.eventIds.push(event.id);
+      colorGroups.set(event.color_id, existing);
+    }
+
+    const categories: Category[] = Array.from(colorGroups.entries()).map(
+      ([colorId, data]) => ({
+        colorId,
+        colorName: data.name,
+        colorMeaning: data.meaning,
+        totalMinutes: data.minutes,
+        eventCount: data.count,
+        events: data.eventIds,
+      })
+    );
+
+    // Determine if work day (weekday = Mon-Fri)
+    const dayOfWeek = new Date(date + "T12:00:00").getDay();
+    const isWorkDay = dayOfWeek >= 1 && dayOfWeek <= 5;
+
+    // Gap minutes: simplified calculation (would need analysis hours config for full accuracy)
+    const totalGapMinutes = 0;
+
+    summaries.push({
+      date,
+      totalScheduledMinutes,
+      totalGapMinutes,
+      categories,
+      isWorkDay,
+    });
+  }
+
+  // Sort by date descending (most recent first)
+  summaries.sort((a, b) => b.date.localeCompare(a.date));
+
+  return { summaries };
+}
+
+// ============================================================================
 // Weekly Goals
 // ============================================================================
 
