@@ -33,7 +33,9 @@ A skill is a set of local instructions stored in a `SKILL.md` file. Use these en
 
 Before getting started, load and internalize .claude/SYSTEM-PROMPT.md.
 
-For new features, always write a plan first. Plans are saved into plans/
+## Planning Workflow
+
+For new features and non-trivial changes, follow the planning workflow in `.claude/workflows/planning.md`.
 
 ## Tech Stack
 
@@ -119,9 +121,7 @@ Load `config/colors.json` which is the source of truth.
 - Scripts in `/scripts` should be runnable standalone (no LLM required)
 - Skills can invoke scripts for repeatability
 - Store credentials securely in `/config` (gitignored)
-- All plans should be committed alongside code changes. 
-- All plans should have a section focusing on how we will prove to ourselves that it works as expected, i.e., a testing plan. 
-- Every pull request is accompanied by a the plan - i.e., a document explaining the purpose of the change set
+- Follow the Planning Workflow (above) for all non-trivial changes
 - `.claude/settings.local.json` is Claude runtime configuration and permissions. It is not the Codex skill registration mechanism.
 
 ## Getting Started
