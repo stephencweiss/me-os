@@ -17,6 +17,7 @@ import {
 } from "recharts";
 import EventList from "./EventList";
 import FilterBar from "./FilterBar";
+import WeeklyGoals from "./WeeklyGoals";
 
 // Color mapping from colorId to hex color (matching Google Calendar colors)
 const COLOR_MAP: Record<string, string> = {
@@ -101,7 +102,10 @@ function formatHours(minutes: number): string {
   return `${hours}h ${mins}m`;
 }
 
+type TabType = "calendar" | "goals";
+
 export default function Dashboard() {
+  const [activeTab, setActiveTab] = useState<TabType>("calendar");
   const [days, setDays] = useState(7);
   const [summaries, setSummaries] = useState<SummariesResponse | null>(null);
   const [calendars, setCalendars] = useState<CalendarsResponse | null>(null);
@@ -299,41 +303,74 @@ export default function Dashboard() {
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="flex justify-between items-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-            Calendar Dashboard
-          </h1>
-          <div className="flex gap-2">
-            {[7, 14, 30, 90].map((d) => (
+          <div className="flex items-center gap-6">
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
+              Dashboard
+            </h1>
+            {/* Tab Navigation */}
+            <div className="flex gap-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
               <button
-                key={d}
-                onClick={() => setDays(d)}
-                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                  days === d
-                    ? "bg-blue-600 text-white"
-                    : "bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                onClick={() => setActiveTab("calendar")}
+                className={`px-4 py-2 rounded-md font-medium transition-colors ${
+                  activeTab === "calendar"
+                    ? "bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm"
+                    : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
                 }`}
               >
-                {d}d
+                Calendar
               </button>
-            ))}
+              <button
+                onClick={() => setActiveTab("goals")}
+                className={`px-4 py-2 rounded-md font-medium transition-colors ${
+                  activeTab === "goals"
+                    ? "bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm"
+                    : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
+                }`}
+              >
+                Goals
+              </button>
+            </div>
           </div>
+          {activeTab === "calendar" && (
+            <div className="flex gap-2">
+              {[7, 14, 30, 90].map((d) => (
+                <button
+                  key={d}
+                  onClick={() => setDays(d)}
+                  className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                    days === d
+                      ? "bg-blue-600 text-white"
+                      : "bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                  }`}
+                >
+                  {d}d
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
-        {/* Filter Bar */}
-        {calendars && (
-          <div className="mb-6">
-            <FilterBar
-              accounts={calendars.accounts}
-              calendars={calendars.calendars}
-              selectedAccounts={selectedAccounts}
-              selectedCalendars={selectedCalendars}
-              onAccountsChange={setSelectedAccounts}
-              onCalendarsChange={setSelectedCalendars}
-            />
-          </div>
-        )}
+        {/* Goals Tab */}
+        {activeTab === "goals" && <WeeklyGoals />}
 
-        {/* Summary Cards */}
+        {/* Calendar Tab Content */}
+        {activeTab === "calendar" && (
+          <>
+            {/* Filter Bar */}
+            {calendars && (
+              <div className="mb-6">
+                <FilterBar
+                  accounts={calendars.accounts}
+                  calendars={calendars.calendars}
+                  selectedAccounts={selectedAccounts}
+                  selectedCalendars={selectedCalendars}
+                  onAccountsChange={setSelectedAccounts}
+                  onCalendarsChange={setSelectedCalendars}
+                />
+              </div>
+            )}
+
+            {/* Summary Cards */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
           <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm">
             <div className="text-sm font-medium text-gray-500 dark:text-gray-400">
@@ -557,12 +594,14 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Footer */}
-        <div className="mt-8 text-center text-sm text-gray-500 dark:text-gray-400">
-          Data from {summaries.dateRange.start} to {summaries.dateRange.end}
-          <span className="mx-2">|</span>
-          Last synced from Google Calendar
-        </div>
+            {/* Footer */}
+            <div className="mt-8 text-center text-sm text-gray-500 dark:text-gray-400">
+              Data from {summaries.dateRange.start} to {summaries.dateRange.end}
+              <span className="mx-2">|</span>
+              Last synced from Google Calendar
+            </div>
+          </>
+        )}
       </div>
 
       {/* Event List Side Panel */}
