@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import AttendanceFilter, { type AttendanceStatus } from "./AttendanceFilter";
+import CategoryBreakdown from "./CategoryBreakdown";
 
 interface Event {
   id: string;
@@ -198,6 +199,9 @@ export default function DayView() {
             </div>
           </div>
         </div>
+
+        {/* Category Breakdown */}
+        <CategoryBreakdown events={events} />
 
         {/* Attendance Filter */}
         <div className="mb-4">
