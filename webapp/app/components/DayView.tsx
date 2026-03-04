@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import AttendanceFilter, { type AttendanceStatus } from "./AttendanceFilter";
 import CategoryBreakdown from "./CategoryBreakdown";
 import ColorPicker from "./ColorPicker";
+import AccountFilter from "./AccountFilter";
 
 interface Event {
   id: string;
@@ -76,9 +77,27 @@ export default function DayView() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [attendanceFilter, setAttendanceFilter] = useState<AttendanceStatus[]>([]);
+  const [accounts, setAccounts] = useState<string[]>([]);
+  const [accountFilter, setAccountFilter] = useState<string[]>([]);
 
   const today = new Date();
   const todayStr = formatDate(today);
+
+  // Fetch available accounts on mount
+  useEffect(() => {
+    async function fetchAccounts() {
+      try {
+        const response = await fetch("/api/calendars");
+        if (response.ok) {
+          const data = await response.json();
+          setAccounts(data.accounts || []);
+        }
+      } catch (err) {
+        console.error("Failed to fetch accounts:", err);
+      }
+    }
+    fetchAccounts();
+  }, []);
 
   const fetchEvents = useCallback(async () => {
     setLoading(true);
@@ -93,6 +112,11 @@ export default function DayView() {
       // Add attendance filter if any selected
       if (attendanceFilter.length > 0) {
         params.set("attended", attendanceFilter.join(","));
+      }
+
+      // Add accounts filter if any selected
+      if (accountFilter.length > 0) {
+        params.set("accounts", accountFilter.join(","));
       }
 
       const response = await fetch(`/api/events?${params.toString()}`);
@@ -114,7 +138,7 @@ export default function DayView() {
     } finally {
       setLoading(false);
     }
-  }, [todayStr, attendanceFilter]);
+  }, [todayStr, attendanceFilter, accountFilter]);
 
   useEffect(() => {
     fetchEvents();
@@ -258,11 +282,16 @@ export default function DayView() {
         {/* Category Breakdown */}
         <CategoryBreakdown events={events} />
 
-        {/* Attendance Filter */}
-        <div className="mb-4">
+        {/* Filters */}
+        <div className="space-y-3 mb-4">
           <AttendanceFilter
             selected={attendanceFilter}
             onChange={setAttendanceFilter}
+          />
+          <AccountFilter
+            accounts={accounts}
+            selected={accountFilter}
+            onChange={setAccountFilter}
           />
         </div>
 

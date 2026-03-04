@@ -38,6 +38,28 @@ const mockEvents = [
   },
 ];
 
+const mockCalendarsResponse = {
+  calendars: [{ calendar_name: "Work", account: "work@example.com" }],
+  accounts: ["work@example.com"],
+  byAccount: [{ account: "work@example.com", calendars: ["Work"] }],
+};
+
+// Helper to create mock fetch that handles both endpoints
+function createMockFetch(eventsResponse: unknown, options?: { calendarsResponse?: unknown }) {
+  return (url: string) => {
+    if (url.includes("/api/calendars")) {
+      return Promise.resolve({
+        ok: true,
+        json: async () => options?.calendarsResponse ?? mockCalendarsResponse,
+      });
+    }
+    if (url.includes("/api/events")) {
+      return Promise.resolve(eventsResponse);
+    }
+    return Promise.reject(new Error(`Unexpected URL: ${url}`));
+  };
+}
+
 describe("DayView", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -52,14 +74,16 @@ describe("DayView", () => {
   });
 
   it("renders events after loading", async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({
-        events: mockEvents,
-        count: 2,
-        dateRange: { start: "2026-03-03", end: "2026-03-03" },
-      }),
-    });
+    mockFetch.mockImplementation(
+      createMockFetch({
+        ok: true,
+        json: async () => ({
+          events: mockEvents,
+          count: 2,
+          dateRange: { start: "2026-03-03", end: "2026-03-03" },
+        }),
+      })
+    );
 
     render(<DayView />);
 
@@ -73,14 +97,16 @@ describe("DayView", () => {
   });
 
   it("renders empty state when no events", async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({
-        events: [],
-        count: 0,
-        dateRange: { start: "2026-03-03", end: "2026-03-03" },
-      }),
-    });
+    mockFetch.mockImplementation(
+      createMockFetch({
+        ok: true,
+        json: async () => ({
+          events: [],
+          count: 0,
+          dateRange: { start: "2026-03-03", end: "2026-03-03" },
+        }),
+      })
+    );
 
     render(<DayView />);
 
@@ -92,10 +118,12 @@ describe("DayView", () => {
   });
 
   it("renders error state on fetch failure", async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: false,
-      json: async () => ({ error: "Server error" }),
-    });
+    mockFetch.mockImplementation(
+      createMockFetch({
+        ok: false,
+        json: async () => ({ error: "Server error" }),
+      })
+    );
 
     render(<DayView />);
 
@@ -105,14 +133,16 @@ describe("DayView", () => {
   });
 
   it("displays total scheduled time correctly", async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({
-        events: mockEvents,
-        count: 2,
-        dateRange: { start: "2026-03-03", end: "2026-03-03" },
-      }),
-    });
+    mockFetch.mockImplementation(
+      createMockFetch({
+        ok: true,
+        json: async () => ({
+          events: mockEvents,
+          count: 2,
+          dateRange: { start: "2026-03-03", end: "2026-03-03" },
+        }),
+      })
+    );
 
     render(<DayView />);
 
@@ -123,14 +153,16 @@ describe("DayView", () => {
   });
 
   it("displays attendance status for each event", async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({
-        events: mockEvents,
-        count: 2,
-        dateRange: { start: "2026-03-03", end: "2026-03-03" },
-      }),
-    });
+    mockFetch.mockImplementation(
+      createMockFetch({
+        ok: true,
+        json: async () => ({
+          events: mockEvents,
+          count: 2,
+          dateRange: { start: "2026-03-03", end: "2026-03-03" },
+        }),
+      })
+    );
 
     render(<DayView />);
 
@@ -155,23 +187,38 @@ describe("DayView", () => {
   it("calls API when attendance button is clicked", async () => {
     const user = userEvent.setup();
 
-    mockFetch
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
-          events: mockEvents,
-          count: 2,
-          dateRange: { start: "2026-03-03", end: "2026-03-03" },
-        }),
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
-          success: true,
-          eventId: "event1:2026-03-03",
-          attended: "skipped",
-        }),
-      });
+    // Track calls to determine which endpoint was called
+    const calls: string[] = [];
+    mockFetch.mockImplementation((url: string, options?: RequestInit) => {
+      calls.push(url);
+      if (url.includes("/api/calendars")) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => mockCalendarsResponse,
+        });
+      }
+      if (url.includes("/api/events") && options?.method === "PATCH") {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            success: true,
+            eventId: "event1:2026-03-03",
+            attended: "skipped",
+          }),
+        });
+      }
+      if (url.includes("/api/events")) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            events: mockEvents,
+            count: 2,
+            dateRange: { start: "2026-03-03", end: "2026-03-03" },
+          }),
+        });
+      }
+      return Promise.reject(new Error(`Unexpected URL: ${url}`));
+    });
 
     render(<DayView />);
 
@@ -199,14 +246,16 @@ describe("DayView", () => {
   });
 
   it("displays formatted times correctly", async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({
-        events: mockEvents,
-        count: 2,
-        dateRange: { start: "2026-03-03", end: "2026-03-03" },
-      }),
-    });
+    mockFetch.mockImplementation(
+      createMockFetch({
+        ok: true,
+        json: async () => ({
+          events: mockEvents,
+          count: 2,
+          dateRange: { start: "2026-03-03", end: "2026-03-03" },
+        }),
+      })
+    );
 
     render(<DayView />);
 
@@ -220,14 +269,16 @@ describe("DayView", () => {
   });
 
   it("displays calendar name for each event", async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({
-        events: mockEvents,
-        count: 2,
-        dateRange: { start: "2026-03-03", end: "2026-03-03" },
-      }),
-    });
+    mockFetch.mockImplementation(
+      createMockFetch({
+        ok: true,
+        json: async () => ({
+          events: mockEvents,
+          count: 2,
+          dateRange: { start: "2026-03-03", end: "2026-03-03" },
+        }),
+      })
+    );
 
     render(<DayView />);
 
