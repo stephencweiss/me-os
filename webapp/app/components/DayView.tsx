@@ -48,11 +48,23 @@ function formatDate(date: Date): string {
 }
 
 function formatTime(time: string): string {
-  const [hours, minutes] = time.split(":");
-  const h = parseInt(hours);
-  const ampm = h >= 12 ? "PM" : "AM";
-  const h12 = h % 12 || 12;
-  return `${h12}:${minutes} ${ampm}`;
+  // Handle both ISO timestamps (2026-02-20T13:00:00.000Z) and plain time strings (13:00:00)
+  let date: Date;
+  if (time.includes("T")) {
+    // ISO timestamp - parse and convert to local time
+    date = new Date(time);
+  } else {
+    // Plain time string - create a date with today's date
+    const [hours, minutes, seconds] = time.split(":");
+    date = new Date();
+    date.setHours(parseInt(hours), parseInt(minutes), parseInt(seconds || "0"), 0);
+  }
+
+  return date.toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  });
 }
 
 function formatDuration(minutes: number): string {
