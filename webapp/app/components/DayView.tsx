@@ -5,7 +5,8 @@ import AttendanceFilter, { type AttendanceStatus } from "./AttendanceFilter";
 import CategoryBreakdown from "./CategoryBreakdown";
 import ColorPicker from "./ColorPicker";
 import AccountFilter from "./AccountFilter";
-import { formatTime, formatDuration, formatDate, formatDisplayDate } from "@/lib/format";
+import DateNavigation from "./DateNavigation";
+import { formatTime, formatDuration, formatDate } from "@/lib/format";
 
 interface Event {
   id: string;
@@ -52,9 +53,9 @@ export default function DayView() {
   const [attendanceFilter, setAttendanceFilter] = useState<AttendanceStatus[]>([]);
   const [accounts, setAccounts] = useState<string[]>([]);
   const [accountFilter, setAccountFilter] = useState<string[]>([]);
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
 
-  const today = new Date();
-  const todayStr = formatDate(today);
+  const selectedDateStr = formatDate(selectedDate);
 
   // Fetch available accounts on mount
   useEffect(() => {
@@ -78,8 +79,8 @@ export default function DayView() {
 
     try {
       const params = new URLSearchParams({
-        start: todayStr,
-        end: todayStr,
+        start: selectedDateStr,
+        end: selectedDateStr,
       });
 
       // Add attendance filter if any selected
@@ -111,7 +112,7 @@ export default function DayView() {
     } finally {
       setLoading(false);
     }
-  }, [todayStr, attendanceFilter, accountFilter]);
+  }, [selectedDateStr, attendanceFilter, accountFilter]);
 
   useEffect(() => {
     fetchEvents();
@@ -233,13 +234,14 @@ export default function DayView() {
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       <div className="max-w-4xl mx-auto px-4 py-8">
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
+        <div className="mb-4">
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-4">
             Day View
           </h1>
-          <p className="text-lg text-gray-600 dark:text-gray-400 mt-1">
-            {formatDisplayDate(today)}
-          </p>
+          <DateNavigation
+            selectedDate={selectedDate}
+            onChange={setSelectedDate}
+          />
         </div>
 
         {/* Summary Card */}
