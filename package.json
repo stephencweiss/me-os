@@ -11,6 +11,7 @@
     "auth": "node --loader ts-node/esm lib/google-auth.ts",
     "auth:list": "node --loader ts-node/esm lib/google-auth.ts --list",
     "mcp:calendar": "node --loader ts-node/esm mcp/google-calendar/index.ts",
+    "mcp:things3": "node --loader ts-node/esm mcp/things3/index.ts",
     "sync": "node --loader ts-node/esm scripts/sync-calendar.ts",
     "dashboard": "node --loader ts-node/esm scripts/generate-dashboard.ts --open",
     "report": "node --loader ts-node/esm scripts/weekly-report.ts",
