@@ -216,6 +216,24 @@ export const COLOR_DEFINITIONS: Record<string, { name: string; meaning: string }
 };
 
 /**
+ * Get a single event by ID
+ */
+export async function getEventById(eventId: string): Promise<DbEvent | null> {
+  const db = getDb();
+
+  const result = await db.execute({
+    sql: `SELECT * FROM events WHERE id = ?`,
+    args: [eventId],
+  });
+
+  if (result.rows.length === 0) {
+    return null;
+  }
+
+  return result.rows[0] as unknown as DbEvent;
+}
+
+/**
  * Update event color
  */
 export async function updateEventColor(
