@@ -5,6 +5,7 @@ import AttendanceFilter, { type AttendanceStatus } from "./AttendanceFilter";
 import CategoryBreakdown from "./CategoryBreakdown";
 import ColorPicker from "./ColorPicker";
 import AccountFilter from "./AccountFilter";
+import { formatTime, formatDuration, formatDate, formatDisplayDate } from "@/lib/format";
 
 interface Event {
   id: string;
@@ -43,47 +44,6 @@ const COLOR_MAP: Record<string, string> = {
   "11": "#d50000", // Tomato
   default: "#9e9e9e",
 };
-
-function formatDate(date: Date): string {
-  return date.toISOString().split("T")[0];
-}
-
-function formatTime(time: string): string {
-  // Handle both ISO timestamps (2026-02-20T13:00:00.000Z) and plain time strings (13:00:00)
-  let date: Date;
-  if (time.includes("T")) {
-    // ISO timestamp - parse and convert to local time
-    date = new Date(time);
-  } else {
-    // Plain time string - create a date with today's date
-    const [hours, minutes, seconds] = time.split(":");
-    date = new Date();
-    date.setHours(parseInt(hours), parseInt(minutes), parseInt(seconds || "0"), 0);
-  }
-
-  return date.toLocaleTimeString("en-US", {
-    hour: "numeric",
-    minute: "2-digit",
-    hour12: true,
-  });
-}
-
-function formatDuration(minutes: number): string {
-  const hours = Math.floor(minutes / 60);
-  const mins = minutes % 60;
-  if (hours === 0) return `${mins}m`;
-  if (mins === 0) return `${hours}h`;
-  return `${hours}h ${mins}m`;
-}
-
-function formatDisplayDate(date: Date): string {
-  return date.toLocaleDateString("en-US", {
-    weekday: "long",
-    month: "long",
-    day: "numeric",
-    year: "numeric",
-  });
-}
 
 export default function DayView() {
   const [events, setEvents] = useState<Event[]>([]);
