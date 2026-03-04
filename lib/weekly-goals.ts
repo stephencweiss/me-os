@@ -433,3 +433,151 @@ export async function getGoalsForOptimizer(weekId: string): Promise<OptimizerGoa
       recurring: false,
     }));
 }
+
+// ============================================================================
+// Default Non-Goals Configuration
+// ============================================================================
+
+import * as fs from "fs";
+import * as path from "path";
+import { createNonGoal, type StoredNonGoal } from "./calendar-db.js";
+
+const CONFIG_DIR = path.join(process.cwd(), "config");
+const NON_GOALS_CONFIG_PATH = path.join(CONFIG_DIR, "non-goals.json");
+
+/**
+ * Default non-goal pattern from config
+ */
+export interface DefaultNonGoal {
+  title: string;
+  pattern: string;
+  reason: string | null;
+  colorId: string | null;
+  timeConstraint?: {
+    before?: string; // HH:MM - matches events before this time
+    after?: string; // HH:MM - matches events after this time
+  };
+  durationConstraint?: {
+    consecutive?: number; // Number of consecutive meetings
+    windowMinutes?: number; // Within this time window
+  };
+  recurringWithNoEnd?: boolean;
+}
+
+/**
+ * Quick-add non-goal template
+ */
+export interface QuickAddNonGoal {
+  label: string;
+  title: string;
+  pattern: string;
+  reason: string;
+}
+
+/**
+ * Non-goals configuration file structure
+ */
+export interface NonGoalsConfig {
+  description?: string;
+  defaults: DefaultNonGoal[];
+  quickAdd: QuickAddNonGoal[];
+}
+
+/**
+ * Load non-goals configuration from file
+ */
+export function loadNonGoalsConfig(): NonGoalsConfig | null {
+  if (!fs.existsSync(NON_GOALS_CONFIG_PATH)) {
+    return null;
+  }
+  try {
+    const content = fs.readFileSync(NON_GOALS_CONFIG_PATH, "utf-8");
+    return JSON.parse(content);
+  } catch {
+    console.warn("Failed to parse non-goals config");
+    return null;
+  }
+}
+
+/**
+ * Get default non-goal patterns
+ */
+export function getDefaultNonGoals(): DefaultNonGoal[] {
+  const config = loadNonGoalsConfig();
+  return config?.defaults || [];
+}
+
+/**
+ * Get quick-add non-goal templates
+ */
+export function getQuickAddNonGoals(): QuickAddNonGoal[] {
+  const config = loadNonGoalsConfig();
+  return config?.quickAdd || [];
+}
+
+/**
+ * Seed default non-goals for a new week
+ * Only adds defaults that don't already exist for the week
+ * Returns the list of newly created non-goals
+ */
+export async function seedDefaultNonGoalsForWeek(
+  weekId: string
+): Promise<StoredNonGoal[]> {
+  const defaults = getDefaultNonGoals();
+  const existingNonGoals = await getNonGoalsForWeek(weekId);
+  const existingTitles = new Set(existingNonGoals.map((ng) => ng.title));
+
+  const created: StoredNonGoal[] = [];
+
+  for (const defaultNonGoal of defaults) {
+    // Skip if a non-goal with this title already exists
+    if (existingTitles.has(defaultNonGoal.title)) {
+      continue;
+    }
+
+    // For now, we only support simple pattern-based non-goals
+    // Time constraints and duration constraints would need special handling
+    // in the detection logic
+    if (defaultNonGoal.timeConstraint || defaultNonGoal.durationConstraint || defaultNonGoal.recurringWithNoEnd) {
+      // Skip complex constraints for now - these require event analysis
+      continue;
+    }
+
+    const nonGoal = await createNonGoal({
+      week_id: weekId,
+      title: defaultNonGoal.title,
+      pattern: defaultNonGoal.pattern,
+      color_id: defaultNonGoal.colorId,
+      reason: defaultNonGoal.reason,
+      active: 1,
+    });
+
+    created.push(nonGoal);
+  }
+
+  return created;
+}
+
+/**
+ * Create a non-goal from a quick-add template
+ */
+export async function createNonGoalFromQuickAdd(
+  weekId: string,
+  label: string
+): Promise<StoredNonGoal | null> {
+  const templates = getQuickAddNonGoals();
+  const template = templates.find((t) => t.label === label);
+
+  if (!template) {
+    return null;
+  }
+
+  return createNonGoal({
+    week_id: weekId,
+    title: template.title,
+    pattern: template.pattern,
+    color_id: null,
+    reason: template.reason,
+    active: 1,
+  });
+}

@@ -607,7 +607,9 @@ export interface CreateNonGoalParams {
 export async function createNonGoal(params: CreateNonGoalParams): Promise<DbNonGoal> {
   const db = getDb();
   const now = new Date().toISOString();
-  const id = `ng-${params.weekId}-${Date.now()}`;
+  // Add random suffix to ensure uniqueness even within same millisecond
+  const randomSuffix = Math.random().toString(36).slice(2, 8);
+  const id = `ng-${params.weekId}-${Date.now()}-${randomSuffix}`;
 
   await db.execute({
     sql: `
