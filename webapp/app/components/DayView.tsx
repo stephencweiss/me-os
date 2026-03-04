@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import AttendanceFilter, { type AttendanceStatus } from "./AttendanceFilter";
 import CategoryBreakdown from "./CategoryBreakdown";
+import ColorPicker from "./ColorPicker";
 
 interface Event {
   id: string;
@@ -144,6 +145,60 @@ export default function DayView() {
     }
   };
 
+  const handleColorChange = async (eventId: string, colorId: string) => {
+    // Find current event for optimistic update
+    const currentEvent = events.find((e) => e.id === eventId);
+    if (!currentEvent) return;
+
+    // Color definitions for optimistic update
+    const colorDefs: Record<string, { name: string; meaning: string }> = {
+      "1": { name: "Lavender", meaning: "1:1s / People" },
+      "2": { name: "Sage", meaning: "Studying / Learning" },
+      "3": { name: "Grape", meaning: "Project Work" },
+      "4": { name: "Flamingo", meaning: "Meetings" },
+      "5": { name: "Banana", meaning: "Household / Pets" },
+      "6": { name: "Tangerine", meaning: "Family Time" },
+      "7": { name: "Peacock", meaning: "Personal Projects" },
+      "8": { name: "Graphite", meaning: "Routines / Logistics" },
+      "9": { name: "Blueberry", meaning: "Fitness" },
+      "10": { name: "Basil", meaning: "Social" },
+      "11": { name: "Tomato", meaning: "Urgent / Blocked" },
+    };
+
+    const colorDef = colorDefs[colorId];
+    if (!colorDef) return;
+
+    // Optimistic update
+    setEvents((prev) =>
+      prev.map((event) =>
+        event.id === eventId
+          ? {
+              ...event,
+              color_id: colorId,
+              color_name: colorDef.name,
+              color_meaning: colorDef.meaning,
+            }
+          : event
+      )
+    );
+
+    try {
+      const response = await fetch("/api/events/color", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ eventId, colorId }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to update color");
+      }
+    } catch (err) {
+      // Revert on error
+      fetchEvents();
+      console.error("Failed to update color:", err);
+    }
+  };
+
   const attendanceOptions = [
     {
       value: "attended",
@@ -240,13 +295,10 @@ export default function DayView() {
               events.map((event) => (
                 <div key={event.id} className="p-4 hover:bg-gray-50 dark:hover:bg-gray-700/50">
                   <div className="flex items-start gap-4">
-                    {/* Color indicator */}
-                    <div
-                      className="w-1.5 h-14 rounded-full flex-shrink-0 mt-0.5"
-                      style={{
-                        backgroundColor:
-                          COLOR_MAP[event.color_id] || COLOR_MAP.default,
-                      }}
+                    {/* Color picker */}
+                    <ColorPicker
+                      currentColorId={event.color_id}
+                      onSelect={(colorId) => handleColorChange(event.id, colorId)}
                     />
 
                     {/* Event details */}

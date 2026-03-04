@@ -199,6 +199,55 @@ export async function updateAttendance(
 }
 
 /**
+ * Color definitions mapping colorId to name and meaning
+ */
+export const COLOR_DEFINITIONS: Record<string, { name: string; meaning: string }> = {
+  "1": { name: "Lavender", meaning: "1:1s / People" },
+  "2": { name: "Sage", meaning: "Studying / Learning" },
+  "3": { name: "Grape", meaning: "Project Work" },
+  "4": { name: "Flamingo", meaning: "Meetings" },
+  "5": { name: "Banana", meaning: "Household / Pets" },
+  "6": { name: "Tangerine", meaning: "Family Time" },
+  "7": { name: "Peacock", meaning: "Personal Projects" },
+  "8": { name: "Graphite", meaning: "Routines / Logistics" },
+  "9": { name: "Blueberry", meaning: "Fitness" },
+  "10": { name: "Basil", meaning: "Social" },
+  "11": { name: "Tomato", meaning: "Urgent / Blocked" },
+};
+
+/**
+ * Update event color
+ */
+export async function updateEventColor(
+  eventId: string,
+  colorId: string
+): Promise<DbEvent | null> {
+  const db = getDb();
+  const colorDef = COLOR_DEFINITIONS[colorId];
+
+  if (!colorDef) {
+    throw new Error(`Invalid color ID: ${colorId}`);
+  }
+
+  await db.execute({
+    sql: `UPDATE events SET color_id = ?, color_name = ?, color_meaning = ?, last_seen = ? WHERE id = ?`,
+    args: [colorId, colorDef.name, colorDef.meaning, new Date().toISOString(), eventId],
+  });
+
+  // Return updated event
+  const result = await db.execute({
+    sql: `SELECT * FROM events WHERE id = ?`,
+    args: [eventId],
+  });
+
+  if (result.rows.length === 0) {
+    return null;
+  }
+
+  return result.rows[0] as unknown as DbEvent;
+}
+
+/**
  * Get user preference
  */
 export async function getPreference(key: string): Promise<string | null> {
