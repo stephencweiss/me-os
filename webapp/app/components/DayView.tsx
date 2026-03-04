@@ -145,12 +145,22 @@ export default function DayView() {
   }, [fetchEvents]);
 
   const handleAttendanceChange = async (eventId: string, attended: string) => {
-    // Optimistic update
-    setEvents((prev) =>
-      prev.map((event) =>
+    // Check if we have an active filter (not empty and not all three selected)
+    const hasActiveFilter =
+      attendanceFilter.length > 0 && attendanceFilter.length < 3;
+    const matchesFilter = attendanceFilter.includes(attended as AttendanceStatus);
+
+    // Optimistic update - remove from list if it no longer matches filter
+    setEvents((prev) => {
+      if (hasActiveFilter && !matchesFilter) {
+        // Remove the event since it no longer matches the filter
+        return prev.filter((event) => event.id !== eventId);
+      }
+      // Otherwise just update the attendance value
+      return prev.map((event) =>
         event.id === eventId ? { ...event, attended } : event
-      )
-    );
+      );
+    });
 
     try {
       const response = await fetch("/api/events", {
