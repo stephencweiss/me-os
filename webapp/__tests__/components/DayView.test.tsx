@@ -21,6 +21,7 @@ const mockEvents = [
     color_name: "Flamingo",
     color_meaning: "Meetings",
     attended: "unknown",
+    is_all_day: 0,
   },
   {
     id: "event2:2026-03-03",
@@ -35,6 +36,7 @@ const mockEvents = [
     color_name: "Grape",
     color_meaning: "Project Work",
     attended: "attended",
+    is_all_day: 0,
   },
 ];
 
@@ -289,5 +291,45 @@ describe("DayView", () => {
     // Both events are from "Work" calendar
     const workLabels = screen.getAllByText("Work");
     expect(workLabels).toHaveLength(2);
+  });
+
+  it("displays All Day pill for all-day events", async () => {
+    const allDayEvent = {
+      id: "allday1:2026-03-03",
+      date: "2026-03-03",
+      summary: "Company Holiday",
+      calendar_name: "Work",
+      account: "work@example.com",
+      start_time: "2026-03-03T06:00:00.000Z",
+      end_time: "2026-03-04T06:00:00.000Z",
+      duration_minutes: 0,
+      color_id: "5",
+      color_name: "Banana",
+      color_meaning: "Household / Pets",
+      attended: "unknown",
+      is_all_day: 1,
+    };
+
+    mockFetch.mockImplementation(
+      createMockFetch({
+        ok: true,
+        json: async () => ({
+          events: [allDayEvent],
+          count: 1,
+          dateRange: { start: "2026-03-03", end: "2026-03-03" },
+        }),
+      })
+    );
+
+    render(<DayView />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Company Holiday")).toBeInTheDocument();
+    });
+
+    // Should show "All Day" pill instead of time
+    expect(screen.getByText("All Day")).toBeInTheDocument();
+    // Should NOT show time range like "1:00 AM - 2:00 AM" for all-day events
+    expect(screen.queryByText(/-/)).not.toBeInTheDocument();
   });
 });

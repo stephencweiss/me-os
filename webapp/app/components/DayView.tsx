@@ -19,6 +19,7 @@ interface Event {
   color_name: string;
   color_meaning: string;
   attended: string;
+  is_all_day: number;
 }
 
 interface EventsResponse {
@@ -360,14 +361,22 @@ export default function DayView() {
                             {event.summary}
                           </h3>
                           <div className="flex items-center gap-2 mt-1 text-sm text-gray-600 dark:text-gray-400">
-                            <span>
-                              {formatTime(event.start_time)} -{" "}
-                              {formatTime(event.end_time)}
-                            </span>
-                            <span className="text-gray-400 dark:text-gray-600">
-                              |
-                            </span>
-                            <span>{formatDuration(event.duration_minutes)}</span>
+                            {event.is_all_day ? (
+                              <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">
+                                All Day
+                              </span>
+                            ) : (
+                              <>
+                                <span>
+                                  {formatTime(event.start_time)} -{" "}
+                                  {formatTime(event.end_time)}
+                                </span>
+                                <span className="text-gray-400 dark:text-gray-600">
+                                  |
+                                </span>
+                                <span>{formatDuration(event.duration_minutes)}</span>
+                              </>
+                            )}
                           </div>
                           <p className="text-sm text-gray-500 dark:text-gray-500 mt-1 truncate">
                             {event.calendar_name}
