@@ -91,6 +91,7 @@ export async function getEvents(
   options?: {
     calendars?: string[];
     accounts?: string[];
+    attended?: string[];
   }
 ): Promise<DbEvent[]> {
   const db = getDb();
@@ -111,6 +112,12 @@ export async function getEvents(
     const placeholders = options.accounts.map(() => "?").join(", ");
     query += ` AND account IN (${placeholders})`;
     params.push(...options.accounts);
+  }
+
+  if (options?.attended && options.attended.length > 0) {
+    const placeholders = options.attended.map(() => "?").join(", ");
+    query += ` AND attended IN (${placeholders})`;
+    params.push(...options.attended);
   }
 
   query += " ORDER BY date DESC, start_time ASC";
@@ -189,6 +196,73 @@ export async function updateAttendance(
     sql: `UPDATE events SET attended = ?, last_seen = ? WHERE id = ?`,
     args: [attended, new Date().toISOString(), eventId],
   });
+}
+
+/**
+ * Color definitions mapping colorId to name and meaning
+ */
+export const COLOR_DEFINITIONS: Record<string, { name: string; meaning: string }> = {
+  "1": { name: "Lavender", meaning: "1:1s / People" },
+  "2": { name: "Sage", meaning: "Studying / Learning" },
+  "3": { name: "Grape", meaning: "Project Work" },
+  "4": { name: "Flamingo", meaning: "Meetings" },
+  "5": { name: "Banana", meaning: "Household / Pets" },
+  "6": { name: "Tangerine", meaning: "Family Time" },
+  "7": { name: "Peacock", meaning: "Personal Projects" },
+  "8": { name: "Graphite", meaning: "Routines / Logistics" },
+  "9": { name: "Blueberry", meaning: "Fitness" },
+  "10": { name: "Basil", meaning: "Social" },
+  "11": { name: "Tomato", meaning: "Urgent / Blocked" },
+};
+
+/**
+ * Get a single event by ID
+ */
+export async function getEventById(eventId: string): Promise<DbEvent | null> {
+  const db = getDb();
+
+  const result = await db.execute({
+    sql: `SELECT * FROM events WHERE id = ?`,
+    args: [eventId],
+  });
+
+  if (result.rows.length === 0) {
+    return null;
+  }
+
+  return result.rows[0] as unknown as DbEvent;
+}
+
+/**
+ * Update event color
+ */
+export async function updateEventColor(
+  eventId: string,
+  colorId: string
+): Promise<DbEvent | null> {
+  const db = getDb();
+  const colorDef = COLOR_DEFINITIONS[colorId];
+
+  if (!colorDef) {
+    throw new Error(`Invalid color ID: ${colorId}`);
+  }
+
+  await db.execute({
+    sql: `UPDATE events SET color_id = ?, color_name = ?, color_meaning = ?, last_seen = ? WHERE id = ?`,
+    args: [colorId, colorDef.name, colorDef.meaning, new Date().toISOString(), eventId],
+  });
+
+  // Return updated event
+  const result = await db.execute({
+    sql: `SELECT * FROM events WHERE id = ?`,
+    args: [eventId],
+  });
+
+  if (result.rows.length === 0) {
+    return null;
+  }
+
+  return result.rows[0] as unknown as DbEvent;
 }
 
 /**

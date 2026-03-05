@@ -9,6 +9,7 @@ import { getEvents, updateAttendance } from "@/lib/db";
  *   - end: End date (YYYY-MM-DD) - required
  *   - calendars: Comma-separated calendar names (optional)
  *   - accounts: Comma-separated account names (optional)
+ *   - attended: Comma-separated attendance statuses (optional): attended, skipped, unknown
  */
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
@@ -17,6 +18,7 @@ export async function GET(request: NextRequest) {
   const end = searchParams.get("end");
   const calendarsParam = searchParams.get("calendars");
   const accountsParam = searchParams.get("accounts");
+  const attendedParam = searchParams.get("attended");
 
   if (!start || !end) {
     return NextResponse.json(
@@ -35,7 +37,7 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const options: { calendars?: string[]; accounts?: string[] } = {};
+    const options: { calendars?: string[]; accounts?: string[]; attended?: string[] } = {};
 
     if (calendarsParam) {
       options.calendars = calendarsParam.split(",").map((c) => c.trim());
@@ -43,6 +45,13 @@ export async function GET(request: NextRequest) {
 
     if (accountsParam) {
       options.accounts = accountsParam.split(",").map((a) => a.trim());
+    }
+
+    if (attendedParam) {
+      const validStatuses = ["attended", "skipped", "unknown"];
+      const statuses = attendedParam.split(",").map((s) => s.trim());
+      // Filter to only valid statuses
+      options.attended = statuses.filter((s) => validStatuses.includes(s));
     }
 
     const events = await getEvents(start, end, options);
