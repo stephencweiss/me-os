@@ -128,6 +128,25 @@ export interface StoredWeeklyGoal {
 }
 
 /**
+ * Non-goal status values (stored as integers in database)
+ */
+export const NON_GOAL_STATUS = {
+  ACTIVE: 0,
+  COMPLETED: 1,
+  MISSED: 2,
+  ABANDONED: 3,
+} as const;
+
+export type NonGoalStatus = (typeof NON_GOAL_STATUS)[keyof typeof NON_GOAL_STATUS];
+
+export const NON_GOAL_STATUS_LABELS: Record<NonGoalStatus, string> = {
+  [NON_GOAL_STATUS.ACTIVE]: "Active",
+  [NON_GOAL_STATUS.COMPLETED]: "Completed",
+  [NON_GOAL_STATUS.MISSED]: "Missed",
+  [NON_GOAL_STATUS.ABANDONED]: "Abandoned",
+};
+
+/**
  * Non-goal (anti-pattern) record - week-scoped
  */
 export interface StoredNonGoal {
@@ -138,6 +157,7 @@ export interface StoredNonGoal {
   color_id: string | null;
   reason: string | null;
   active: number; // 0 or 1
+  status: NonGoalStatus; // 0=active, 1=completed, 2=missed, 3=abandoned
   created_at: string;
 }
 
@@ -313,11 +333,13 @@ export async function initDatabase(dbPath?: string): Promise<Client> {
       color_id TEXT,
       reason TEXT,
       active INTEGER NOT NULL DEFAULT 1,
+      status INTEGER NOT NULL DEFAULT 0,
       created_at TEXT NOT NULL
     );
 
     CREATE INDEX IF NOT EXISTS idx_non_goals_week ON non_goals(week_id);
     CREATE INDEX IF NOT EXISTS idx_non_goals_active ON non_goals(active);
+    CREATE INDEX IF NOT EXISTS idx_non_goals_status ON non_goals(status);
 
     -- Goal-to-event matching for progress tracking
     CREATE TABLE IF NOT EXISTS goal_progress (
@@ -1110,6 +1132,7 @@ function rowToStoredNonGoal(row: Record<string, unknown>): StoredNonGoal {
     color_id: row.color_id as string | null,
     reason: row.reason as string | null,
     active: row.active as number,
+    status: (row.status as NonGoalStatus) ?? NON_GOAL_STATUS.ACTIVE,
     created_at: row.created_at as string,
   };
 }
@@ -1142,7 +1165,7 @@ export async function getNonGoalById(nonGoalId: string): Promise<StoredNonGoal |
  * Create a new non-goal
  */
 export async function createNonGoal(
-  nonGoal: Omit<StoredNonGoal, "id" | "created_at">
+  nonGoal: Omit<StoredNonGoal, "id" | "created_at" | "status"> & { status?: NonGoalStatus }
 ): Promise<StoredNonGoal> {
   const database = await getDatabase();
   const now = new Date().toISOString();
@@ -1152,8 +1175,8 @@ export async function createNonGoal(
 
   await database.execute({
     sql: `
-      INSERT INTO non_goals (id, week_id, title, pattern, color_id, reason, active, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO non_goals (id, week_id, title, pattern, color_id, reason, active, status, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `,
     args: [
       id,
@@ -1163,6 +1186,7 @@ export async function createNonGoal(
       nonGoal.color_id,
       nonGoal.reason,
       nonGoal.active,
+      nonGoal.status ?? NON_GOAL_STATUS.ACTIVE,
       now,
     ],
   });
@@ -1176,15 +1200,15 @@ export async function createNonGoal(
 export async function updateNonGoal(
   nonGoalId: string,
   updates: Partial<Omit<StoredNonGoal, "id" | "week_id" | "created_at">>
-): Promise<void> {
+): Promise<StoredNonGoal | null> {
   const database = await getDatabase();
   const existing = await getNonGoalById(nonGoalId);
-  if (!existing) return;
+  if (!existing) return null;
 
   await database.execute({
     sql: `
       UPDATE non_goals SET
-        title = ?, pattern = ?, color_id = ?, reason = ?, active = ?
+        title = ?, pattern = ?, color_id = ?, reason = ?, active = ?, status = ?
       WHERE id = ?
     `,
     args: [
@@ -1193,9 +1217,22 @@ export async function updateNonGoal(
       updates.color_id ?? existing.color_id,
       updates.reason ?? existing.reason,
       updates.active ?? existing.active,
+      updates.status ?? existing.status,
       nonGoalId,
     ],
   });
+
+  return getNonGoalById(nonGoalId);
+}
+
+/**
+ * Update non-goal status
+ */
+export async function updateNonGoalStatus(
+  nonGoalId: string,
+  status: NonGoalStatus
+): Promise<StoredNonGoal | null> {
+  return updateNonGoal(nonGoalId, { status });
 }
 
 /**

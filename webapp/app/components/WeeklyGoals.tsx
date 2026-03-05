@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useCallback } from "react";
 import GoalForm from "./GoalForm";
+import NonGoalForm from "./NonGoalForm";
+import Button, { PlusIcon } from "./Button";
 
 // Color mapping from colorId to hex color (matching Google Calendar colors)
 const COLOR_MAP: Record<string, string> = {
@@ -36,6 +38,23 @@ interface Goal {
   totalMinutesLogged: number;
 }
 
+// Non-goal status constants
+const NON_GOAL_STATUS = {
+  ACTIVE: 0,
+  COMPLETED: 1,
+  MISSED: 2,
+  ABANDONED: 3,
+} as const;
+
+type NonGoalStatus = (typeof NON_GOAL_STATUS)[keyof typeof NON_GOAL_STATUS];
+
+const NON_GOAL_STATUS_LABELS: Record<NonGoalStatus, string> = {
+  [NON_GOAL_STATUS.ACTIVE]: "Active",
+  [NON_GOAL_STATUS.COMPLETED]: "Completed",
+  [NON_GOAL_STATUS.MISSED]: "Missed",
+  [NON_GOAL_STATUS.ABANDONED]: "Abandoned",
+};
+
 interface NonGoal {
   id: string;
   week_id: string;
@@ -44,6 +63,7 @@ interface NonGoal {
   color_id: string | null;
   reason: string | null;
   active: number;
+  status: NonGoalStatus;
   created_at: string;
 }
 
@@ -159,6 +179,10 @@ export default function WeeklyGoals() {
   const [showForm, setShowForm] = useState(false);
   const [editingGoal, setEditingGoal] = useState<Goal | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Non-goal form state
+  const [showNonGoalForm, setShowNonGoalForm] = useState(false);
+  const [isSubmittingNonGoal, setIsSubmittingNonGoal] = useState(false);
 
   const weekRange = getWeekDateRange(weekId);
 
@@ -324,6 +348,41 @@ export default function WeeklyGoals() {
     }
   }
 
+  async function handleSaveNonGoal(data: {
+    title: string;
+    pattern: string | null;
+    reason: string | null;
+  }) {
+    setIsSubmittingNonGoal(true);
+
+    try {
+      const response = await fetch("/api/non-goals", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          weekId,
+          title: data.title,
+          pattern: data.pattern,
+          reason: data.reason,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to create anti-pattern");
+      }
+
+      const result = await response.json();
+      setNonGoals((prev) => [...prev, result.nonGoal]);
+      setShowNonGoalForm(false);
+    } catch (err) {
+      console.error("Error saving non-goal:", err);
+      alert(err instanceof Error ? err.message : "Failed to save anti-pattern");
+    } finally {
+      setIsSubmittingNonGoal(false);
+    }
+  }
+
   function navigateWeek(direction: number) {
     const match = weekId.match(/^(\d{4})-W(\d{2})$/);
     if (!match) return;
@@ -417,15 +476,13 @@ export default function WeeklyGoals() {
                 Today
               </button>
             )}
-            <button
+            <Button
               onClick={handleOpenCreateForm}
-              className="ml-4 px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors flex items-center gap-2"
+              icon={<PlusIcon />}
+              className="ml-4"
             >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
-              Create Goal
-            </button>
+              Add Goal
+            </Button>
           </div>
         </div>
 
@@ -509,15 +566,9 @@ export default function WeeklyGoals() {
             <p className="text-gray-500 dark:text-gray-400 mb-4">
               No goals for this week yet.
             </p>
-            <button
-              onClick={handleOpenCreateForm}
-              className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors inline-flex items-center gap-2"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
-              Create your first goal
-            </button>
+            <Button onClick={handleOpenCreateForm} icon={<PlusIcon />}>
+              Add your first weekly goal
+            </Button>
           </div>
         ) : (
           <div className="divide-y divide-gray-200 dark:divide-gray-700">
@@ -586,11 +637,24 @@ export default function WeeklyGoals() {
       </div>
 
       {/* Non-Goals Section */}
-      {nonGoals.length > 0 && (
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
-          <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-            <h3 className="font-medium text-gray-900 dark:text-white">Anti-Patterns to Avoid</h3>
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
+        <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+          <h3 className="font-medium text-gray-900 dark:text-white">Anti-Patterns to Avoid</h3>
+          <Button
+            onClick={() => setShowNonGoalForm(true)}
+            icon={<PlusIcon />}
+            size="sm"
+          >
+            Add Non-Goal
+          </Button>
+        </div>
+        {nonGoals.length === 0 ? (
+          <div className="p-6 text-center">
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              No anti-patterns defined yet. Add things you want to avoid this week.
+            </p>
           </div>
+        ) : (
           <div className="divide-y divide-gray-200 dark:divide-gray-700">
             {nonGoals.map((ng) => (
               <div key={ng.id} className="p-4">
@@ -598,14 +662,16 @@ export default function WeeklyGoals() {
                 {ng.reason && (
                   <div className="text-sm text-gray-500 dark:text-gray-400 mt-1">{ng.reason}</div>
                 )}
-                <div className="text-xs text-gray-400 dark:text-gray-500 mt-1 font-mono">
-                  Pattern: {ng.pattern}
-                </div>
+                {ng.pattern && (
+                  <div className="text-xs text-gray-400 dark:text-gray-500 mt-1 font-mono">
+                    Pattern: {ng.pattern}
+                  </div>
+                )}
               </div>
             ))}
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* Goal Form Modal */}
       {showForm && (
@@ -615,6 +681,16 @@ export default function WeeklyGoals() {
           onSave={handleSaveGoal}
           onCancel={handleCloseForm}
           isSubmitting={isSubmitting}
+        />
+      )}
+
+      {/* Non-Goal Form Modal */}
+      {showNonGoalForm && (
+        <NonGoalForm
+          weekId={weekId}
+          onSave={handleSaveNonGoal}
+          onCancel={() => setShowNonGoalForm(false)}
+          isSubmitting={isSubmittingNonGoal}
         />
       )}
     </div>

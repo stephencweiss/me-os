@@ -94,54 +94,25 @@ export default function GoalForm({
         {/* Header */}
         <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-            {editingGoal ? "Edit Goal" : "Create Goal"}
+            {editingGoal ? "Edit Goal" : "Create Weekly Goal"}
           </h2>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{weekId}</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+            {editingGoal ? (
+              weekId
+            ) : (
+              <>
+                <span className="font-medium">{weekId}</span>
+                <span className="mx-1">·</span>
+                <span>Set a goal to accomplish by the end of this week</span>
+              </>
+            )}
+          </p>
         </div>
 
         <form onSubmit={handleSubmit}>
           <div className="px-6 py-4 space-y-4">
-            {/* Title */}
-            <div>
-              <label
-                htmlFor="title"
-                className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
-              >
-                Title <span className="text-red-500">*</span>
-              </label>
-              <input
-                ref={titleRef}
-                type="text"
-                id="title"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="What do you want to accomplish?"
-                required
-              />
-            </div>
-
-            {/* Notes */}
-            <div>
-              <label
-                htmlFor="notes"
-                className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
-              >
-                Notes
-              </label>
-              <textarea
-                id="notes"
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                rows={3}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
-                placeholder="Additional details..."
-              />
-            </div>
-
-            {/* Goal Type and Estimated Time Row */}
-            <div className="grid grid-cols-2 gap-4">
-              {/* Goal Type */}
+            {/* Goal Type - First field */}
+            <div className={goalType === "time" ? "grid grid-cols-2 gap-4" : ""}>
               <div>
                 <label
                   htmlFor="goalType"
@@ -159,43 +130,94 @@ export default function GoalForm({
                   <option value="time">Time-based</option>
                   <option value="habit">Habit</option>
                 </select>
+                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  {goalType === "outcome" && "e.g., \"Finish the API spec\", \"Ship feature X\""}
+                  {goalType === "time" && "e.g., \"4 hours of deep work\", \"2h reading\""}
+                  {goalType === "habit" && "e.g., \"Write 4x this week\", \"Exercise daily\""}
+                </p>
               </div>
 
-              {/* Estimated Time */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Estimated Time
-                </label>
-                <div className="flex gap-2">
-                  <div className="relative flex-1">
-                    <input
-                      type="number"
-                      min="0"
-                      value={hours}
-                      onChange={(e) => setHours(Math.max(0, parseInt(e.target.value) || 0))}
-                      className="w-full px-3 py-2 pr-8 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    />
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-gray-500 dark:text-gray-400">
-                      h
-                    </span>
-                  </div>
-                  <div className="relative flex-1">
-                    <input
-                      type="number"
-                      min="0"
-                      max="59"
-                      value={minutes}
-                      onChange={(e) =>
-                        setMinutes(Math.max(0, Math.min(59, parseInt(e.target.value) || 0)))
-                      }
-                      className="w-full px-3 py-2 pr-8 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    />
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-gray-500 dark:text-gray-400">
-                      m
-                    </span>
+              {/* Time Goal - only shown for time-based goals */}
+              {goalType === "time" && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Time Goal
+                  </label>
+                  <div className="flex gap-2">
+                    <div className="relative flex-1">
+                      <input
+                        type="number"
+                        min="0"
+                        value={hours}
+                        onChange={(e) => setHours(Math.max(0, parseInt(e.target.value) || 0))}
+                        className="w-full px-3 py-2 pr-8 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-gray-500 dark:text-gray-400">
+                        h
+                      </span>
+                    </div>
+                    <div className="relative flex-1">
+                      <input
+                        type="number"
+                        min="0"
+                        max="59"
+                        value={minutes}
+                        onChange={(e) =>
+                          setMinutes(Math.max(0, Math.min(59, parseInt(e.target.value) || 0)))
+                        }
+                        className="w-full px-3 py-2 pr-8 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-gray-500 dark:text-gray-400">
+                        m
+                      </span>
+                    </div>
                   </div>
                 </div>
-              </div>
+              )}
+            </div>
+
+            {/* Title */}
+            <div>
+              <label
+                htmlFor="title"
+                className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
+              >
+                Title <span className="text-red-500">*</span>
+              </label>
+              <input
+                ref={titleRef}
+                type="text"
+                id="title"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder={
+                  goalType === "outcome"
+                    ? "What do you want to accomplish?"
+                    : goalType === "time"
+                      ? "What will you spend time on?"
+                      : "What habit will you build?"
+                }
+                required
+              />
+            </div>
+
+            {/* Notes */}
+            <div>
+              <label
+                htmlFor="notes"
+                className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
+              >
+                Notes
+              </label>
+              <textarea
+                id="notes"
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                rows={2}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                placeholder="Additional details..."
+              />
             </div>
 
             {/* Color Picker */}

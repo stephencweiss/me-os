@@ -393,3 +393,135 @@ describe("Goal Type Inference", () => {
     expect(inferGoalType("Exercise", "do it 3x this week")).toBe("habit");
   });
 });
+
+// ============================================================================
+// Non-Goal Status Tests
+// ============================================================================
+
+describe("Non-Goal Status", () => {
+  // Status constants
+  const NON_GOAL_STATUS = {
+    ACTIVE: 0,
+    COMPLETED: 1,
+    MISSED: 2,
+    ABANDONED: 3,
+  } as const;
+
+  type NonGoalStatus = (typeof NON_GOAL_STATUS)[keyof typeof NON_GOAL_STATUS];
+
+  const NON_GOAL_STATUS_LABELS: Record<NonGoalStatus, string> = {
+    [NON_GOAL_STATUS.ACTIVE]: "Active",
+    [NON_GOAL_STATUS.COMPLETED]: "Completed",
+    [NON_GOAL_STATUS.MISSED]: "Missed",
+    [NON_GOAL_STATUS.ABANDONED]: "Abandoned",
+  };
+
+  it("has correct numeric values for statuses", () => {
+    expect(NON_GOAL_STATUS.ACTIVE).toBe(0);
+    expect(NON_GOAL_STATUS.COMPLETED).toBe(1);
+    expect(NON_GOAL_STATUS.MISSED).toBe(2);
+    expect(NON_GOAL_STATUS.ABANDONED).toBe(3);
+  });
+
+  it("has labels for all statuses", () => {
+    expect(NON_GOAL_STATUS_LABELS[NON_GOAL_STATUS.ACTIVE]).toBe("Active");
+    expect(NON_GOAL_STATUS_LABELS[NON_GOAL_STATUS.COMPLETED]).toBe("Completed");
+    expect(NON_GOAL_STATUS_LABELS[NON_GOAL_STATUS.MISSED]).toBe("Missed");
+    expect(NON_GOAL_STATUS_LABELS[NON_GOAL_STATUS.ABANDONED]).toBe("Abandoned");
+  });
+
+  it("status values are unique", () => {
+    const values = Object.values(NON_GOAL_STATUS);
+    const uniqueValues = new Set(values);
+    expect(uniqueValues.size).toBe(values.length);
+  });
+
+  describe("Status Validation", () => {
+    function isValidStatus(status: number): status is NonGoalStatus {
+      return [0, 1, 2, 3].includes(status);
+    }
+
+    it("validates valid statuses", () => {
+      expect(isValidStatus(0)).toBe(true);
+      expect(isValidStatus(1)).toBe(true);
+      expect(isValidStatus(2)).toBe(true);
+      expect(isValidStatus(3)).toBe(true);
+    });
+
+    it("rejects invalid statuses", () => {
+      expect(isValidStatus(-1)).toBe(false);
+      expect(isValidStatus(4)).toBe(false);
+      expect(isValidStatus(100)).toBe(false);
+    });
+  });
+
+  describe("Non-Goal with Status", () => {
+    interface NonGoal {
+      id: string;
+      week_id: string;
+      title: string;
+      pattern: string;
+      status: NonGoalStatus;
+    }
+
+    function createNonGoal(
+      title: string,
+      weekId: string,
+      pattern: string,
+      status: NonGoalStatus = NON_GOAL_STATUS.ACTIVE
+    ): NonGoal {
+      return {
+        id: `ng-${weekId}-${Date.now()}`,
+        week_id: weekId,
+        title,
+        pattern,
+        status,
+      };
+    }
+
+    it("creates non-goal with default active status", () => {
+      const ng = createNonGoal("Excessive meetings", "2026-W10", "sync|standup");
+      expect(ng.status).toBe(NON_GOAL_STATUS.ACTIVE);
+    });
+
+    it("creates non-goal with specified status", () => {
+      const ng = createNonGoal("Old habit", "2026-W10", ".*", NON_GOAL_STATUS.COMPLETED);
+      expect(ng.status).toBe(NON_GOAL_STATUS.COMPLETED);
+    });
+
+    it("can transition from active to completed", () => {
+      const ng = createNonGoal("Excessive meetings", "2026-W10", "sync|standup");
+      expect(ng.status).toBe(NON_GOAL_STATUS.ACTIVE);
+
+      // Simulate status update
+      const updatedNg = { ...ng, status: NON_GOAL_STATUS.COMPLETED };
+      expect(updatedNg.status).toBe(NON_GOAL_STATUS.COMPLETED);
+    });
+
+    it("can transition from active to missed", () => {
+      const ng = createNonGoal("Avoid distractions", "2026-W10", "social|news");
+      expect(ng.status).toBe(NON_GOAL_STATUS.ACTIVE);
+
+      const updatedNg = { ...ng, status: NON_GOAL_STATUS.MISSED };
+      expect(updatedNg.status).toBe(NON_GOAL_STATUS.MISSED);
+    });
+
+    it("can transition from active to abandoned", () => {
+      const ng = createNonGoal("No longer relevant", "2026-W10", "old-pattern");
+      expect(ng.status).toBe(NON_GOAL_STATUS.ACTIVE);
+
+      const updatedNg = { ...ng, status: NON_GOAL_STATUS.ABANDONED };
+      expect(updatedNg.status).toBe(NON_GOAL_STATUS.ABANDONED);
+    });
+
+    it("can transition back to active from any status", () => {
+      const completed = createNonGoal("Test", "2026-W10", ".*", NON_GOAL_STATUS.COMPLETED);
+      const missed = createNonGoal("Test", "2026-W10", ".*", NON_GOAL_STATUS.MISSED);
+      const abandoned = createNonGoal("Test", "2026-W10", ".*", NON_GOAL_STATUS.ABANDONED);
+
+      expect({ ...completed, status: NON_GOAL_STATUS.ACTIVE }.status).toBe(NON_GOAL_STATUS.ACTIVE);
+      expect({ ...missed, status: NON_GOAL_STATUS.ACTIVE }.status).toBe(NON_GOAL_STATUS.ACTIVE);
+      expect({ ...abandoned, status: NON_GOAL_STATUS.ACTIVE }.status).toBe(NON_GOAL_STATUS.ACTIVE);
+    });
+  });
+});

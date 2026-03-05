@@ -441,6 +441,25 @@ export interface DbWeeklyGoal {
 }
 
 /**
+ * Non-goal status values (stored as integers in database)
+ */
+export const NON_GOAL_STATUS = {
+  ACTIVE: 0,
+  COMPLETED: 1,
+  MISSED: 2,
+  ABANDONED: 3,
+} as const;
+
+export type NonGoalStatus = (typeof NON_GOAL_STATUS)[keyof typeof NON_GOAL_STATUS];
+
+export const NON_GOAL_STATUS_LABELS: Record<NonGoalStatus, string> = {
+  [NON_GOAL_STATUS.ACTIVE]: "Active",
+  [NON_GOAL_STATUS.COMPLETED]: "Completed",
+  [NON_GOAL_STATUS.MISSED]: "Missed",
+  [NON_GOAL_STATUS.ABANDONED]: "Abandoned",
+};
+
+/**
  * Non-goal from database
  */
 export interface DbNonGoal {
@@ -451,6 +470,7 @@ export interface DbNonGoal {
   color_id: string | null;
   reason: string | null;
   active: number;
+  status: NonGoalStatus;
   created_at: string;
 }
 
@@ -764,8 +784,8 @@ export async function createNonGoal(params: CreateNonGoalParams): Promise<DbNonG
 
   await db.execute({
     sql: `
-      INSERT INTO non_goals (id, week_id, title, pattern, color_id, reason, active, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO non_goals (id, week_id, title, pattern, color_id, reason, active, status, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `,
     args: [
       id,
@@ -775,6 +795,7 @@ export async function createNonGoal(params: CreateNonGoalParams): Promise<DbNonG
       params.colorId ?? null,
       params.reason ?? null,
       1,
+      NON_GOAL_STATUS.ACTIVE,
       now,
     ],
   });
@@ -799,6 +820,23 @@ export async function getNonGoalById(nonGoalId: string): Promise<DbNonGoal | nul
 
   if (result.rows.length === 0) return null;
   return result.rows[0] as unknown as DbNonGoal;
+}
+
+/**
+ * Update non-goal status
+ */
+export async function updateNonGoalStatus(
+  nonGoalId: string,
+  status: NonGoalStatus
+): Promise<DbNonGoal | null> {
+  const db = getDb();
+
+  await db.execute({
+    sql: `UPDATE non_goals SET status = ? WHERE id = ?`,
+    args: [status, nonGoalId],
+  });
+
+  return getNonGoalById(nonGoalId);
 }
 
 // ============================================================================

@@ -125,6 +125,89 @@ Load `config/colors.json` which is the source of truth.
 - Follow the Planning Workflow (above) for all non-trivial changes
 - `.claude/settings.local.json` is Claude runtime configuration and permissions. It is not the Codex skill registration mechanism.
 
+### Testing Requirements
+
+Tests are critical for maintaining code quality. When making changes:
+
+1. **Write tests for new functionality** - All new features, API endpoints, and database functions should have corresponding tests
+2. **Update tests when modifying existing code** - If you change behavior, update or add tests to cover the changes
+3. **Run tests before committing** - Use `npm run test:run` (or `npx vitest run`) to verify all tests pass
+4. **Test file locations**:
+   - Unit/integration tests: `tests/` directory
+   - Test naming: `<feature>.test.ts` (e.g., `goal-creation.test.ts`)
+
+Example test coverage expectations:
+- Database functions: Test CRUD operations, edge cases, validation
+- API routes: Test all HTTP methods, error handling, validation responses
+- UI components: Test user interactions and state changes when feasible
+
+### UI Component Standards
+
+Maintain a consistent user experience by reusing existing components:
+
+1. **Check for existing components first** - Before creating new UI elements, check `webapp/app/components/` for existing solutions
+2. **Use standard components** - Prefer shared components over inline styles:
+   - `Button.tsx` - Standard button with variants (primary, secondary, ghost, danger) and sizes (sm, md, lg)
+   - More components to be added as the design system grows
+3. **Extend existing components** - If a component doesn't quite fit, extend it with new variants/props rather than creating a duplicate
+4. **Consistent styling patterns**:
+   - Use Tailwind CSS classes
+   - Follow existing color conventions (e.g., blue for primary actions)
+   - Support dark mode (`dark:` variants)
+
+When creating a new UI element:
+- First, search existing components to see if one already exists
+- If similar functionality exists, consider refactoring to make it reusable
+- If creating new, follow the patterns established in existing components
+
+## Worktree Development
+
+Use git worktrees for isolated feature development:
+
+### Creating a Worktree
+```bash
+./scripts/worktree-start.sh <feature-name>
+cd ../worktrees/me-os/<feature-name>
+```
+
+### Setting Up Local Testing
+
+Worktrees share git history but **not** gitignored files. Before running the app locally, copy sensitive configs from the main repo:
+
+```bash
+# From the worktree directory
+MAIN_REPO="/Users/sweiss/code/me-os"
+
+# Copy database config
+cp "$MAIN_REPO/config/turso.json" ./config/
+
+# Copy calendar credentials
+cp "$MAIN_REPO/config/calendars.json" ./config/
+
+# Copy sensitive directory (Google OAuth tokens, etc.)
+cp -r "$MAIN_REPO/config/sensitive" ./config/
+
+# Copy webapp environment variables
+cp "$MAIN_REPO/webapp/.env.local" ./webapp/
+```
+
+### Required Config Files
+
+| File | Purpose |
+|------|---------|
+| `config/turso.json` | Turso database credentials |
+| `config/calendars.json` | Google Calendar account configs |
+| `config/sensitive/` | OAuth tokens and credentials |
+| `webapp/.env.local` | Next.js environment variables |
+
+### Running the Webapp
+```bash
+cd webapp
+npm install
+npm run dev
+# Opens at http://localhost:3001
+```
+
 ## Getting Started
 
 1. Set up Google Calendar API credentials
