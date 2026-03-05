@@ -124,14 +124,21 @@ describe("formatDuration", () => {
 });
 
 describe("formatDate", () => {
-  it("formats date to YYYY-MM-DD", () => {
-    const date = new Date("2026-03-04T12:00:00.000Z");
+  it("formats date to YYYY-MM-DD in local timezone", () => {
+    // Use local date constructor to avoid timezone issues
+    const date = new Date(2026, 2, 4); // March 4, 2026 (month is 0-indexed)
     expect(formatDate(date)).toBe("2026-03-04");
   });
 
-  it("handles single digit months and days", () => {
-    const date = new Date("2026-01-05T12:00:00.000Z");
+  it("handles single digit months and days with zero padding", () => {
+    const date = new Date(2026, 0, 5); // January 5, 2026
     expect(formatDate(date)).toBe("2026-01-05");
+  });
+
+  it("uses local timezone, not UTC", () => {
+    // Create a date at 11pm local time - should still be the same local date
+    const date = new Date(2026, 2, 4, 23, 0, 0); // March 4, 2026 at 11pm local
+    expect(formatDate(date)).toBe("2026-03-04");
   });
 });
 
