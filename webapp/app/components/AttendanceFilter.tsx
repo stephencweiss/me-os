@@ -5,6 +5,8 @@ export type AttendanceStatus = "attended" | "skipped" | "unknown";
 interface AttendanceFilterProps {
   selected: AttendanceStatus[];
   onChange: (selected: AttendanceStatus[]) => void;
+  uncategorizedOnly?: boolean;
+  onUncategorizedChange?: (uncategorizedOnly: boolean) => void;
 }
 
 const FILTER_OPTIONS: { value: AttendanceStatus; label: string; activeClass: string }[] = [
@@ -25,7 +27,12 @@ const FILTER_OPTIONS: { value: AttendanceStatus; label: string; activeClass: str
   },
 ];
 
-export default function AttendanceFilter({ selected, onChange }: AttendanceFilterProps) {
+export default function AttendanceFilter({
+  selected,
+  onChange,
+  uncategorizedOnly = false,
+  onUncategorizedChange,
+}: AttendanceFilterProps) {
   const toggleFilter = (status: AttendanceStatus) => {
     if (selected.includes(status)) {
       // Remove if already selected (but keep at least one? or allow empty?)
@@ -39,7 +46,7 @@ export default function AttendanceFilter({ selected, onChange }: AttendanceFilte
   const allSelected = selected.length === 0 || selected.length === 3;
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center gap-2 flex-wrap">
       <span className="text-sm text-gray-500 dark:text-gray-400 mr-1">Filter:</span>
 
       {/* All button */}
@@ -70,6 +77,23 @@ export default function AttendanceFilter({ selected, onChange }: AttendanceFilte
           </button>
         );
       })}
+
+      {/* Uncategorized toggle - only show if callback provided */}
+      {onUncategorizedChange && (
+        <>
+          <span className="text-gray-300 dark:text-gray-600 mx-1">|</span>
+          <button
+            onClick={() => onUncategorizedChange(!uncategorizedOnly)}
+            className={`px-3 py-1.5 text-sm font-medium rounded-lg border transition-colors ${
+              uncategorizedOnly
+                ? "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400 border-amber-300 dark:border-amber-700"
+                : "bg-white text-gray-600 dark:bg-gray-800 dark:text-gray-400 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700"
+            }`}
+          >
+            Uncategorized
+          </button>
+        </>
+      )}
     </div>
   );
 }

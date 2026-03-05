@@ -33,8 +33,12 @@ const COLOR_MAP: Record<string, string> = {
   "9": "#3f51b5",
   "10": "#0b8043",
   "11": "#d50000",
-  default: "#9e9e9e",
+  default: "#f59e0b", // Amber for uncategorized
 };
+
+function isUncategorized(colorId: string): boolean {
+  return colorId === "default" || colorId === "";
+}
 
 function formatTime(time: string): string {
   // time is stored as ISO timestamp (e.g., "2026-03-02T15:00:00.000Z")
@@ -144,15 +148,23 @@ export default function EventList({
                   {formatDateLabel(date)}
                 </h4>
                 <div className="space-y-2">
-                  {eventsByDate[date].map((event) => (
+                  {eventsByDate[date].map((event) => {
+                    const uncategorized = isUncategorized(event.color_id);
+                    return (
                     <div
                       key={event.id}
-                      className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3"
+                      className={`rounded-lg p-3 ${
+                        uncategorized
+                          ? "bg-amber-50 dark:bg-amber-900/20 ring-1 ring-amber-300 dark:ring-amber-700"
+                          : "bg-gray-50 dark:bg-gray-700/50"
+                      }`}
                     >
                       <div className="flex items-start gap-3">
                         {/* Color indicator */}
                         <div
-                          className="w-1 h-12 rounded-full flex-shrink-0 mt-1"
+                          className={`h-12 rounded-full flex-shrink-0 mt-1 ${
+                            uncategorized ? "w-1.5" : "w-1"
+                          }`}
                           style={{
                             backgroundColor:
                               COLOR_MAP[event.color_id] || COLOR_MAP.default,
@@ -199,7 +211,7 @@ export default function EventList({
                         </div>
                       </div>
                     </div>
-                  ))}
+                  )})}
                 </div>
               </div>
             ))}

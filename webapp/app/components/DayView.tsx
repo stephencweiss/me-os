@@ -43,8 +43,12 @@ const COLOR_MAP: Record<string, string> = {
   "9": "#3f51b5", // Blueberry
   "10": "#0b8043", // Basil
   "11": "#d50000", // Tomato
-  default: "#9e9e9e",
+  default: "#f59e0b", // Amber for uncategorized
 };
+
+function isUncategorized(colorId: string): boolean {
+  return colorId === "default" || colorId === "" || !colorId;
+}
 
 export default function DayView() {
   const [events, setEvents] = useState<Event[]>([]);
@@ -54,6 +58,7 @@ export default function DayView() {
   const [accounts, setAccounts] = useState<string[]>([]);
   const [accountFilter, setAccountFilter] = useState<string[]>([]);
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  const [uncategorizedOnly, setUncategorizedOnly] = useState(false);
 
   const selectedDateStr = formatDate(selectedDate);
 
@@ -93,6 +98,11 @@ export default function DayView() {
         params.set("accounts", accountFilter.join(","));
       }
 
+      // Add uncategorized filter if enabled
+      if (uncategorizedOnly) {
+        params.set("uncategorized", "true");
+      }
+
       const response = await fetch(`/api/events?${params.toString()}`);
 
       if (!response.ok) {
@@ -112,7 +122,7 @@ export default function DayView() {
     } finally {
       setLoading(false);
     }
-  }, [selectedDateStr, attendanceFilter, accountFilter]);
+  }, [selectedDateStr, attendanceFilter, accountFilter, uncategorizedOnly]);
 
   useEffect(() => {
     fetchEvents();
@@ -272,6 +282,8 @@ export default function DayView() {
           <AttendanceFilter
             selected={attendanceFilter}
             onChange={setAttendanceFilter}
+            uncategorizedOnly={uncategorizedOnly}
+            onUncategorizedChange={setUncategorizedOnly}
           />
           <AccountFilter
             accounts={accounts}
@@ -306,8 +318,17 @@ export default function DayView() {
                 </div>
               </div>
             ) : (
-              events.map((event) => (
-                <div key={event.id} className="p-4 hover:bg-gray-50 dark:hover:bg-gray-700/50">
+              events.map((event) => {
+                const uncategorized = isUncategorized(event.color_id);
+                return (
+                <div
+                  key={event.id}
+                  className={`p-4 ${
+                    uncategorized
+                      ? "bg-amber-50 dark:bg-amber-900/20 border-l-4 border-amber-400 dark:border-amber-600"
+                      : "hover:bg-gray-50 dark:hover:bg-gray-700/50"
+                  }`}
+                >
                   <div className="flex items-start gap-4">
                     {/* Color picker */}
                     <ColorPicker
@@ -367,7 +388,7 @@ export default function DayView() {
                     </div>
                   </div>
                 </div>
-              ))
+              )})
             )}
           </div>
         </div>
