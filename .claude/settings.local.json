@@ -1,50 +1,53 @@
 {
-  "permissions": {
-    "allow": [
-      "Bash(mkdir:*)",
-      "Bash(npm run build:*)",
-      "Bash(npm run auth:list:*)",
-      "Bash(npm run auth:*)",
-      "Bash(cat:*)",
-      "Bash(node --loader ts-node/esm:*)",
-      "Bash(npm test:*)",
-      "Bash(npx vitest:*)",
-      "Bash(npx tsc:*)",
-      "Bash(npm run report:today:*)",
-      "Bash(npm run sync:*)",
-      "Bash(turso --version:*)",
-      "Bash(npm install:*)",
-      "Bash(turso db shell:*)",
-      "Bash(npx:*)",
-      "Bash(curl:*)",
-      "mcp__google-calendar__get_week_view",
-      "mcp__google-calendar__search_events",
-      "mcp__google-calendar__update_event_color",
-      "mcp__google-calendar__list_calendars",
-      "mcp__google-calendar__get_color_definitions",
-      "mcp__google-calendar__decline_event",
-      "mcp__google-calendar__get_events",
-      "mcp__google-calendar__get_today",
-      "mcp__google-calendar__create_event",
-      "Skill(time-report)",
-      "Skill(calendar-manager)",
-      "Skill(calendar)",
-      "Skill(calendar-optimizer)",
-      "WebFetch(domain:developers.google.com)",
-      "WebSearch",
-      "Bash(npm run dev:*)",
-      "Bash(open http://localhost:3001)",
-      "Bash(turso db list:*)",
-      "Bash(turso db show:*)",
-      "Bash(turso db tokens create:*)",
-      "Bash(./node_modules/.bin/tsc:*)"
-    ]
-  },
+  "disabledMcpjsonServers": [
+    "plaid-mcp"
+  ],
   "enableAllProjectMcpServers": true,
   "enabledMcpjsonServers": [
     "google-calendar"
   ],
-  "disabledMcpjsonServers": [
-    "plaid-mcp"
-  ]
+  "permissions": {
+    "allow": [
+      "Bash(./node_modules/.bin/tsc:*)",
+      "Bash(cat:*)",
+      "Bash(curl:*)",
+      "Bash(mkdir:*)",
+      "Bash(node --loader ts-node/esm:*)",
+      "Bash(npm install:*)",
+      "Bash(npm run auth:*)",
+      "Bash(npm run auth:list:*)",
+      "Bash(npm run build:*)",
+      "Bash(npm run dev)",
+      "Bash(npm run dev:*)",
+      "Bash(npm run report:today:*)",
+      "Bash(npm run sync:*)",
+      "Bash(npm run test:run:*)",
+      "Bash(npm test:*)",
+      "Bash(npx tsc:*)",
+      "Bash(npx vitest:*)",
+      "Bash(open http://localhost:3001)",
+      "Bash(timeout 30 npx tsx:*)",
+      "Bash(turso --version:*)",
+      "Bash(turso db list:*)",
+      "Bash(turso db shell:*)",
+      "Bash(turso db show:*)",
+      "Bash(turso db tokens create:*)",
+      "Bash(wc:*)",
+      "mcp__google-calendar__create_event",
+      "mcp__google-calendar__decline_event",
+      "mcp__google-calendar__get_color_definitions",
+      "mcp__google-calendar__get_events",
+      "mcp__google-calendar__get_today",
+      "mcp__google-calendar__get_week_view",
+      "mcp__google-calendar__list_calendars",
+      "mcp__google-calendar__search_events",
+      "mcp__google-calendar__update_event_color",
+      "Skill(calendar)",
+      "Skill(calendar-manager)",
+      "Skill(calendar-optimizer)",
+      "Skill(time-report)",
+      "WebFetch(domain:developers.google.com)",
+      "WebSearch"
+    ]
+  }
 }
