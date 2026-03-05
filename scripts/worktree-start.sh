@@ -48,6 +48,24 @@ else
     }
 fi
 
+# Copy config files that are gitignored but needed for local dev
+copy_if_exists() {
+    local src="$1"
+    local dest="$2"
+    if [ -e "$src" ]; then
+        cp -r "$src" "$dest"
+        echo "  Copied: $(basename "$src")"
+    fi
+}
+
+echo "Copying config files to worktree..."
+copy_if_exists "config/turso.json" "$TARGET_PATH/config/"
+copy_if_exists "config/calendars.json" "$TARGET_PATH/config/"
+copy_if_exists "config/sensitive" "$TARGET_PATH/config/"
+copy_if_exists "webapp/.env.local" "$TARGET_PATH/webapp/"
+copy_if_exists ".env.local" "$TARGET_PATH/"
+
+echo ""
 echo "Worktree ready at: $TARGET_PATH"
 echo "  cd $TARGET_PATH"
 
