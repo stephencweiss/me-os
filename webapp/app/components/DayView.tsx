@@ -6,6 +6,7 @@ import CategoryBreakdown from "./CategoryBreakdown";
 import ColorPicker from "./ColorPicker";
 import AccountFilter from "./AccountFilter";
 import DateNavigation from "./DateNavigation";
+import BulkActionBar from "./BulkActionBar";
 import { formatTime, formatDuration, formatDate } from "@/lib/format";
 
 interface Event {
@@ -248,6 +249,61 @@ export default function DayView() {
     }
   };
 
+  // Bulk color application
+  const handleBulkColorApply = async (colorId: string, syncToGoogle: boolean) => {
+    const colorDefs: Record<string, { name: string; meaning: string }> = {
+      "1": { name: "Lavender", meaning: "1:1s / People" },
+      "2": { name: "Sage", meaning: "Studying / Learning" },
+      "3": { name: "Grape", meaning: "Project Work" },
+      "4": { name: "Flamingo", meaning: "Meetings" },
+      "5": { name: "Banana", meaning: "Household / Pets" },
+      "6": { name: "Tangerine", meaning: "Family Time" },
+      "7": { name: "Peacock", meaning: "Personal Projects" },
+      "8": { name: "Graphite", meaning: "Routines / Logistics" },
+      "9": { name: "Blueberry", meaning: "Fitness" },
+      "10": { name: "Basil", meaning: "Social" },
+      "11": { name: "Tomato", meaning: "Urgent / Blocked" },
+    };
+
+    const colorDef = colorDefs[colorId];
+    if (!colorDef) return;
+
+    const eventIds = Array.from(selectedEvents);
+
+    // Optimistic update
+    setEvents((prev) =>
+      prev.map((event) =>
+        eventIds.includes(event.id)
+          ? {
+              ...event,
+              color_id: colorId,
+              color_name: colorDef.name,
+              color_meaning: colorDef.meaning,
+            }
+          : event
+      )
+    );
+
+    try {
+      const response = await fetch("/api/events/bulk-color", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          updates: eventIds.map((eventId) => ({ eventId, colorId })),
+          syncToGoogle,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to bulk update colors");
+      }
+    } catch (err) {
+      // Revert on error
+      fetchEvents();
+      console.error("Failed to bulk update colors:", err);
+    }
+  };
+
   const attendanceOptions = [
     {
       value: "attended",
@@ -478,6 +534,15 @@ export default function DayView() {
             )}
           </div>
         </div>
+
+        {/* Bulk Action Bar */}
+        <BulkActionBar
+          selectedCount={selectedEvents.size}
+          selectedEventIds={Array.from(selectedEvents)}
+          events={events}
+          onApplyColor={handleBulkColorApply}
+          onClearSelection={clearSelection}
+        />
       </div>
     </div>
   );
