@@ -70,6 +70,7 @@ export interface StoredEvent {
   first_seen: string; // ISO timestamp
   last_seen: string; // ISO timestamp
   attended: string; // 'attended', 'skipped', 'unknown'
+  auto_categorized: number; // 0 or 1 - whether color was auto-assigned
 }
 
 /**
@@ -244,7 +245,8 @@ export async function initDatabase(dbPath?: string): Promise<Client> {
       recurring_event_id TEXT,
       first_seen TEXT NOT NULL,
       last_seen TEXT NOT NULL,
-      attended TEXT NOT NULL DEFAULT 'unknown'
+      attended TEXT NOT NULL DEFAULT 'unknown',
+      auto_categorized INTEGER NOT NULL DEFAULT 0
     );
 
     CREATE INDEX IF NOT EXISTS idx_events_date ON events(date);
@@ -348,7 +350,25 @@ export async function initDatabase(dbPath?: string): Promise<Client> {
     CREATE INDEX IF NOT EXISTS idx_alerts_acknowledged ON non_goal_alerts(acknowledged);
   `);
 
+  // Run migrations for existing databases
+  await runMigrations(client);
+
   return client;
+}
+
+/**
+ * Run database migrations for schema updates
+ */
+async function runMigrations(db: Client): Promise<void> {
+  // Migration: Add auto_categorized column to events table
+  try {
+    await db.execute({
+      sql: "ALTER TABLE events ADD COLUMN auto_categorized INTEGER NOT NULL DEFAULT 0",
+      args: [],
+    });
+  } catch {
+    // Column already exists, ignore error
+  }
 }
 
 /**
@@ -389,7 +409,11 @@ export function formatDateKey(date: Date): string {
 /**
  * Convert a CalendarEvent to a StoredEvent
  */
-function calendarEventToStored(event: CalendarEvent, now: string): StoredEvent {
+function calendarEventToStored(
+  event: CalendarEvent,
+  now: string,
+  autoCategorized: boolean = false
+): StoredEvent {
   const date = formatDateKey(event.start);
   return {
     id: generateEventId(event.id, date),
@@ -412,6 +436,7 @@ function calendarEventToStored(event: CalendarEvent, now: string): StoredEvent {
     first_seen: now,
     last_seen: now,
     attended: "unknown",
+    auto_categorized: autoCategorized ? 1 : 0,
   };
 }
 
@@ -463,7 +488,16 @@ function rowToStoredEvent(row: Record<string, unknown>): StoredEvent {
     first_seen: row.first_seen as string,
     last_seen: row.last_seen as string,
     attended: (row.attended as string) || "unknown",
+    auto_categorized: (row.auto_categorized as number) || 0,
   };
+}
+
+/**
+ * Options for upsertEvent
+ */
+export interface UpsertEventOptions {
+  /** Whether this event was auto-categorized (color suggested by system) */
+  autoCategorized?: boolean;
 }
 
 /**
@@ -471,11 +505,12 @@ function rowToStoredEvent(row: Record<string, unknown>): StoredEvent {
  * Returns whether the event was new or modified
  */
 export async function upsertEvent(
-  event: CalendarEvent
+  event: CalendarEvent,
+  options: UpsertEventOptions = {}
 ): Promise<{ action: "inserted" | "updated" | "unchanged"; changes?: string[] }> {
   const database = await getDatabase();
   const now = new Date().toISOString();
-  const stored = calendarEventToStored(event, now);
+  const stored = calendarEventToStored(event, now, options.autoCategorized);
 
   // Check if event exists
   const result = await database.execute({
@@ -493,8 +528,8 @@ export async function upsertEvent(
           id, google_event_id, date, account, calendar_name, calendar_type,
           summary, description, start_time, end_time, duration_minutes,
           color_id, color_name, color_meaning, is_all_day, is_recurring,
-          recurring_event_id, first_seen, last_seen, attended
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          recurring_event_id, first_seen, last_seen, attended, auto_categorized
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `,
       args: [
         stored.id,
@@ -517,12 +552,22 @@ export async function upsertEvent(
         stored.first_seen,
         stored.last_seen,
         stored.attended,
+        stored.auto_categorized,
       ],
     });
     return { action: "inserted" };
   }
 
-  // Check for changes
+  // Determine effective color values
+  // If existing event was auto-categorized and new event has "default" color,
+  // preserve the existing auto-categorized color
+  const preserveAutoColor = existing.auto_categorized === 1 && stored.color_id === "default";
+  const effectiveColorId = preserveAutoColor ? existing.color_id : stored.color_id;
+  const effectiveColorName = preserveAutoColor ? existing.color_name : stored.color_name;
+  const effectiveColorMeaning = preserveAutoColor ? existing.color_meaning : stored.color_meaning;
+  const effectiveAutoCategorized = preserveAutoColor ? existing.auto_categorized : stored.auto_categorized;
+
+  // Check for changes (excluding color if preserving auto-categorized)
   const changes: string[] = [];
   const fieldsToCheck = [
     "summary",
@@ -530,9 +575,6 @@ export async function upsertEvent(
     "start_time",
     "end_time",
     "duration_minutes",
-    "color_id",
-    "color_name",
-    "color_meaning",
     "is_all_day",
   ] as const;
 
@@ -540,6 +582,13 @@ export async function upsertEvent(
     if (existing[field] !== stored[field]) {
       changes.push(field);
     }
+  }
+
+  // Only check color changes if not preserving auto-categorized color
+  if (!preserveAutoColor) {
+    if (existing.color_id !== stored.color_id) changes.push("color_id");
+    if (existing.color_name !== stored.color_name) changes.push("color_name");
+    if (existing.color_meaning !== stored.color_meaning) changes.push("color_meaning");
   }
 
   if (changes.length > 0) {
@@ -558,7 +607,8 @@ export async function upsertEvent(
           is_all_day = ?,
           is_recurring = ?,
           recurring_event_id = ?,
-          last_seen = ?
+          last_seen = ?,
+          auto_categorized = ?
         WHERE id = ?
       `,
       args: [
@@ -567,13 +617,14 @@ export async function upsertEvent(
         stored.start_time,
         stored.end_time,
         stored.duration_minutes,
-        stored.color_id,
-        stored.color_name,
-        stored.color_meaning,
+        effectiveColorId,
+        effectiveColorName,
+        effectiveColorMeaning,
         stored.is_all_day,
         stored.is_recurring,
         stored.recurring_event_id,
         now,
+        effectiveAutoCategorized,
         stored.id,
       ],
     });
