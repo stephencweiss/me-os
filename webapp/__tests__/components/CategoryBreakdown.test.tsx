@@ -106,9 +106,9 @@ describe("CategoryBreakdown", () => {
     render(<CategoryBreakdown events={mockEvents} />);
 
     // Meetings has 2 events
-    expect(screen.getByText("(2)")).toBeInTheDocument();
+    expect(screen.getByText("(2 events)")).toBeInTheDocument();
     // Project Work and Fitness have 1 event each
-    const oneEventLabels = screen.getAllByText("(1)");
+    const oneEventLabels = screen.getAllByText("(1 event)");
     expect(oneEventLabels).toHaveLength(2);
   });
 

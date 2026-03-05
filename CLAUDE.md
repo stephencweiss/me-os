@@ -125,6 +125,7 @@ Load `config/colors.json` which is the source of truth.
 - Follow the Planning Workflow (above) for all non-trivial changes
 - `.claude/settings.local.json` is Claude runtime configuration and permissions. It is not the Codex skill registration mechanism.
 
+<<<<<<< goal-creation
 ### Testing Requirements
 
 Tests are critical for maintaining code quality. When making changes:
@@ -160,6 +161,8 @@ When creating a new UI element:
 - If similar functionality exists, consider refactoring to make it reusable
 - If creating new, follow the patterns established in existing components
 
+=======
+>>>>>>> main
 ## Worktree Development
 
 Use git worktrees for isolated feature development:

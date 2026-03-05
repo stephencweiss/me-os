@@ -10,6 +10,7 @@ import { getEvents, updateAttendance } from "@/lib/db";
  *   - calendars: Comma-separated calendar names (optional)
  *   - accounts: Comma-separated account names (optional)
  *   - attended: Comma-separated attendance statuses (optional): attended, skipped, unknown
+ *   - uncategorized: "true" to filter only uncategorized events (optional)
  */
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
@@ -19,6 +20,7 @@ export async function GET(request: NextRequest) {
   const calendarsParam = searchParams.get("calendars");
   const accountsParam = searchParams.get("accounts");
   const attendedParam = searchParams.get("attended");
+  const uncategorizedParam = searchParams.get("uncategorized");
 
   if (!start || !end) {
     return NextResponse.json(
@@ -37,7 +39,7 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const options: { calendars?: string[]; accounts?: string[]; attended?: string[] } = {};
+    const options: { calendars?: string[]; accounts?: string[]; attended?: string[]; uncategorized?: boolean } = {};
 
     if (calendarsParam) {
       options.calendars = calendarsParam.split(",").map((c) => c.trim());
@@ -52,6 +54,10 @@ export async function GET(request: NextRequest) {
       const statuses = attendedParam.split(",").map((s) => s.trim());
       // Filter to only valid statuses
       options.attended = statuses.filter((s) => validStatuses.includes(s));
+    }
+
+    if (uncategorizedParam === "true") {
+      options.uncategorized = true;
     }
 
     const events = await getEvents(start, end, options);

@@ -332,4 +332,432 @@ describe("DayView", () => {
     // Should NOT show time range like "1:00 AM - 2:00 AM" for all-day events
     expect(screen.queryByText(/-/)).not.toBeInTheDocument();
   });
+
+  describe("selection mode", () => {
+    it("shows Select button by default", async () => {
+      mockFetch.mockImplementation(
+        createMockFetch({
+          ok: true,
+          json: async () => ({
+            events: mockEvents,
+            count: 2,
+            dateRange: { start: "2026-03-03", end: "2026-03-03" },
+          }),
+        })
+      );
+
+      render(<DayView />);
+
+      await waitFor(() => {
+        expect(screen.getByText("Select")).toBeInTheDocument();
+      });
+    });
+
+    it("does not show checkboxes by default", async () => {
+      mockFetch.mockImplementation(
+        createMockFetch({
+          ok: true,
+          json: async () => ({
+            events: mockEvents,
+            count: 2,
+            dateRange: { start: "2026-03-03", end: "2026-03-03" },
+          }),
+        })
+      );
+
+      render(<DayView />);
+
+      await waitFor(() => {
+        expect(screen.getByText("Morning Standup")).toBeInTheDocument();
+      });
+
+      const checkboxes = screen.queryAllByRole("checkbox");
+      expect(checkboxes).toHaveLength(0);
+    });
+
+    it("enters selection mode when Select button is clicked", async () => {
+      const user = userEvent.setup();
+      mockFetch.mockImplementation(
+        createMockFetch({
+          ok: true,
+          json: async () => ({
+            events: mockEvents,
+            count: 2,
+            dateRange: { start: "2026-03-03", end: "2026-03-03" },
+          }),
+        })
+      );
+
+      render(<DayView />);
+
+      await waitFor(() => {
+        expect(screen.getByText("Select")).toBeInTheDocument();
+      });
+
+      await user.click(screen.getByText("Select"));
+
+      // Button should change to "Done"
+      expect(screen.getByText("Done")).toBeInTheDocument();
+    });
+
+    it("shows checkboxes when in selection mode", async () => {
+      const user = userEvent.setup();
+      mockFetch.mockImplementation(
+        createMockFetch({
+          ok: true,
+          json: async () => ({
+            events: mockEvents,
+            count: 2,
+            dateRange: { start: "2026-03-03", end: "2026-03-03" },
+          }),
+        })
+      );
+
+      render(<DayView />);
+
+      await waitFor(() => {
+        expect(screen.getByText("Morning Standup")).toBeInTheDocument();
+      });
+
+      await user.click(screen.getByText("Select"));
+
+      const checkboxes = screen.getAllByRole("checkbox");
+      expect(checkboxes).toHaveLength(2); // One for each event
+    });
+
+    it("shows Select All button in selection mode", async () => {
+      const user = userEvent.setup();
+      mockFetch.mockImplementation(
+        createMockFetch({
+          ok: true,
+          json: async () => ({
+            events: mockEvents,
+            count: 2,
+            dateRange: { start: "2026-03-03", end: "2026-03-03" },
+          }),
+        })
+      );
+
+      render(<DayView />);
+
+      await waitFor(() => {
+        expect(screen.getByText("Morning Standup")).toBeInTheDocument();
+      });
+
+      await user.click(screen.getByText("Select"));
+
+      expect(screen.getByText("Select All")).toBeInTheDocument();
+    });
+
+    it("exits selection mode when Done button is clicked", async () => {
+      const user = userEvent.setup();
+      mockFetch.mockImplementation(
+        createMockFetch({
+          ok: true,
+          json: async () => ({
+            events: mockEvents,
+            count: 2,
+            dateRange: { start: "2026-03-03", end: "2026-03-03" },
+          }),
+        })
+      );
+
+      render(<DayView />);
+
+      await waitFor(() => {
+        expect(screen.getByText("Select")).toBeInTheDocument();
+      });
+
+      await user.click(screen.getByText("Select"));
+      expect(screen.getByText("Done")).toBeInTheDocument();
+
+      await user.click(screen.getByText("Done"));
+      expect(screen.getByText("Select")).toBeInTheDocument();
+    });
+
+    it("selects event when checkbox is clicked", async () => {
+      const user = userEvent.setup();
+      mockFetch.mockImplementation(
+        createMockFetch({
+          ok: true,
+          json: async () => ({
+            events: mockEvents,
+            count: 2,
+            dateRange: { start: "2026-03-03", end: "2026-03-03" },
+          }),
+        })
+      );
+
+      render(<DayView />);
+
+      await waitFor(() => {
+        expect(screen.getByText("Morning Standup")).toBeInTheDocument();
+      });
+
+      await user.click(screen.getByText("Select"));
+
+      const checkboxes = screen.getAllByRole("checkbox");
+      await user.click(checkboxes[0]);
+
+      expect(checkboxes[0]).toBeChecked();
+    });
+
+    it("deselects event when checkbox is clicked again", async () => {
+      const user = userEvent.setup();
+      mockFetch.mockImplementation(
+        createMockFetch({
+          ok: true,
+          json: async () => ({
+            events: mockEvents,
+            count: 2,
+            dateRange: { start: "2026-03-03", end: "2026-03-03" },
+          }),
+        })
+      );
+
+      render(<DayView />);
+
+      await waitFor(() => {
+        expect(screen.getByText("Morning Standup")).toBeInTheDocument();
+      });
+
+      await user.click(screen.getByText("Select"));
+
+      const checkboxes = screen.getAllByRole("checkbox");
+      await user.click(checkboxes[0]);
+      expect(checkboxes[0]).toBeChecked();
+
+      await user.click(checkboxes[0]);
+      expect(checkboxes[0]).not.toBeChecked();
+    });
+
+    it("shows selection count in header", async () => {
+      const user = userEvent.setup();
+      mockFetch.mockImplementation(
+        createMockFetch({
+          ok: true,
+          json: async () => ({
+            events: mockEvents,
+            count: 2,
+            dateRange: { start: "2026-03-03", end: "2026-03-03" },
+          }),
+        })
+      );
+
+      render(<DayView />);
+
+      await waitFor(() => {
+        expect(screen.getByText("Morning Standup")).toBeInTheDocument();
+      });
+
+      await user.click(screen.getByText("Select"));
+
+      const checkboxes = screen.getAllByRole("checkbox");
+      await user.click(checkboxes[0]);
+
+      expect(screen.getByText("(1 selected)")).toBeInTheDocument();
+    });
+
+    it("selects all events when Select All is clicked", async () => {
+      const user = userEvent.setup();
+      mockFetch.mockImplementation(
+        createMockFetch({
+          ok: true,
+          json: async () => ({
+            events: mockEvents,
+            count: 2,
+            dateRange: { start: "2026-03-03", end: "2026-03-03" },
+          }),
+        })
+      );
+
+      render(<DayView />);
+
+      await waitFor(() => {
+        expect(screen.getByText("Morning Standup")).toBeInTheDocument();
+      });
+
+      await user.click(screen.getByText("Select"));
+      await user.click(screen.getByText("Select All"));
+
+      const checkboxes = screen.getAllByRole("checkbox");
+      checkboxes.forEach((checkbox) => {
+        expect(checkbox).toBeChecked();
+      });
+
+      expect(screen.getByText("(2 selected)")).toBeInTheDocument();
+    });
+
+    it("shows Clear button in header when events are selected", async () => {
+      const user = userEvent.setup();
+      mockFetch.mockImplementation(
+        createMockFetch({
+          ok: true,
+          json: async () => ({
+            events: mockEvents,
+            count: 2,
+            dateRange: { start: "2026-03-03", end: "2026-03-03" },
+          }),
+        })
+      );
+
+      render(<DayView />);
+
+      await waitFor(() => {
+        expect(screen.getByText("Morning Standup")).toBeInTheDocument();
+      });
+
+      await user.click(screen.getByText("Select"));
+
+      // Clear button should not be visible before selection
+      const headerClearButtons = screen.queryAllByRole("button", { name: "Clear" });
+      expect(headerClearButtons).toHaveLength(0);
+
+      const checkboxes = screen.getAllByRole("checkbox");
+      await user.click(checkboxes[0]);
+
+      // Clear buttons should appear (one in header, one in BulkActionBar)
+      const clearButtons = screen.getAllByRole("button", { name: "Clear" });
+      expect(clearButtons.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it("clears selection when Clear button in header is clicked", async () => {
+      const user = userEvent.setup();
+      mockFetch.mockImplementation(
+        createMockFetch({
+          ok: true,
+          json: async () => ({
+            events: mockEvents,
+            count: 2,
+            dateRange: { start: "2026-03-03", end: "2026-03-03" },
+          }),
+        })
+      );
+
+      render(<DayView />);
+
+      await waitFor(() => {
+        expect(screen.getByText("Morning Standup")).toBeInTheDocument();
+      });
+
+      await user.click(screen.getByText("Select"));
+
+      const checkboxes = screen.getAllByRole("checkbox");
+      await user.click(checkboxes[0]);
+      expect(screen.getByText("(1 selected)")).toBeInTheDocument();
+
+      // Click the first Clear button (header is before BulkActionBar in DOM)
+      const clearButtons = screen.getAllByRole("button", { name: "Clear" });
+      await user.click(clearButtons[0]);
+
+      expect(screen.queryByText("(1 selected)")).not.toBeInTheDocument();
+      expect(checkboxes[0]).not.toBeChecked();
+    });
+
+    it("shows bulk action bar when events are selected", async () => {
+      const user = userEvent.setup();
+      mockFetch.mockImplementation(
+        createMockFetch({
+          ok: true,
+          json: async () => ({
+            events: mockEvents,
+            count: 2,
+            dateRange: { start: "2026-03-03", end: "2026-03-03" },
+          }),
+        })
+      );
+
+      render(<DayView />);
+
+      await waitFor(() => {
+        expect(screen.getByText("Morning Standup")).toBeInTheDocument();
+      });
+
+      await user.click(screen.getByText("Select"));
+
+      const checkboxes = screen.getAllByRole("checkbox");
+      await user.click(checkboxes[0]);
+
+      // BulkActionBar shows "1 event selected"
+      expect(screen.getByText("1 event selected")).toBeInTheDocument();
+    });
+
+    it("clears selection when exiting selection mode", async () => {
+      const user = userEvent.setup();
+      mockFetch.mockImplementation(
+        createMockFetch({
+          ok: true,
+          json: async () => ({
+            events: mockEvents,
+            count: 2,
+            dateRange: { start: "2026-03-03", end: "2026-03-03" },
+          }),
+        })
+      );
+
+      render(<DayView />);
+
+      await waitFor(() => {
+        expect(screen.getByText("Morning Standup")).toBeInTheDocument();
+      });
+
+      await user.click(screen.getByText("Select"));
+
+      // Select an event
+      const checkboxes = screen.getAllByRole("checkbox");
+      await user.click(checkboxes[0]);
+      expect(screen.getByText("(1 selected)")).toBeInTheDocument();
+
+      // Exit selection mode
+      await user.click(screen.getByText("Done"));
+
+      // Re-enter selection mode
+      await user.click(screen.getByText("Select"));
+
+      // Selection should be cleared
+      expect(screen.queryByText("(1 selected)")).not.toBeInTheDocument();
+    });
+  });
+
+  describe("uncategorized event styling", () => {
+    it("highlights uncategorized events with amber styling", async () => {
+      const uncategorizedEvent = {
+        id: "uncat1:2026-03-03",
+        date: "2026-03-03",
+        summary: "Uncategorized Event",
+        calendar_name: "Work",
+        account: "work@example.com",
+        start_time: "14:00:00",
+        end_time: "15:00:00",
+        duration_minutes: 60,
+        color_id: "default",
+        color_name: "",
+        color_meaning: "",
+        attended: "unknown",
+        is_all_day: 0,
+      };
+
+      mockFetch.mockImplementation(
+        createMockFetch({
+          ok: true,
+          json: async () => ({
+            events: [uncategorizedEvent],
+            count: 1,
+            dateRange: { start: "2026-03-03", end: "2026-03-03" },
+          }),
+        })
+      );
+
+      const { container } = render(<DayView />);
+
+      await waitFor(() => {
+        expect(screen.getByText("Uncategorized Event")).toBeInTheDocument();
+      });
+
+      // Find the event container with amber styling - the outer div has border-l-4 and border-amber classes
+      const amberBorderedElement = container.querySelector(".border-l-4.border-amber-400");
+      expect(amberBorderedElement).not.toBeNull();
+      expect(amberBorderedElement).toHaveClass("bg-amber-50");
+    });
+  });
 });

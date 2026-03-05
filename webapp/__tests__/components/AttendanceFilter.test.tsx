@@ -104,4 +104,111 @@ describe("AttendanceFilter", () => {
     const unknownButton = screen.getByText("Unknown");
     expect(unknownButton).toHaveClass("bg-gray-100");
   });
+
+  describe("uncategorized toggle", () => {
+    it("does not show uncategorized button when onUncategorizedChange is not provided", () => {
+      const onChange = vi.fn();
+      render(<AttendanceFilter selected={[]} onChange={onChange} />);
+
+      expect(screen.queryByText("Uncategorized")).not.toBeInTheDocument();
+    });
+
+    it("shows uncategorized button when onUncategorizedChange is provided", () => {
+      const onChange = vi.fn();
+      const onUncategorizedChange = vi.fn();
+      render(
+        <AttendanceFilter
+          selected={[]}
+          onChange={onChange}
+          onUncategorizedChange={onUncategorizedChange}
+        />
+      );
+
+      expect(screen.getByText("Uncategorized")).toBeInTheDocument();
+    });
+
+    it("displays inactive styling when uncategorizedOnly is false", () => {
+      const onChange = vi.fn();
+      const onUncategorizedChange = vi.fn();
+      render(
+        <AttendanceFilter
+          selected={[]}
+          onChange={onChange}
+          uncategorizedOnly={false}
+          onUncategorizedChange={onUncategorizedChange}
+        />
+      );
+
+      const uncategorizedButton = screen.getByText("Uncategorized");
+      expect(uncategorizedButton).not.toHaveClass("bg-amber-100");
+      expect(uncategorizedButton).toHaveClass("bg-white");
+    });
+
+    it("displays active styling when uncategorizedOnly is true", () => {
+      const onChange = vi.fn();
+      const onUncategorizedChange = vi.fn();
+      render(
+        <AttendanceFilter
+          selected={[]}
+          onChange={onChange}
+          uncategorizedOnly={true}
+          onUncategorizedChange={onUncategorizedChange}
+        />
+      );
+
+      const uncategorizedButton = screen.getByText("Uncategorized");
+      expect(uncategorizedButton).toHaveClass("bg-amber-100");
+    });
+
+    it("calls onUncategorizedChange with true when clicking inactive uncategorized", async () => {
+      const user = userEvent.setup();
+      const onChange = vi.fn();
+      const onUncategorizedChange = vi.fn();
+      render(
+        <AttendanceFilter
+          selected={[]}
+          onChange={onChange}
+          uncategorizedOnly={false}
+          onUncategorizedChange={onUncategorizedChange}
+        />
+      );
+
+      await user.click(screen.getByText("Uncategorized"));
+
+      expect(onUncategorizedChange).toHaveBeenCalledWith(true);
+    });
+
+    it("calls onUncategorizedChange with false when clicking active uncategorized", async () => {
+      const user = userEvent.setup();
+      const onChange = vi.fn();
+      const onUncategorizedChange = vi.fn();
+      render(
+        <AttendanceFilter
+          selected={[]}
+          onChange={onChange}
+          uncategorizedOnly={true}
+          onUncategorizedChange={onUncategorizedChange}
+        />
+      );
+
+      await user.click(screen.getByText("Uncategorized"));
+
+      expect(onUncategorizedChange).toHaveBeenCalledWith(false);
+    });
+
+    it("renders separator between attendance filters and uncategorized toggle", () => {
+      const onChange = vi.fn();
+      const onUncategorizedChange = vi.fn();
+      render(
+        <AttendanceFilter
+          selected={[]}
+          onChange={onChange}
+          onUncategorizedChange={onUncategorizedChange}
+        />
+      );
+
+      // The separator is a | character
+      expect(screen.getByText("|")).toBeInTheDocument();
+    });
+  });
 });

@@ -180,19 +180,30 @@ export interface UpdateColorResult {
  */
 export async function updateGoogleEventColor(
   googleEventId: string,
-  accountEmail: string,
+  accountOrEmail: string,
   colorId: string,
   calendarId: string = "primary"
 ): Promise<UpdateColorResult> {
   try {
-    // Get the account name from the email
-    const accountName = await getAccountNameFromEmail(accountEmail);
+    // Determine the account name
+    // If this looks like an account name (credentials file exists), use it directly
+    // Otherwise, try to look it up by email
+    let accountName: string | null = null;
+
+    const credentialsPath = path.join(CREDENTIALS_DIR, `credentials-${accountOrEmail}.json`);
+    if (fs.existsSync(credentialsPath)) {
+      // It's already an account name
+      accountName = accountOrEmail;
+    } else {
+      // Try to look up by email
+      accountName = await getAccountNameFromEmail(accountOrEmail);
+    }
 
     if (!accountName) {
       return {
         success: true,
         googleUpdated: false,
-        warning: `No Google credentials found for account ${accountEmail}. Local DB updated.`,
+        warning: `No Google credentials found for account ${accountOrEmail}. Local DB updated.`,
       };
     }
 

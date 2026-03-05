@@ -166,6 +166,81 @@ describe("Calendar Database", () => {
       expect(result.action).toBe("updated");
       expect(result.changes).toContain("color_id");
     });
+
+    it("stores auto_categorized flag when option is true", async () => {
+      const event = createTestEvent({
+        id: "auto-cat-event",
+        colorId: "4",
+        colorName: "Flamingo",
+        colorMeaning: "Meetings",
+      });
+      await upsertEvent(event, { autoCategorized: true });
+
+      const stored = await getEventsForDate(new Date("2026-02-26"));
+      const found = stored.find((e) => e.google_event_id === "auto-cat-event");
+      expect(found?.auto_categorized).toBe(1);
+    });
+
+    it("preserves auto-categorized color when Google returns default", async () => {
+      // First, insert an auto-categorized event with a suggested color
+      const event = createTestEvent({
+        id: "preserve-color-event",
+        colorId: "4",
+        colorName: "Flamingo",
+        colorMeaning: "Meetings",
+      });
+      await upsertEvent(event, { autoCategorized: true });
+
+      // Simulate resync where Google returns "default" color
+      const resyncEvent = createTestEvent({
+        id: "preserve-color-event",
+        colorId: "default",
+        colorName: "Default",
+        colorMeaning: "",
+      });
+      const result = await upsertEvent(resyncEvent);
+
+      // Color should be preserved, so no color_id change detected
+      expect(result.action).toBe("unchanged");
+
+      // Verify the stored color is still the auto-categorized one
+      const stored = await getEventsForDate(new Date("2026-02-26"));
+      const found = stored.find((e) => e.google_event_id === "preserve-color-event");
+      expect(found?.color_id).toBe("4");
+      expect(found?.color_name).toBe("Flamingo");
+      expect(found?.auto_categorized).toBe(1);
+    });
+
+    it("overwrites auto-categorized color when Google has explicit color", async () => {
+      // First, insert an auto-categorized event with a suggested color
+      const event = createTestEvent({
+        id: "overwrite-color-event",
+        colorId: "4",
+        colorName: "Flamingo",
+        colorMeaning: "Meetings",
+      });
+      await upsertEvent(event, { autoCategorized: true });
+
+      // User sets color in Google Calendar
+      const googleUpdatedEvent = createTestEvent({
+        id: "overwrite-color-event",
+        colorId: "9",
+        colorName: "Blueberry",
+        colorMeaning: "Fitness",
+      });
+      const result = await upsertEvent(googleUpdatedEvent);
+
+      // Color should be updated
+      expect(result.action).toBe("updated");
+      expect(result.changes).toContain("color_id");
+
+      // Verify the stored color is the new Google color
+      const stored = await getEventsForDate(new Date("2026-02-26"));
+      const found = stored.find((e) => e.google_event_id === "overwrite-color-event");
+      expect(found?.color_id).toBe("9");
+      expect(found?.color_name).toBe("Blueberry");
+      expect(found?.auto_categorized).toBe(0); // No longer auto-categorized
+    });
   });
 
   describe("getEventsForDateRange", () => {
