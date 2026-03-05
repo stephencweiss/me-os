@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import GoalForm from "./GoalForm";
 
 // Color mapping from colorId to hex color (matching Google Calendar colors)
 const COLOR_MAP: Record<string, string> = {
@@ -154,6 +155,11 @@ export default function WeeklyGoals() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Form state
+  const [showForm, setShowForm] = useState(false);
+  const [editingGoal, setEditingGoal] = useState<Goal | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   const weekRange = getWeekDateRange(weekId);
 
   const fetchData = useCallback(async () => {
@@ -224,6 +230,97 @@ export default function WeeklyGoals() {
       setAlerts((prev) => prev.filter((a) => a.id !== alertId));
     } catch (err) {
       console.error("Error acknowledging alert:", err);
+    }
+  }
+
+  function handleOpenCreateForm() {
+    setEditingGoal(null);
+    setShowForm(true);
+  }
+
+  function handleOpenEditForm(goal: Goal) {
+    setEditingGoal(goal);
+    setShowForm(true);
+  }
+
+  function handleCloseForm() {
+    setShowForm(false);
+    setEditingGoal(null);
+  }
+
+  async function handleSaveGoal(data: {
+    title: string;
+    notes: string | null;
+    estimatedMinutes: number | null;
+    goalType: "time" | "outcome" | "habit";
+    colorId: string | null;
+    syncToThings3: boolean;
+  }) {
+    setIsSubmitting(true);
+
+    try {
+      if (editingGoal) {
+        // Update existing goal
+        const res = await fetch("/api/goals", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            goalId: editingGoal.id,
+            title: data.title,
+            notes: data.notes,
+            estimatedMinutes: data.estimatedMinutes,
+            goalType: data.goalType,
+            colorId: data.colorId,
+          }),
+        });
+
+        if (!res.ok) throw new Error("Failed to update goal");
+
+        const result = await res.json();
+
+        // Update local state
+        setGoals((prev) =>
+          prev.map((g) =>
+            g.id === editingGoal.id
+              ? { ...g, ...result.goal, totalMinutesLogged: g.totalMinutesLogged }
+              : g
+          )
+        );
+      } else {
+        // Create new goal
+        const res = await fetch("/api/goals", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            weekId,
+            title: data.title,
+            notes: data.notes,
+            estimatedMinutes: data.estimatedMinutes,
+            goalType: data.goalType,
+            colorId: data.colorId,
+            syncToThings3: data.syncToThings3,
+          }),
+        });
+
+        if (!res.ok) throw new Error("Failed to create goal");
+
+        const result = await res.json();
+
+        // Open Things 3 if URL returned
+        if (result.things3Url) {
+          window.open(result.things3Url, "_blank");
+        }
+
+        // Add to local state
+        setGoals((prev) => [...prev, { ...result.goal, totalMinutesLogged: 0 }]);
+      }
+
+      handleCloseForm();
+    } catch (err) {
+      console.error("Error saving goal:", err);
+      alert(err instanceof Error ? err.message : "Failed to save goal");
+    } finally {
+      setIsSubmitting(false);
     }
   }
 
@@ -320,6 +417,15 @@ export default function WeeklyGoals() {
                 Today
               </button>
             )}
+            <button
+              onClick={handleOpenCreateForm}
+              className="ml-4 px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors flex items-center gap-2"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              Create Goal
+            </button>
           </div>
         </div>
 
@@ -389,8 +495,29 @@ export default function WeeklyGoals() {
         </div>
 
         {goals.length === 0 ? (
-          <div className="p-6 text-center text-gray-500 dark:text-gray-400">
-            No goals for this week. Use <code>/weekly-goals set</code> to add goals.
+          <div className="p-8 text-center">
+            <div className="text-gray-400 dark:text-gray-500 mb-4">
+              <svg className="w-12 h-12 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={1.5}
+                  d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"
+                />
+              </svg>
+            </div>
+            <p className="text-gray-500 dark:text-gray-400 mb-4">
+              No goals for this week yet.
+            </p>
+            <button
+              onClick={handleOpenCreateForm}
+              className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors inline-flex items-center gap-2"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              Create your first goal
+            </button>
           </div>
         ) : (
           <div className="divide-y divide-gray-200 dark:divide-gray-700">
@@ -415,10 +542,24 @@ export default function WeeklyGoals() {
                       </div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2">
                     <span className="text-sm text-gray-500 dark:text-gray-400">
                       {getStatusIcon(goal)} {getStatusText(goal)}
                     </span>
+                    <button
+                      onClick={() => handleOpenEditForm(goal)}
+                      className="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                      aria-label="Edit goal"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
+                        />
+                      </svg>
+                    </button>
                     {goal.status === "active" && (
                       <button
                         onClick={() => handleStatusChange(goal.id, "completed")}
@@ -464,6 +605,17 @@ export default function WeeklyGoals() {
             ))}
           </div>
         </div>
+      )}
+
+      {/* Goal Form Modal */}
+      {showForm && (
+        <GoalForm
+          weekId={weekId}
+          editingGoal={editingGoal}
+          onSave={handleSaveGoal}
+          onCancel={handleCloseForm}
+          isSubmitting={isSubmitting}
+        />
       )}
     </div>
   );
