@@ -125,6 +125,44 @@ Load `config/colors.json` which is the source of truth.
 - Follow the Planning Workflow (above) for all non-trivial changes
 - `.claude/settings.local.json` is Claude runtime configuration and permissions. It is not the Codex skill registration mechanism.
 
+<<<<<<< goal-creation
+### Testing Requirements
+
+Tests are critical for maintaining code quality. When making changes:
+
+1. **Write tests for new functionality** - All new features, API endpoints, and database functions should have corresponding tests
+2. **Update tests when modifying existing code** - If you change behavior, update or add tests to cover the changes
+3. **Run tests before committing** - Use `npm run test:run` (or `npx vitest run`) to verify all tests pass
+4. **Test file locations**:
+   - Unit/integration tests: `tests/` directory
+   - Test naming: `<feature>.test.ts` (e.g., `goal-creation.test.ts`)
+
+Example test coverage expectations:
+- Database functions: Test CRUD operations, edge cases, validation
+- API routes: Test all HTTP methods, error handling, validation responses
+- UI components: Test user interactions and state changes when feasible
+
+### UI Component Standards
+
+Maintain a consistent user experience by reusing existing components:
+
+1. **Check for existing components first** - Before creating new UI elements, check `webapp/app/components/` for existing solutions
+2. **Use standard components** - Prefer shared components over inline styles:
+   - `Button.tsx` - Standard button with variants (primary, secondary, ghost, danger) and sizes (sm, md, lg)
+   - More components to be added as the design system grows
+3. **Extend existing components** - If a component doesn't quite fit, extend it with new variants/props rather than creating a duplicate
+4. **Consistent styling patterns**:
+   - Use Tailwind CSS classes
+   - Follow existing color conventions (e.g., blue for primary actions)
+   - Support dark mode (`dark:` variants)
+
+When creating a new UI element:
+- First, search existing components to see if one already exists
+- If similar functionality exists, consider refactoring to make it reusable
+- If creating new, follow the patterns established in existing components
+
+=======
+>>>>>>> main
 ## Worktree Development
 
 Use git worktrees for isolated feature development:
