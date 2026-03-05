@@ -15,6 +15,10 @@ interface BulkActionBarProps {
   selectedEventIds: string[];
   events: Array<{ id: string; summary: string }>;
   onApplyColor: (colorId: string, syncToGoogle: boolean) => Promise<void>;
+  onApplySuggestions?: (
+    suggestions: Array<{ eventId: string; colorId: string }>,
+    syncToGoogle: boolean
+  ) => Promise<void>;
   onClearSelection: () => void;
 }
 
@@ -32,17 +36,22 @@ const COLORS = [
   { id: "11", name: "Tomato", meaning: "Urgent / Blocked", hex: "#d50000" },
 ];
 
+const COLOR_MAP = Object.fromEntries(COLORS.map((c) => [c.id, c]));
+
 export default function BulkActionBar({
   selectedCount,
   selectedEventIds,
   events,
   onApplyColor,
+  onApplySuggestions,
   onClearSelection,
 }: BulkActionBarProps) {
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [showConfirmation, setShowConfirmation] = useState(false);
+  const [showSuggestionsModal, setShowSuggestionsModal] = useState(false);
   const [pendingColorId, setPendingColorId] = useState<string | null>(null);
   const [suggestions, setSuggestions] = useState<CategorySuggestion[]>([]);
+  const [acceptedSuggestions, setAcceptedSuggestions] = useState<Set<string>>(new Set());
   const [loadingSuggestions, setLoadingSuggestions] = useState(false);
   const [applying, setApplying] = useState(false);
 
@@ -64,6 +73,14 @@ export default function BulkActionBar({
       if (response.ok) {
         const data = await response.json();
         setSuggestions(data.suggestions);
+        // Auto-accept high confidence suggestions
+        const autoAccepted = new Set(
+          data.suggestions
+            .filter((s: CategorySuggestion) => s.confidence >= 0.8)
+            .map((s: CategorySuggestion) => s.eventId)
+        );
+        setAcceptedSuggestions(autoAccepted);
+        setShowSuggestionsModal(true);
       }
     } catch (err) {
       console.error("Failed to get suggestions:", err);
@@ -78,18 +95,39 @@ export default function BulkActionBar({
     setShowConfirmation(true);
   };
 
-  const handleApplySuggestions = () => {
-    // For now, just show all suggestions with their confidence
-    // In a full implementation, we'd let users approve/reject each suggestion
-    alert(
-      "Suggestions:\n" +
-        suggestions
-          .map(
-            (s) =>
-              `${events.find((e) => e.id === s.eventId)?.summary}: ${s.colorName} (${Math.round(s.confidence * 100)}%)`
-          )
-          .join("\n")
-    );
+  const toggleSuggestionAccepted = (eventId: string) => {
+    setAcceptedSuggestions((prev) => {
+      const next = new Set(prev);
+      if (next.has(eventId)) {
+        next.delete(eventId);
+      } else {
+        next.add(eventId);
+      }
+      return next;
+    });
+  };
+
+  const handleApplyAcceptedSuggestions = async (syncToGoogle: boolean) => {
+    if (!onApplySuggestions) return;
+
+    const toApply = suggestions
+      .filter((s) => acceptedSuggestions.has(s.eventId))
+      .map((s) => ({ eventId: s.eventId, colorId: s.colorId }));
+
+    if (toApply.length === 0) return;
+
+    setApplying(true);
+    try {
+      await onApplySuggestions(toApply, syncToGoogle);
+      setShowSuggestionsModal(false);
+      setSuggestions([]);
+      setAcceptedSuggestions(new Set());
+      onClearSelection();
+    } catch (err) {
+      console.error("Failed to apply suggestions:", err);
+    } finally {
+      setApplying(false);
+    }
   };
 
   const handleConfirmApply = async (syncToGoogle: boolean) => {
@@ -138,10 +176,10 @@ export default function BulkActionBar({
               {/* Show Suggestions if available */}
               {suggestions.length > 0 && (
                 <button
-                  onClick={handleApplySuggestions}
+                  onClick={() => setShowSuggestionsModal(true)}
                   className="px-4 py-2 text-sm font-medium text-blue-700 dark:text-blue-300 bg-blue-100 dark:bg-blue-900/30 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-800/30 transition-colors"
                 >
-                  View {suggestions.length} Suggestions
+                  Review {suggestions.length} Suggestions
                 </button>
               )}
 
@@ -261,6 +299,129 @@ export default function BulkActionBar({
               >
                 Cancel
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Suggestions Review Modal */}
+      {showSuggestionsModal && suggestions.length > 0 && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60]">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-2xl w-full mx-4 overflow-hidden max-h-[80vh] flex flex-col">
+            <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                Review Category Suggestions
+              </h3>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                {acceptedSuggestions.size} of {suggestions.length} suggestions selected
+              </p>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-4">
+              <div className="space-y-3">
+                {suggestions.map((suggestion) => {
+                  const event = events.find((e) => e.id === suggestion.eventId);
+                  const color = COLOR_MAP[suggestion.colorId];
+                  const isAccepted = acceptedSuggestions.has(suggestion.eventId);
+                  const confidencePercent = Math.round(suggestion.confidence * 100);
+
+                  return (
+                    <div
+                      key={suggestion.eventId}
+                      onClick={() => toggleSuggestionAccepted(suggestion.eventId)}
+                      className={`p-3 rounded-lg border-2 cursor-pointer transition-all ${
+                        isAccepted
+                          ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20"
+                          : "border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600"
+                      }`}
+                    >
+                      <div className="flex items-start gap-3">
+                        <input
+                          type="checkbox"
+                          checked={isAccepted}
+                          onChange={() => toggleSuggestionAccepted(suggestion.eventId)}
+                          onClick={(e) => e.stopPropagation()}
+                          className="mt-1 w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium text-gray-900 dark:text-white truncate">
+                            {event?.summary || "Unknown Event"}
+                          </div>
+                          <div className="flex items-center gap-2 mt-1">
+                            <div
+                              className="w-3 h-3 rounded-full flex-shrink-0"
+                              style={{ backgroundColor: color?.hex || "#999" }}
+                            />
+                            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                              {suggestion.colorMeaning || suggestion.colorName}
+                            </span>
+                            <span className="text-xs text-gray-400 dark:text-gray-500">
+                              ({color?.name})
+                            </span>
+                          </div>
+                        </div>
+                        <div className="flex-shrink-0">
+                          <span
+                            className={`text-xs font-medium px-2 py-1 rounded-full ${
+                              confidencePercent >= 80
+                                ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400"
+                                : confidencePercent >= 50
+                                  ? "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400"
+                                  : "bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400"
+                            }`}
+                          >
+                            {confidencePercent}%
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="p-4 bg-gray-50 dark:bg-gray-900/50 border-t border-gray-200 dark:border-gray-700">
+              <div className="flex items-center justify-between mb-3">
+                <button
+                  onClick={() => setAcceptedSuggestions(new Set(suggestions.map((s) => s.eventId)))}
+                  className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
+                >
+                  Select All
+                </button>
+                <button
+                  onClick={() => setAcceptedSuggestions(new Set())}
+                  className="text-sm text-gray-500 dark:text-gray-400 hover:underline"
+                >
+                  Clear All
+                </button>
+              </div>
+              <div className="flex flex-col gap-2">
+                <button
+                  onClick={() => handleApplyAcceptedSuggestions(true)}
+                  disabled={applying || acceptedSuggestions.size === 0}
+                  className="w-full px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {applying
+                    ? "Applying..."
+                    : `Apply ${acceptedSuggestions.size} to Local + Google`}
+                </button>
+                <button
+                  onClick={() => handleApplyAcceptedSuggestions(false)}
+                  disabled={applying || acceptedSuggestions.size === 0}
+                  className="w-full px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Apply {acceptedSuggestions.size} to Local Only
+                </button>
+                <button
+                  onClick={() => {
+                    setShowSuggestionsModal(false);
+                  }}
+                  disabled={applying}
+                  className="w-full px-4 py-2 text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+              </div>
             </div>
           </div>
         </div>
