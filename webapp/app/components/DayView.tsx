@@ -249,22 +249,22 @@ export default function DayView() {
     }
   };
 
-  // Bulk color application
-  const handleBulkColorApply = async (colorId: string, syncToGoogle: boolean) => {
-    const colorDefs: Record<string, { name: string; meaning: string }> = {
-      "1": { name: "Lavender", meaning: "1:1s / People" },
-      "2": { name: "Sage", meaning: "Studying / Learning" },
-      "3": { name: "Grape", meaning: "Project Work" },
-      "4": { name: "Flamingo", meaning: "Meetings" },
-      "5": { name: "Banana", meaning: "Household / Pets" },
-      "6": { name: "Tangerine", meaning: "Family Time" },
-      "7": { name: "Peacock", meaning: "Personal Projects" },
-      "8": { name: "Graphite", meaning: "Routines / Logistics" },
-      "9": { name: "Blueberry", meaning: "Fitness" },
-      "10": { name: "Basil", meaning: "Social" },
-      "11": { name: "Tomato", meaning: "Urgent / Blocked" },
-    };
+  const colorDefs: Record<string, { name: string; meaning: string }> = {
+    "1": { name: "Lavender", meaning: "1:1s / People" },
+    "2": { name: "Sage", meaning: "Studying / Learning" },
+    "3": { name: "Grape", meaning: "Project Work" },
+    "4": { name: "Flamingo", meaning: "Meetings" },
+    "5": { name: "Banana", meaning: "Household / Pets" },
+    "6": { name: "Tangerine", meaning: "Family Time" },
+    "7": { name: "Peacock", meaning: "Personal Projects" },
+    "8": { name: "Graphite", meaning: "Routines / Logistics" },
+    "9": { name: "Blueberry", meaning: "Fitness" },
+    "10": { name: "Basil", meaning: "Social" },
+    "11": { name: "Tomato", meaning: "Urgent / Blocked" },
+  };
 
+  // Bulk color application (same color to all selected)
+  const handleBulkColorApply = async (colorId: string, syncToGoogle: boolean) => {
     const colorDef = colorDefs[colorId];
     if (!colorDef) return;
 
@@ -301,6 +301,48 @@ export default function DayView() {
       // Revert on error
       fetchEvents();
       console.error("Failed to bulk update colors:", err);
+    }
+  };
+
+  // Apply individual suggestions (different colors per event)
+  const handleApplySuggestions = async (
+    suggestions: Array<{ eventId: string; colorId: string }>,
+    syncToGoogle: boolean
+  ) => {
+    // Optimistic update
+    setEvents((prev) =>
+      prev.map((event) => {
+        const suggestion = suggestions.find((s) => s.eventId === event.id);
+        if (suggestion) {
+          const colorDef = colorDefs[suggestion.colorId];
+          return {
+            ...event,
+            color_id: suggestion.colorId,
+            color_name: colorDef?.name || "",
+            color_meaning: colorDef?.meaning || "",
+          };
+        }
+        return event;
+      })
+    );
+
+    try {
+      const response = await fetch("/api/events/bulk-color", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          updates: suggestions,
+          syncToGoogle,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to apply suggestions");
+      }
+    } catch (err) {
+      // Revert on error
+      fetchEvents();
+      console.error("Failed to apply suggestions:", err);
     }
   };
 
@@ -541,6 +583,7 @@ export default function DayView() {
           selectedEventIds={Array.from(selectedEvents)}
           events={events}
           onApplyColor={handleBulkColorApply}
+          onApplySuggestions={handleApplySuggestions}
           onClearSelection={clearSelection}
         />
       </div>
