@@ -18,8 +18,8 @@ For new features and non-trivial changes, always write a plan first. Follow this
 
 - Execute all plan work in a dedicated worktree to isolate changes:
   ```bash
-  git worktree add ../me-os-<feature> sw-<feature-branch>
-  cd ../me-os-<feature>
+  ./scripts/worktree-start.sh <feature-name>
+  cd ../worktrees/<repo-name>/<feature-name>
   ```
 - This keeps main clean and allows parallel work
 
@@ -40,3 +40,12 @@ For new features and non-trivial changes, always write a plan first. Follow this
 
 - Push stacked commits and create PR(s) referencing the plan and issue
 - Link to the plan file and GitHub issue in the PR description
+
+## 6. Clean up
+
+- After the PR(s) have been merged, clean up worktrees
+
+```bash
+cd /path/to/main/repo
+./scripts/worktree-finish.sh [-d] <feature-name>
+```
