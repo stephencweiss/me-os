@@ -25,7 +25,7 @@ const COLOR_MAP: Record<string, string> = {
   "9": "#3f51b5", // Blueberry
   "10": "#0b8043", // Basil
   "11": "#d50000", // Tomato
-  default: "#9e9e9e",
+  default: "#f59e0b", // Amber for uncategorized
 };
 
 interface CategoryTotal {
@@ -55,10 +55,18 @@ export function aggregateByCategory(events: Event[]): CategoryTotal[] {
     }
   }
 
-  // Sort by total time descending
-  return Array.from(categoryMap.values()).sort(
-    (a, b) => b.totalMinutes - a.totalMinutes
-  );
+  // Sort by total time descending, but put uncategorized at the end
+  return Array.from(categoryMap.values()).sort((a, b) => {
+    // Uncategorized goes last
+    if (a.colorId === "default" && b.colorId !== "default") return 1;
+    if (b.colorId === "default" && a.colorId !== "default") return -1;
+    // Otherwise sort by time descending
+    return b.totalMinutes - a.totalMinutes;
+  });
+}
+
+function isUncategorized(colorId: string): boolean {
+  return colorId === "default" || colorId === "";
 }
 
 function formatDuration(minutes: number): string {
@@ -82,31 +90,60 @@ export default function CategoryBreakdown({ events }: CategoryBreakdownProps) {
         Time by Category
       </h2>
       <div className="space-y-2">
-        {categories.map((category) => (
-          <div
-            key={category.colorId}
-            className="flex items-center justify-between"
-          >
-            <div className="flex items-center gap-2">
-              <div
-                className="w-3 h-3 rounded-full flex-shrink-0"
-                style={{
-                  backgroundColor:
-                    COLOR_MAP[category.colorId] || COLOR_MAP.default,
-                }}
-              />
-              <span className="text-sm text-gray-700 dark:text-gray-300">
-                {category.colorMeaning || category.colorName}
-              </span>
-              <span className="text-xs text-gray-400 dark:text-gray-500">
-                ({category.eventCount})
+        {categories.map((category) => {
+          const uncategorized = isUncategorized(category.colorId);
+          return (
+            <div
+              key={category.colorId}
+              className={`flex items-center justify-between ${
+                uncategorized
+                  ? "bg-amber-50 dark:bg-amber-900/20 -mx-2 px-2 py-1 rounded"
+                  : ""
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <div
+                  className={`w-3 h-3 rounded-full flex-shrink-0 ${
+                    uncategorized ? "ring-2 ring-amber-400 ring-offset-1" : ""
+                  }`}
+                  style={{
+                    backgroundColor:
+                      COLOR_MAP[category.colorId] || COLOR_MAP.default,
+                  }}
+                />
+                <span
+                  className={`text-sm ${
+                    uncategorized
+                      ? "text-amber-700 dark:text-amber-400 font-medium"
+                      : "text-gray-700 dark:text-gray-300"
+                  }`}
+                >
+                  {uncategorized
+                    ? "Uncategorized"
+                    : category.colorMeaning || category.colorName}
+                </span>
+                <span
+                  className={`text-xs ${
+                    uncategorized
+                      ? "text-amber-600 dark:text-amber-500"
+                      : "text-gray-400 dark:text-gray-500"
+                  }`}
+                >
+                  ({category.eventCount} event{category.eventCount !== 1 ? "s" : ""})
+                </span>
+              </div>
+              <span
+                className={`text-sm font-medium ${
+                  uncategorized
+                    ? "text-amber-700 dark:text-amber-400"
+                    : "text-gray-900 dark:text-white"
+                }`}
+              >
+                {formatDuration(category.totalMinutes)}
               </span>
             </div>
-            <span className="text-sm font-medium text-gray-900 dark:text-white">
-              {formatDuration(category.totalMinutes)}
-            </span>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

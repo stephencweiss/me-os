@@ -6,6 +6,7 @@ import CategoryBreakdown from "./CategoryBreakdown";
 import ColorPicker from "./ColorPicker";
 import AccountFilter from "./AccountFilter";
 import DateNavigation from "./DateNavigation";
+import BulkActionBar from "./BulkActionBar";
 import { formatTime, formatDuration, formatDate } from "@/lib/format";
 
 interface Event {
@@ -43,8 +44,12 @@ const COLOR_MAP: Record<string, string> = {
   "9": "#3f51b5", // Blueberry
   "10": "#0b8043", // Basil
   "11": "#d50000", // Tomato
-  default: "#9e9e9e",
+  default: "#f59e0b", // Amber for uncategorized
 };
+
+function isUncategorized(colorId: string): boolean {
+  return colorId === "default" || colorId === "" || !colorId;
+}
 
 export default function DayView() {
   const [events, setEvents] = useState<Event[]>([]);
@@ -54,8 +59,40 @@ export default function DayView() {
   const [accounts, setAccounts] = useState<string[]>([]);
   const [accountFilter, setAccountFilter] = useState<string[]>([]);
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  const [uncategorizedOnly, setUncategorizedOnly] = useState(false);
+  const [selectedEvents, setSelectedEvents] = useState<Set<string>>(new Set());
+  const [selectionMode, setSelectionMode] = useState(false);
 
   const selectedDateStr = formatDate(selectedDate);
+
+  // Selection helpers
+  const toggleEventSelection = (eventId: string) => {
+    setSelectedEvents((prev) => {
+      const next = new Set(prev);
+      if (next.has(eventId)) {
+        next.delete(eventId);
+      } else {
+        next.add(eventId);
+      }
+      return next;
+    });
+  };
+
+  const selectAllEvents = () => {
+    setSelectedEvents(new Set(events.map((e) => e.id)));
+  };
+
+  const clearSelection = () => {
+    setSelectedEvents(new Set());
+  };
+
+  // Enter/exit selection mode
+  const toggleSelectionMode = () => {
+    if (selectionMode) {
+      clearSelection();
+    }
+    setSelectionMode(!selectionMode);
+  };
 
   // Fetch available accounts on mount
   useEffect(() => {
@@ -93,6 +130,11 @@ export default function DayView() {
         params.set("accounts", accountFilter.join(","));
       }
 
+      // Add uncategorized filter if enabled
+      if (uncategorizedOnly) {
+        params.set("uncategorized", "true");
+      }
+
       const response = await fetch(`/api/events?${params.toString()}`);
 
       if (!response.ok) {
@@ -112,7 +154,7 @@ export default function DayView() {
     } finally {
       setLoading(false);
     }
-  }, [selectedDateStr, attendanceFilter, accountFilter]);
+  }, [selectedDateStr, attendanceFilter, accountFilter, uncategorizedOnly]);
 
   useEffect(() => {
     fetchEvents();
@@ -207,6 +249,61 @@ export default function DayView() {
     }
   };
 
+  // Bulk color application
+  const handleBulkColorApply = async (colorId: string, syncToGoogle: boolean) => {
+    const colorDefs: Record<string, { name: string; meaning: string }> = {
+      "1": { name: "Lavender", meaning: "1:1s / People" },
+      "2": { name: "Sage", meaning: "Studying / Learning" },
+      "3": { name: "Grape", meaning: "Project Work" },
+      "4": { name: "Flamingo", meaning: "Meetings" },
+      "5": { name: "Banana", meaning: "Household / Pets" },
+      "6": { name: "Tangerine", meaning: "Family Time" },
+      "7": { name: "Peacock", meaning: "Personal Projects" },
+      "8": { name: "Graphite", meaning: "Routines / Logistics" },
+      "9": { name: "Blueberry", meaning: "Fitness" },
+      "10": { name: "Basil", meaning: "Social" },
+      "11": { name: "Tomato", meaning: "Urgent / Blocked" },
+    };
+
+    const colorDef = colorDefs[colorId];
+    if (!colorDef) return;
+
+    const eventIds = Array.from(selectedEvents);
+
+    // Optimistic update
+    setEvents((prev) =>
+      prev.map((event) =>
+        eventIds.includes(event.id)
+          ? {
+              ...event,
+              color_id: colorId,
+              color_name: colorDef.name,
+              color_meaning: colorDef.meaning,
+            }
+          : event
+      )
+    );
+
+    try {
+      const response = await fetch("/api/events/bulk-color", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          updates: eventIds.map((eventId) => ({ eventId, colorId })),
+          syncToGoogle,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to bulk update colors");
+      }
+    } catch (err) {
+      // Revert on error
+      fetchEvents();
+      console.error("Failed to bulk update colors:", err);
+    }
+  };
+
   const attendanceOptions = [
     {
       value: "attended",
@@ -272,6 +369,8 @@ export default function DayView() {
           <AttendanceFilter
             selected={attendanceFilter}
             onChange={setAttendanceFilter}
+            uncategorizedOnly={uncategorizedOnly}
+            onUncategorizedChange={setUncategorizedOnly}
           />
           <AccountFilter
             accounts={accounts}
@@ -283,9 +382,46 @@ export default function DayView() {
         {/* Event List */}
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
           <div className="p-4 border-b border-gray-200 dark:border-gray-700">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-              Events
-            </h2>
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+                Events
+                {selectedEvents.size > 0 && (
+                  <span className="ml-2 text-sm font-normal text-blue-600 dark:text-blue-400">
+                    ({selectedEvents.size} selected)
+                  </span>
+                )}
+              </h2>
+              <div className="flex items-center gap-2">
+                {selectionMode && events.length > 0 && (
+                  <>
+                    <button
+                      onClick={selectAllEvents}
+                      className="px-3 py-1.5 text-sm font-medium text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-colors"
+                    >
+                      Select All
+                    </button>
+                    {selectedEvents.size > 0 && (
+                      <button
+                        onClick={clearSelection}
+                        className="px-3 py-1.5 text-sm font-medium text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-colors"
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </>
+                )}
+                <button
+                  onClick={toggleSelectionMode}
+                  className={`px-3 py-1.5 text-sm font-medium rounded-lg border transition-colors ${
+                    selectionMode
+                      ? "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400 border-blue-300 dark:border-blue-700"
+                      : "bg-white text-gray-600 dark:bg-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600"
+                  }`}
+                >
+                  {selectionMode ? "Done" : "Select"}
+                </button>
+              </div>
+            </div>
           </div>
 
           <div className="divide-y divide-gray-200 dark:divide-gray-700">
@@ -306,9 +442,36 @@ export default function DayView() {
                 </div>
               </div>
             ) : (
-              events.map((event) => (
-                <div key={event.id} className="p-4 hover:bg-gray-50 dark:hover:bg-gray-700/50">
+              events.map((event) => {
+                const uncategorized = isUncategorized(event.color_id);
+                const isSelected = selectedEvents.has(event.id);
+                return (
+                <div
+                  key={event.id}
+                  className={`p-4 transition-colors ${
+                    isSelected
+                      ? "bg-blue-50 dark:bg-blue-900/20 ring-2 ring-blue-400 dark:ring-blue-600 ring-inset"
+                      : uncategorized
+                        ? "bg-amber-50 dark:bg-amber-900/20 border-l-4 border-amber-400 dark:border-amber-600"
+                        : "hover:bg-gray-50 dark:hover:bg-gray-700/50"
+                  }`}
+                  onClick={selectionMode ? () => toggleEventSelection(event.id) : undefined}
+                  style={selectionMode ? { cursor: "pointer" } : undefined}
+                >
                   <div className="flex items-start gap-4">
+                    {/* Checkbox for selection mode */}
+                    {selectionMode && (
+                      <div className="flex items-center pt-1">
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => toggleEventSelection(event.id)}
+                          onClick={(e) => e.stopPropagation()}
+                          className="w-5 h-5 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
+                        />
+                      </div>
+                    )}
+
                     {/* Color picker */}
                     <ColorPicker
                       currentColorId={event.color_id}
@@ -367,10 +530,19 @@ export default function DayView() {
                     </div>
                   </div>
                 </div>
-              ))
+              )})
             )}
           </div>
         </div>
+
+        {/* Bulk Action Bar */}
+        <BulkActionBar
+          selectedCount={selectedEvents.size}
+          selectedEventIds={Array.from(selectedEvents)}
+          events={events}
+          onApplyColor={handleBulkColorApply}
+          onClearSelection={clearSelection}
+        />
       </div>
     </div>
   );

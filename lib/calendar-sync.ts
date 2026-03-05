@@ -22,6 +22,7 @@ import {
   type CalendarEvent,
   type DailySummary,
 } from "./time-analysis.js";
+import { suggestCategory } from "./calendar-manager.js";
 
 /**
  * Sync result statistics
@@ -34,6 +35,7 @@ export interface SyncResult {
     modified: number;
     removed: number;
     unchanged: number;
+    autoCategorized: number;
   };
   dailySummaries: number;
   duration: number; // milliseconds
@@ -121,6 +123,7 @@ export async function syncCalendar(options: SyncOptions = {}): Promise<SyncResul
     modified: 0,
     removed: 0,
     unchanged: 0,
+    autoCategorized: 0,
   };
 
   // Process each fetched event
@@ -130,7 +133,24 @@ export async function syncCalendar(options: SyncOptions = {}): Promise<SyncResul
     const eventId = `${event.id}:${date}`;
     fetchedIds.add(eventId);
 
-    const result = await upsertEvent(event);
+    // Auto-categorize events without a color
+    let autoCategorized = false;
+    if (event.colorId === "default") {
+      const suggestion = suggestCategory(event);
+      if (suggestion.confidence >= 0.8) {
+        // Apply suggested category to the event
+        event.colorId = suggestion.colorId;
+        event.colorName = suggestion.colorName;
+        event.colorMeaning = suggestion.meaning;
+        autoCategorized = true;
+        stats.autoCategorized++;
+        if (options.verbose) {
+          log(`  * Auto-categorized: ${event.summary} → ${suggestion.colorName} (${suggestion.meaning})`);
+        }
+      }
+    }
+
+    const result = await upsertEvent(event, { autoCategorized });
 
     switch (result.action) {
       case "inserted":
@@ -185,7 +205,7 @@ export async function syncCalendar(options: SyncOptions = {}): Promise<SyncResul
     }
   }
 
-  log(`Events: +${stats.added} ~${stats.modified} -${stats.removed} =${stats.unchanged}`);
+  log(`Events: +${stats.added} ~${stats.modified} -${stats.removed} =${stats.unchanged} *${stats.autoCategorized} auto-categorized`);
 
   // Generate and store daily summaries
   log("Generating daily summaries...");

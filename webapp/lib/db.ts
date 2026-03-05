@@ -92,6 +92,7 @@ export async function getEvents(
     calendars?: string[];
     accounts?: string[];
     attended?: string[];
+    uncategorized?: boolean;
   }
 ): Promise<DbEvent[]> {
   const db = getDb();
@@ -118,6 +119,10 @@ export async function getEvents(
     const placeholders = options.attended.map(() => "?").join(", ");
     query += ` AND attended IN (${placeholders})`;
     params.push(...options.attended);
+  }
+
+  if (options?.uncategorized) {
+    query += ` AND (color_id = 'default' OR color_id = '' OR color_id IS NULL)`;
   }
 
   query += " ORDER BY date DESC, start_time ASC";
