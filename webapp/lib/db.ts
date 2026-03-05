@@ -527,6 +527,83 @@ export async function updateGoalStatus(
 }
 
 /**
+ * Parameters for updating a goal
+ */
+export interface UpdateGoalParams {
+  title?: string;
+  notes?: string | null;
+  estimatedMinutes?: number | null;
+  goalType?: "time" | "outcome" | "habit";
+  colorId?: string | null;
+}
+
+/**
+ * Update a weekly goal's editable fields
+ */
+export async function updateGoal(
+  goalId: string,
+  updates: UpdateGoalParams
+): Promise<DbWeeklyGoal> {
+  const db = getDb();
+
+  // Verify goal exists
+  const existing = await getGoalById(goalId);
+  if (!existing) {
+    throw new Error(`Goal not found: ${goalId}`);
+  }
+
+  // Build dynamic update query
+  const setClauses: string[] = [];
+  const args: (string | number | null)[] = [];
+
+  if (updates.title !== undefined) {
+    setClauses.push("title = ?");
+    args.push(updates.title);
+  }
+  if (updates.notes !== undefined) {
+    setClauses.push("notes = ?");
+    args.push(updates.notes);
+  }
+  if (updates.estimatedMinutes !== undefined) {
+    setClauses.push("estimated_minutes = ?");
+    args.push(updates.estimatedMinutes);
+  }
+  if (updates.goalType !== undefined) {
+    setClauses.push("goal_type = ?");
+    args.push(updates.goalType);
+  }
+  if (updates.colorId !== undefined) {
+    setClauses.push("color_id = ?");
+    args.push(updates.colorId);
+  }
+
+  // Always update updated_at
+  const now = new Date().toISOString();
+  setClauses.push("updated_at = ?");
+  args.push(now);
+
+  // Add goalId for WHERE clause
+  args.push(goalId);
+
+  if (setClauses.length === 1) {
+    // Only updated_at was added, no actual updates requested
+    return existing;
+  }
+
+  await db.execute({
+    sql: `UPDATE weekly_goals SET ${setClauses.join(", ")} WHERE id = ?`,
+    args,
+  });
+
+  // Return updated goal
+  const updated = await getGoalById(goalId);
+  if (!updated) {
+    throw new Error("Failed to retrieve updated goal");
+  }
+  return updated;
+}
+
+/**
  * Get goal progress records
  */
 export async function getGoalProgress(goalId: string): Promise<number> {
