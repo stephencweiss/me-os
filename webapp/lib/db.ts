@@ -721,3 +721,152 @@ export async function getNonGoalById(nonGoalId: string): Promise<DbNonGoal | nul
   if (result.rows.length === 0) return null;
   return result.rows[0] as unknown as DbNonGoal;
 }
+
+// ============================================================================
+// Week Utilities
+// ============================================================================
+
+/**
+ * Parse a week ID into year and week number
+ */
+export function parseWeekId(weekId: string): { year: number; week: number } {
+  const match = weekId.match(/^(\d{4})-W(\d{2})$/);
+  if (!match) {
+    throw new Error(`Invalid week ID format: ${weekId}. Expected "YYYY-WWW" (e.g., "2026-W14")`);
+  }
+  return {
+    year: parseInt(match[1], 10),
+    week: parseInt(match[2], 10),
+  };
+}
+
+/**
+ * Get the date range (Monday-Sunday) for a week ID
+ * Returns dates in YYYY-MM-DD format for database queries
+ */
+export function getWeekDateRange(weekId: string): { startDate: string; endDate: string } {
+  const { year, week } = parseWeekId(weekId);
+
+  // ISO week 1 is the week containing the first Thursday of the year
+  // Which is also the week containing January 4th
+  const jan4 = new Date(Date.UTC(year, 0, 4));
+  const dayOfWeek = jan4.getUTCDay() || 7; // Make Sunday = 7
+
+  // Start of week 1 (Monday)
+  const week1Start = new Date(jan4);
+  week1Start.setUTCDate(jan4.getUTCDate() - dayOfWeek + 1);
+
+  // Start of requested week (Monday)
+  const weekStart = new Date(week1Start);
+  weekStart.setUTCDate(week1Start.getUTCDate() + (week - 1) * 7);
+
+  // End of requested week (Sunday)
+  const weekEnd = new Date(weekStart);
+  weekEnd.setUTCDate(weekStart.getUTCDate() + 6);
+
+  const formatDate = (d: Date) => d.toISOString().split("T")[0];
+
+  return { startDate: formatDate(weekStart), endDate: formatDate(weekEnd) };
+}
+
+// ============================================================================
+// Goal Progress
+// ============================================================================
+
+/**
+ * Goal progress record from database
+ */
+export interface DbGoalProgress {
+  id: number;
+  goal_id: string;
+  event_id: string;
+  matched_at: string;
+  match_type: "auto" | "manual";
+  match_confidence: number | null;
+  minutes_contributed: number;
+}
+
+/**
+ * Record goal progress (link event to goal)
+ */
+export async function recordGoalProgress(params: {
+  goalId: string;
+  eventId: string;
+  matchType: "auto" | "manual";
+  matchConfidence: number | null;
+  minutesContributed: number;
+}): Promise<DbGoalProgress> {
+  const db = getDb();
+  const now = new Date().toISOString();
+
+  await db.execute({
+    sql: `
+      INSERT OR REPLACE INTO goal_progress (
+        goal_id, event_id, matched_at, match_type, match_confidence, minutes_contributed
+      ) VALUES (?, ?, ?, ?, ?, ?)
+    `,
+    args: [
+      params.goalId,
+      params.eventId,
+      now,
+      params.matchType,
+      params.matchConfidence,
+      params.minutesContributed,
+    ],
+  });
+
+  const result = await db.execute({
+    sql: `SELECT * FROM goal_progress WHERE goal_id = ? AND event_id = ?`,
+    args: [params.goalId, params.eventId],
+  });
+
+  return result.rows[0] as unknown as DbGoalProgress;
+}
+
+/**
+ * Get all progress records for a goal
+ */
+export async function getProgressRecordsForGoal(goalId: string): Promise<DbGoalProgress[]> {
+  const db = getDb();
+
+  const result = await db.execute({
+    sql: `SELECT * FROM goal_progress WHERE goal_id = ? ORDER BY matched_at`,
+    args: [goalId],
+  });
+
+  return result.rows as unknown as DbGoalProgress[];
+}
+
+/**
+ * Recalculate and update goal progress percentage
+ */
+export async function recalculateGoalProgress(goalId: string): Promise<number> {
+  const db = getDb();
+
+  // Get total minutes contributed
+  const totalResult = await db.execute({
+    sql: `SELECT SUM(minutes_contributed) as total FROM goal_progress WHERE goal_id = ?`,
+    args: [goalId],
+  });
+  const totalMinutes = (totalResult.rows[0]?.total as number) || 0;
+
+  // Get goal's estimated minutes
+  const goal = await getGoalById(goalId);
+  if (!goal) return 0;
+
+  let progressPercent = 0;
+  if (goal.estimated_minutes && goal.estimated_minutes > 0) {
+    progressPercent = Math.min(100, Math.round((totalMinutes / goal.estimated_minutes) * 100));
+  } else if (totalMinutes > 0) {
+    // If no estimate, any progress is 100%
+    progressPercent = 100;
+  }
+
+  // Update the goal
+  await db.execute({
+    sql: `UPDATE weekly_goals SET progress_percent = ?, updated_at = ? WHERE id = ?`,
+    args: [progressPercent, new Date().toISOString(), goalId],
+  });
+
+  return progressPercent;
+}
