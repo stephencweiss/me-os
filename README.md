@@ -129,25 +129,65 @@ npm install
 # Copy config templates
 cp -r config.example/* config/
 
+# Set up Google OAuth2 credentials (see "Google Calendar Setup" below)
+mkdir -p config/sensitive
+# Then add credentials-{account}.json from Google Cloud Console
+
 # Build TypeScript
 npm run build
 ```
 
 ### Google Calendar Setup
 
-1. Create a Google Cloud project
-2. Enable the Google Calendar API
-3. Create OAuth2 credentials (Desktop app)
-4. Save credentials to `config/sensitive/credentials-{account}.json`
-5. Authenticate each account:
+MeOS uses OAuth2 to access Google Calendar. You need to create credentials in the Google Cloud Console and save them to `config/sensitive/credentials-{account}.json` (e.g., `credentials-personal.json`, `credentials-work.json` for multiple accounts).
+
+#### Obtaining OAuth2 Credentials
+
+1. **Create or select a Google Cloud project**
+   - Go to [Google Cloud Console](https://console.cloud.google.com/)
+   - Create a new project (or select an existing one)
+   - Note: For personal use, "MeOS" or similar is fine as the project name
+
+2. **Enable the Google Calendar API**
+   - In the sidebar: **APIs & Services** → **Library**
+   - Search for "Google Calendar API" and enable it
+
+3. **Configure the OAuth consent screen** (required before creating credentials)
+   - **APIs & Services** → **OAuth consent screen**
+   - Choose **External** (unless you use a Google Workspace org)
+   - Fill in app name (e.g., "MeOS"), your email as User support email
+   - Add your Google account email under **Test users** (for "Testing" publishing status)
+   - Save
+
+4. **Create OAuth 2.0 Client ID**
+   - **APIs & Services** → **Credentials** → **Create Credentials** → **OAuth client ID**
+   - Application type: **Desktop app**
+   - Name: e.g., "MeOS Calendar"
+   - Click **Create**
+
+5. **Download the credentials JSON**
+   - On the Credentials page, click the download (↓) icon next to your new OAuth 2.0 Client ID
+   - This downloads a file like `client_secret_XXXXX.json`
+
+6. **Save to the expected location**
+   - Create `config/sensitive/` if it does not exist
+   - Copy the downloaded file to `config/sensitive/credentials-{account}.json`
+   - Example: `config/sensitive/credentials-personal.json`
+   - Optional: Add `"associated_account": "you@gmail.com"` at the top level to document which Google account this is for
+
+   Use `config.example/sensitive/credentials.json` as a format reference. The downloaded JSON has an `installed` (or `web`) block with `client_id`, `client_secret`, `redirect_uris`, etc.—that structure is what the app expects.
+
+7. **Authenticate each account**
 
 ```bash
 # Authenticate personal account
 GOOGLE_ACCOUNT=personal npm run auth
 
-# Authenticate work account
+# Authenticate work account (if you have multiple credentials files)
 GOOGLE_ACCOUNT=work npm run auth
 ```
+
+   On first run, a browser window opens; sign in with the Google account and approve Calendar access. Tokens are saved to `config/sensitive/tokens-{account}.json` automatically.
 
 ### Configure Claude Code
 
