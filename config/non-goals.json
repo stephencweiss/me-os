@@ -1,0 +1,64 @@
+{
+  "description": "Default non-goal patterns to avoid. These are seeded into new weeks and can be customized per-week.",
+  "defaults": [
+    {
+      "title": "Excessive Meetings",
+      "pattern": "standup|sync|check-in|status|catchup",
+      "reason": "Too many recurring syncs fragments focus time. Consider consolidating.",
+      "colorId": null
+    },
+    {
+      "title": "After-Hours Work",
+      "pattern": ".*",
+      "reason": "Work events outside business hours. Protect work-life balance.",
+      "colorId": null,
+      "timeConstraint": {
+        "before": "08:00",
+        "after": "18:00"
+      }
+    },
+    {
+      "title": "Back-to-Back Meetings",
+      "pattern": ".*",
+      "reason": "No buffer between meetings leads to context-switch fatigue.",
+      "colorId": null,
+      "durationConstraint": {
+        "consecutive": 3,
+        "windowMinutes": 180
+      }
+    },
+    {
+      "title": "Unknown Purpose Events",
+      "pattern": "^$",
+      "reason": "Events without a clear title make time tracking difficult.",
+      "colorId": null
+    },
+    {
+      "title": "Recurring with No End",
+      "pattern": ".*",
+      "reason": "Infinite recurring meetings should be periodically reviewed.",
+      "colorId": null,
+      "recurringWithNoEnd": true
+    }
+  ],
+  "quickAdd": [
+    {
+      "label": "Social Media",
+      "title": "Social Media Distraction",
+      "pattern": "twitter|instagram|tiktok|facebook|reddit",
+      "reason": "Avoid social media during focus time"
+    },
+    {
+      "label": "Email Processing",
+      "title": "Excessive Email",
+      "pattern": "email|inbox|respond",
+      "reason": "Batch email processing instead of constant checking"
+    },
+    {
+      "label": "Unplanned Meetings",
+      "title": "Ad-hoc Meeting Requests",
+      "pattern": "quick call|got a minute|can we chat",
+      "reason": "Protect calendar from last-minute meeting requests"
+    }
+  ]
+}

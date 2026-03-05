@@ -1146,7 +1146,9 @@ export async function createNonGoal(
 ): Promise<StoredNonGoal> {
   const database = await getDatabase();
   const now = new Date().toISOString();
-  const id = `ng-${nonGoal.week_id}-${Date.now()}`;
+  // Add random suffix to ensure uniqueness even within same millisecond
+  const randomSuffix = Math.random().toString(36).slice(2, 8);
+  const id = `ng-${nonGoal.week_id}-${Date.now()}-${randomSuffix}`;
 
   await database.execute({
     sql: `
