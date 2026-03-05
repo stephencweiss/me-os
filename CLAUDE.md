@@ -125,6 +125,54 @@ Load `config/colors.json` which is the source of truth.
 - Follow the Planning Workflow (above) for all non-trivial changes
 - `.claude/settings.local.json` is Claude runtime configuration and permissions. It is not the Codex skill registration mechanism.
 
+## Worktree Development
+
+Use git worktrees for isolated feature development:
+
+### Creating a Worktree
+```bash
+./scripts/worktree-start.sh <feature-name>
+cd ../worktrees/me-os/<feature-name>
+```
+
+### Setting Up Local Testing
+
+Worktrees share git history but **not** gitignored files. Before running the app locally, copy sensitive configs from the main repo:
+
+```bash
+# From the worktree directory
+MAIN_REPO="/Users/sweiss/code/me-os"
+
+# Copy database config
+cp "$MAIN_REPO/config/turso.json" ./config/
+
+# Copy calendar credentials
+cp "$MAIN_REPO/config/calendars.json" ./config/
+
+# Copy sensitive directory (Google OAuth tokens, etc.)
+cp -r "$MAIN_REPO/config/sensitive" ./config/
+
+# Copy webapp environment variables
+cp "$MAIN_REPO/webapp/.env.local" ./webapp/
+```
+
+### Required Config Files
+
+| File | Purpose |
+|------|---------|
+| `config/turso.json` | Turso database credentials |
+| `config/calendars.json` | Google Calendar account configs |
+| `config/sensitive/` | OAuth tokens and credentials |
+| `webapp/.env.local` | Next.js environment variables |
+
+### Running the Webapp
+```bash
+cd webapp
+npm install
+npm run dev
+# Opens at http://localhost:3001
+```
+
 ## Getting Started
 
 1. Set up Google Calendar API credentials
