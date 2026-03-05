@@ -488,17 +488,20 @@ describe("Goals Sync Database Functions", () => {
     it("creates goals from Things 3 todos with week tags", async () => {
       const { syncGoalsFromThings3 } = await import("../lib/things3-sync.js");
 
+      // Goals are identified by "week" tag, with week inferred from deadline
       const todos = [
         {
           id: "todo-1",
           title: "Write documentation",
-          tags: ["w10-2026"],
+          tags: ["week"],
+          deadline: "2026-03-06", // Falls in week 10
           completed: false,
         },
         {
           id: "todo-2",
           title: "Review PRs",
-          tags: ["w10-2026", "work"],
+          tags: ["week", "work"],
+          deadline: "2026-03-06", // Falls in week 10
           completed: false,
         },
       ];
@@ -514,8 +517,8 @@ describe("Goals Sync Database Functions", () => {
       const { syncGoalsFromThings3 } = await import("../lib/things3-sync.js");
 
       const todos = [
-        { id: "todo-1", title: "No week tag", tags: ["work"] },
-        { id: "todo-2", title: "With week tag", tags: ["w10-2026"] },
+        { id: "todo-1", title: "No week tag", tags: ["work"], deadline: "2026-03-06" },
+        { id: "todo-2", title: "With week tag", tags: ["week"], deadline: "2026-03-06" },
       ];
 
       const result = await syncGoalsFromThings3(todos);
@@ -532,7 +535,8 @@ describe("Goals Sync Database Functions", () => {
         {
           id: "todo-1",
           title: "Completed task",
-          tags: ["w10-2026"],
+          tags: ["week"],
+          deadline: "2026-03-06", // Falls in week 10
           completed: true,
         },
       ];
@@ -546,9 +550,10 @@ describe("Goals Sync Database Functions", () => {
     it("filters to specific week when targetWeekId provided", async () => {
       const { syncGoalsFromThings3 } = await import("../lib/things3-sync.js");
 
+      // Week is now inferred from deadline, not from tag
       const todos = [
-        { id: "todo-1", title: "Week 10", tags: ["w10-2026"] },
-        { id: "todo-2", title: "Week 11", tags: ["w11-2026"] },
+        { id: "todo-1", title: "Week 10", tags: ["week"], deadline: "2026-03-06" }, // W10
+        { id: "todo-2", title: "Week 11", tags: ["week"], deadline: "2026-03-13" }, // W11
       ];
 
       const result = await syncGoalsFromThings3(todos, "2026-W10");
@@ -562,12 +567,12 @@ describe("Goals Sync Database Functions", () => {
 
       // First sync
       await syncGoalsFromThings3([
-        { id: "todo-1", title: "Original title", tags: ["w10-2026"] },
+        { id: "todo-1", title: "Original title", tags: ["week"], deadline: "2026-03-06" },
       ]);
 
       // Second sync with updated title
       const result = await syncGoalsFromThings3([
-        { id: "todo-1", title: "Updated title", tags: ["w10-2026"] },
+        { id: "todo-1", title: "Updated title", tags: ["week"], deadline: "2026-03-06" },
       ]);
 
       expect(result.created).toBe(0);
@@ -578,9 +583,9 @@ describe("Goals Sync Database Functions", () => {
       const { syncGoalsFromThings3 } = await import("../lib/things3-sync.js");
 
       const todos = [
-        { id: "todo-1", title: "4 hours of coding", tags: ["w10-2026"] },
-        { id: "todo-2", title: "Exercise 3x", tags: ["w10-2026"] },
-        { id: "todo-3", title: "Finish feature", tags: ["w10-2026"] },
+        { id: "todo-1", title: "4 hours of coding", tags: ["week"], deadline: "2026-03-06" },
+        { id: "todo-2", title: "Exercise 3x", tags: ["week"], deadline: "2026-03-06" },
+        { id: "todo-3", title: "Finish feature", tags: ["week"], deadline: "2026-03-06" },
       ];
 
       const result = await syncGoalsFromThings3(todos);

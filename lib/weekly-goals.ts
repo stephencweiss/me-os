@@ -110,6 +110,9 @@ export function getWeekDateRange(weekId: string): { start: Date; end: Date } {
 /**
  * Convert a week ID to a Things 3 tag format
  * Things uses lowercase without hash: "w14-2026"
+ *
+ * @deprecated Weekly goals now use simple "week" tag with week inferred from deadline.
+ * See `lib/things3-sync.ts` for the new approach using `inferWeekId()`.
  */
 export function weekIdToThingsTag(weekId: string): string {
   const { year, week } = parseWeekId(weekId);
@@ -119,6 +122,9 @@ export function weekIdToThingsTag(weekId: string): string {
 /**
  * Parse a Things 3 tag to a week ID
  * Input: "w14-2026" -> Output: "2026-W14"
+ *
+ * @deprecated Weekly goals now use simple "week" tag with week inferred from deadline.
+ * See `lib/things3-sync.ts` for the new approach using `inferWeekId()`.
  */
 export function thingsTagToWeekId(tag: string): string | null {
   const match = tag.match(/^w(\d{1,2})-(\d{4})$/i);

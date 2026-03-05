@@ -132,10 +132,14 @@ describe("Things 3 Status Conversions", () => {
 });
 
 // ============================================================================
-// Week ID Conversion Tests
+// Week ID Conversion Tests (Deprecated)
 // ============================================================================
 
-describe("Week ID to Things 3 Tag Conversion", () => {
+describe("Week ID to Things 3 Tag Conversion (Deprecated)", () => {
+  /**
+   * @deprecated No longer used - weekly goals now use simple "week" tag
+   * with week inferred from deadline. Kept for backward compatibility testing.
+   */
   function weekIdToThings3Tag(weekId: string): string {
     const match = weekId.match(/^(\d{4})-W(\d{2})$/);
     if (!match) {
@@ -147,23 +151,23 @@ describe("Week ID to Things 3 Tag Conversion", () => {
     return `w${parseInt(week, 10)}-${year}`;
   }
 
-  it("converts YYYY-WWW to wN-YYYY format", () => {
+  it("(legacy) converts YYYY-WWW to wN-YYYY format", () => {
     expect(weekIdToThings3Tag("2026-W10")).toBe("w10-2026");
     expect(weekIdToThings3Tag("2026-W01")).toBe("w1-2026");
     expect(weekIdToThings3Tag("2025-W52")).toBe("w52-2025");
   });
 
-  it("removes leading zeros from week number", () => {
+  it("(legacy) removes leading zeros from week number", () => {
     expect(weekIdToThings3Tag("2026-W01")).toBe("w1-2026");
     expect(weekIdToThings3Tag("2026-W09")).toBe("w9-2026");
   });
 
-  it("preserves double-digit weeks", () => {
+  it("(legacy) preserves double-digit weeks", () => {
     expect(weekIdToThings3Tag("2026-W10")).toBe("w10-2026");
     expect(weekIdToThings3Tag("2026-W53")).toBe("w53-2026");
   });
 
-  it("throws on invalid format", () => {
+  it("(legacy) throws on invalid format", () => {
     expect(() => weekIdToThings3Tag("2026-10")).toThrow();
     expect(() => weekIdToThings3Tag("W10-2026")).toThrow();
     expect(() => weekIdToThings3Tag("invalid")).toThrow();
@@ -202,14 +206,14 @@ describe("Things 3 Todo Types", () => {
       completedDate: null,
       createdDate: "2026-03-01T10:00:00Z",
       modifiedDate: "2026-03-01T10:00:00Z",
-      tags: ["w10-2026", "important"],
+      tags: ["week", "important"],
       project: "Weekly Goals",
       area: "Personal",
     };
 
     expect(todo.uuid).toBe("abc123");
     expect(todo.status).toBe("open");
-    expect(todo.tags).toContain("w10-2026");
+    expect(todo.tags).toContain("week");
     expect(todo.completedDate).toBeNull();
   });
 
@@ -245,7 +249,7 @@ describe("Things 3 Todo Types", () => {
       completedDate: "2026-03-05T14:30:00Z",
       createdDate: "2026-03-01T10:00:00Z",
       modifiedDate: "2026-03-05T14:30:00Z",
-      tags: ["w10-2026"],
+      tags: ["week"],
       project: null,
       area: "Work",
     };
@@ -256,15 +260,127 @@ describe("Things 3 Todo Types", () => {
 });
 
 // ============================================================================
-// Tag Pattern Tests (for week tag matching)
+// Week Tag Detection and Week ID Inference Tests
 // ============================================================================
 
-describe("Week Tag Pattern Matching", () => {
-  function isWeekTag(tag: string): boolean {
+describe("Week Tag Detection", () => {
+  /**
+   * Check if a todo has the "week" tag (making it a weekly goal)
+   */
+  function hasWeekTag(tags: string[]): boolean {
+    return tags.some((t) => t.toLowerCase() === "week");
+  }
+
+  describe("hasWeekTag", () => {
+    it("identifies todos with 'week' tag", () => {
+      expect(hasWeekTag(["week"])).toBe(true);
+      expect(hasWeekTag(["week", "important"])).toBe(true);
+      expect(hasWeekTag(["Week"])).toBe(true); // Case insensitive
+      expect(hasWeekTag(["WEEK"])).toBe(true); // Case insensitive
+    });
+
+    it("rejects todos without 'week' tag", () => {
+      expect(hasWeekTag([])).toBe(false);
+      expect(hasWeekTag(["important"])).toBe(false);
+      expect(hasWeekTag(["weekly"])).toBe(false);
+      expect(hasWeekTag(["w10-2026"])).toBe(false); // Old format not detected
+    });
+  });
+});
+
+describe("Week ID Inference from Deadline", () => {
+  /**
+   * Get the ISO week ID for a given date
+   */
+  function getWeekIdForDate(date: Date): string {
+    const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+    const dayNum = d.getUTCDay() || 7;
+    d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+    const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+    const weekNum = Math.ceil(((d.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
+    return `${d.getUTCFullYear()}-W${String(weekNum).padStart(2, "0")}`;
+  }
+
+  /**
+   * Get the current week ID
+   */
+  function getCurrentWeekId(): string {
+    return getWeekIdForDate(new Date());
+  }
+
+  /**
+   * Infer week ID from a todo's deadline (or current week if no deadline)
+   */
+  function inferWeekIdFromDeadline(deadline: string | null): string {
+    if (deadline) {
+      return getWeekIdForDate(new Date(deadline));
+    }
+    return getCurrentWeekId();
+  }
+
+  describe("getWeekIdForDate", () => {
+    it("returns correct week ID for known dates", () => {
+      // Use mid-week dates to avoid edge cases with week boundaries
+      // March 4, 2026 (Wednesday) is in week 10
+      expect(getWeekIdForDate(new Date(Date.UTC(2026, 2, 4)))).toBe("2026-W10");
+
+      // March 5, 2026 (Thursday of week 10)
+      expect(getWeekIdForDate(new Date(Date.UTC(2026, 2, 5)))).toBe("2026-W10");
+
+      // March 6, 2026 (Friday of week 10)
+      expect(getWeekIdForDate(new Date(Date.UTC(2026, 2, 6)))).toBe("2026-W10");
+
+      // Jan 2, 2026 (Friday of week 1)
+      expect(getWeekIdForDate(new Date(Date.UTC(2026, 0, 2)))).toBe("2026-W01");
+    });
+
+    it("handles different weeks correctly", () => {
+      // Week 11 (Mar 9-15)
+      expect(getWeekIdForDate(new Date(Date.UTC(2026, 2, 11)))).toBe("2026-W11");
+
+      // Week 9 (Feb 23 - Mar 1)
+      expect(getWeekIdForDate(new Date(Date.UTC(2026, 1, 25)))).toBe("2026-W09");
+    });
+
+    it("returns valid week ID format", () => {
+      const weekId = getWeekIdForDate(new Date(Date.UTC(2025, 11, 31)));
+      expect(weekId).toMatch(/^\d{4}-W\d{2}$/);
+    });
+  });
+
+  describe("inferWeekIdFromDeadline", () => {
+    it("infers week from deadline", () => {
+      expect(inferWeekIdFromDeadline("2026-03-06")).toBe("2026-W10");
+      expect(inferWeekIdFromDeadline("2026-03-08")).toBe("2026-W10");
+    });
+
+    it("returns current week when no deadline", () => {
+      const result = inferWeekIdFromDeadline(null);
+      expect(result).toBe(getCurrentWeekId());
+    });
+
+    it("handles ISO date strings", () => {
+      expect(inferWeekIdFromDeadline("2026-03-04T12:00:00Z")).toBe("2026-W10");
+    });
+  });
+});
+
+// ============================================================================
+// Legacy Week Tag Tests (Deprecated - for backward compatibility only)
+// ============================================================================
+
+describe("Legacy Week Tag Pattern (Deprecated)", () => {
+  /**
+   * @deprecated Use week inference from deadline instead
+   */
+  function isLegacyWeekTag(tag: string): boolean {
     return /^w\d{1,2}-\d{4}$/.test(tag.toLowerCase());
   }
 
-  function extractWeekFromTag(tag: string): { week: number; year: number } | null {
+  /**
+   * @deprecated Use week inference from deadline instead
+   */
+  function extractWeekFromLegacyTag(tag: string): { week: number; year: number } | null {
     const match = tag.toLowerCase().match(/^w(\d{1,2})-(\d{4})$/);
     if (!match) return null;
     return {
@@ -273,36 +389,17 @@ describe("Week Tag Pattern Matching", () => {
     };
   }
 
-  describe("isWeekTag", () => {
-    it("identifies valid week tags", () => {
-      expect(isWeekTag("w10-2026")).toBe(true);
-      expect(isWeekTag("w1-2026")).toBe(true);
-      expect(isWeekTag("w52-2025")).toBe(true);
-      expect(isWeekTag("W10-2026")).toBe(true); // Case insensitive
-    });
-
-    it("rejects invalid tags", () => {
-      expect(isWeekTag("important")).toBe(false);
-      expect(isWeekTag("2026-W10")).toBe(false);
-      expect(isWeekTag("w-2026")).toBe(false);
-      expect(isWeekTag("week10-2026")).toBe(false);
+  describe("isLegacyWeekTag", () => {
+    it("identifies legacy week tags", () => {
+      expect(isLegacyWeekTag("w10-2026")).toBe(true);
+      expect(isLegacyWeekTag("w1-2026")).toBe(true);
     });
   });
 
-  describe("extractWeekFromTag", () => {
-    it("extracts week and year from tag", () => {
-      const result = extractWeekFromTag("w10-2026");
+  describe("extractWeekFromLegacyTag", () => {
+    it("extracts week and year from legacy tag", () => {
+      const result = extractWeekFromLegacyTag("w10-2026");
       expect(result).toEqual({ week: 10, year: 2026 });
-    });
-
-    it("handles single-digit weeks", () => {
-      const result = extractWeekFromTag("w1-2026");
-      expect(result).toEqual({ week: 1, year: 2026 });
-    });
-
-    it("returns null for invalid tags", () => {
-      expect(extractWeekFromTag("important")).toBeNull();
-      expect(extractWeekFromTag("2026-W10")).toBeNull();
     });
   });
 });
@@ -313,25 +410,27 @@ describe("Week Tag Pattern Matching", () => {
 
 describe("MCP Tool Input Validation", () => {
   function validateWeekId(weekId: string): boolean {
-    // Accepts both YYYY-WWW and wN-YYYY formats
-    return /^\d{4}-W\d{2}$/.test(weekId) || /^w\d{1,2}-\d{4}$/i.test(weekId);
+    // Only accepts ISO week format: YYYY-WWW
+    return /^\d{4}-W\d{2}$/.test(weekId);
   }
 
   describe("get_weekly_todos input", () => {
-    it("accepts YYYY-WWW format", () => {
+    it("accepts ISO week format (YYYY-WWW)", () => {
       expect(validateWeekId("2026-W10")).toBe(true);
       expect(validateWeekId("2026-W01")).toBe(true);
+      expect(validateWeekId("2025-W52")).toBe(true);
     });
 
-    it("accepts wN-YYYY format", () => {
-      expect(validateWeekId("w10-2026")).toBe(true);
-      expect(validateWeekId("w1-2026")).toBe(true);
+    it("rejects legacy wN-YYYY format", () => {
+      expect(validateWeekId("w10-2026")).toBe(false);
+      expect(validateWeekId("w1-2026")).toBe(false);
     });
 
     it("rejects invalid formats", () => {
       expect(validateWeekId("2026-10")).toBe(false);
       expect(validateWeekId("week10")).toBe(false);
       expect(validateWeekId("")).toBe(false);
+      expect(validateWeekId("week")).toBe(false); // "week" is a tag, not a week ID
     });
   });
 });

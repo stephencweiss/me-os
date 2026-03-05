@@ -8,7 +8,9 @@
  * Database location:
  * ~/Library/Group Containers/JLMPQHK86H.com.culturedcode.ThingsMac/Things Database.thingsdatabase/main.sqlite
  *
- * Week tags format: wN-YYYY (e.g., w10-2026 for week 10 of 2026)
+ * Weekly goals are identified by:
+ * - Tag: "week" (simple tag, part of goal hierarchy: goal > week, month, quarter, year)
+ * - Week inferred from: task deadline (or current week if no deadline)
  */
 
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
@@ -112,6 +114,41 @@ function coreDataToISODate(timestamp: number | null): string | null {
 }
 
 // ============================================================================
+// Week ID Helpers
+// ============================================================================
+
+/**
+ * Get the ISO week ID for a given date
+ * Returns format: YYYY-WWW (e.g., "2026-W10")
+ */
+function getWeekIdForDate(date: Date): string {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const dayNum = d.getUTCDay() || 7;
+  d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  const weekNum = Math.ceil(((d.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
+  return `${d.getUTCFullYear()}-W${String(weekNum).padStart(2, "0")}`;
+}
+
+/**
+ * Get the current week ID
+ */
+function getCurrentWeekId(): string {
+  return getWeekIdForDate(new Date());
+}
+
+/**
+ * Infer week ID from a deadline (ISO date string)
+ * Falls back to current week if no deadline
+ */
+function inferWeekIdFromDeadline(deadline: string | null): string {
+  if (deadline) {
+    return getWeekIdForDate(new Date(deadline));
+  }
+  return getCurrentWeekId();
+}
+
+// ============================================================================
 // Status Conversion
 // ============================================================================
 
@@ -131,7 +168,90 @@ function statusFromInt(status: number): "open" | "completed" | "cancelled" {
 // ============================================================================
 
 /**
- * Get todos by week tag (e.g., "w10-2026")
+ * Extended todo type with inferred week ID
+ */
+interface Things3TodoWithWeek extends Things3Todo {
+  inferredWeekId: string;
+}
+
+/**
+ * Get all todos with the "week" tag (weekly goals)
+ * Optionally filter to a specific week based on deadline inference
+ */
+function getWeeklyGoals(
+  db: Database.Database,
+  options: { weekId?: string; includeCompleted?: boolean } = {}
+): Things3TodoWithWeek[] {
+  const { weekId, includeCompleted = false } = options;
+
+  const statusFilter = includeCompleted ? "" : "AND t.status = 0";
+
+  // Query for todos with "week" tag
+  const query = `
+    SELECT
+      t.uuid,
+      t.title,
+      t.notes,
+      t.status,
+      t.startDate,
+      t.deadline,
+      t.stopDate,
+      t.creationDate,
+      t.userModificationDate,
+      GROUP_CONCAT(tag.title) as tags,
+      p.title as projectTitle,
+      a.title as areaTitle
+    FROM TMTask t
+    LEFT JOIN TMTaskTag tt ON t.uuid = tt.tasks
+    LEFT JOIN TMTag tag ON tt.tags = tag.uuid
+    LEFT JOIN TMTask p ON t.project = p.uuid
+    LEFT JOIN TMArea a ON COALESCE(t.area, p.area) = a.uuid
+    WHERE t.trashed = 0
+      AND t.type = 0
+      ${statusFilter}
+      AND EXISTS (
+        SELECT 1 FROM TMTaskTag tt2
+        JOIN TMTag tag2 ON tt2.tags = tag2.uuid
+        WHERE tt2.tasks = t.uuid
+          AND LOWER(tag2.title) = 'week'
+      )
+    GROUP BY t.uuid
+    ORDER BY t.deadline ASC, t.creationDate DESC
+  `;
+
+  const rows = db.prepare(query).all() as any[];
+
+  const todos: Things3TodoWithWeek[] = rows.map((row) => {
+    const dueDate = julianToISODate(row.deadline);
+    return {
+      uuid: row.uuid,
+      title: row.title,
+      notes: row.notes,
+      status: statusFromInt(row.status),
+      startDate: julianToISODate(row.startDate),
+      dueDate,
+      completedDate: coreDataToISODate(row.stopDate),
+      createdDate: coreDataToISODate(row.creationDate) || new Date().toISOString(),
+      modifiedDate:
+        coreDataToISODate(row.userModificationDate) || new Date().toISOString(),
+      tags: row.tags ? row.tags.split(",").map((t: string) => t.trim()) : [],
+      project: row.projectTitle || null,
+      area: row.areaTitle || null,
+      inferredWeekId: inferWeekIdFromDeadline(dueDate),
+    };
+  });
+
+  // Filter by week if specified
+  if (weekId) {
+    return todos.filter((t) => t.inferredWeekId === weekId);
+  }
+
+  return todos;
+}
+
+/**
+ * Get todos by a specific tag (generic, used for backward compatibility)
+ * @deprecated Use getWeeklyGoals for week-tagged todos
  */
 function getTodosByWeekTag(db: Database.Database, weekTag: string): Things3Todo[] {
   const query = `
@@ -502,6 +622,7 @@ function getTodosByTag(
 
 /**
  * Convert week ID (YYYY-WWW) to Things 3 tag format (wN-YYYY)
+ * @deprecated No longer needed - we now use simple "week" tag with deadline-based inference
  */
 function weekIdToThings3Tag(weekId: string): string {
   const match = weekId.match(/^(\d{4})-W(\d{2})$/);
@@ -536,17 +657,22 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       {
         name: "get_weekly_todos",
         description:
-          "Get Things 3 todos tagged with a specific week tag. Week tags follow the format wN-YYYY (e.g., w10-2026 for week 10 of 2026). Also accepts weekId in YYYY-WWW format.",
+          "Get Things 3 todos tagged with 'week'. Week is inferred from task deadline (or current week if no deadline). Optionally filter to a specific week.",
         inputSchema: {
           type: "object",
           properties: {
             weekId: {
               type: "string",
               description:
-                "Week identifier in YYYY-WWW format (e.g., 2026-W10) or wN-YYYY format (e.g., w10-2026)",
+                "Optional week filter in YYYY-WWW format (e.g., 2026-W10). If omitted, returns all weekly goals grouped by inferred week.",
+            },
+            includeCompleted: {
+              type: "boolean",
+              description: "Include completed todos (default: false)",
+              default: false,
             },
           },
-          required: ["weekId"],
+          required: [],
         },
       },
       {
@@ -692,15 +818,21 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   try {
     switch (name) {
       case "get_weekly_todos": {
-        const { weekId } = args as { weekId: string };
+        const { weekId, includeCompleted = false } = args as {
+          weekId?: string;
+          includeCompleted?: boolean;
+        };
 
-        // Convert weekId to Things 3 tag format if needed
-        let weekTag = weekId;
-        if (weekId.match(/^\d{4}-W\d{2}$/)) {
-          weekTag = weekIdToThings3Tag(weekId);
+        // Get todos with "week" tag, optionally filtered by week
+        const todos = getWeeklyGoals(db, { weekId, includeCompleted });
+
+        // Group by inferred week if no specific week requested
+        const byWeek: Record<string, Things3TodoWithWeek[]> = {};
+        for (const todo of todos) {
+          const week = todo.inferredWeekId;
+          if (!byWeek[week]) byWeek[week] = [];
+          byWeek[week].push(todo);
         }
-
-        const todos = getTodosByWeekTag(db, weekTag);
 
         return {
           content: [
@@ -708,10 +840,11 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
               type: "text",
               text: JSON.stringify(
                 {
-                  weekId,
-                  weekTag,
+                  weekId: weekId || "all",
+                  currentWeek: getCurrentWeekId(),
                   todos,
                   count: todos.length,
+                  byWeek: weekId ? undefined : byWeek,
                 },
                 null,
                 2

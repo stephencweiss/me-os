@@ -33,27 +33,44 @@ interface SyncResult {
   }>;
 }
 
+// ============================================================================
+// Week ID Helpers
+// ============================================================================
+
 /**
- * Parse a Things 3 tag to a week ID
- * Input: "w14-2026" -> Output: "2026-W14"
+ * Get the ISO week ID for a given date
  */
-function thingsTagToWeekId(tag: string): string | null {
-  const match = tag.match(/^w(\d{1,2})-(\d{4})$/i);
-  if (!match) return null;
-  const week = parseInt(match[1], 10);
-  const year = parseInt(match[2], 10);
-  return `${year}-W${String(week).padStart(2, "0")}`;
+function getWeekIdForDate(date: Date): string {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const dayNum = d.getUTCDay() || 7;
+  d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  const weekNum = Math.ceil(((d.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
+  return `${d.getUTCFullYear()}-W${String(weekNum).padStart(2, "0")}`;
 }
 
 /**
- * Find week tag in a Things 3 todo's tags
+ * Get the current week ID
  */
-function findWeekTag(tags: string[]): string | null {
-  for (const tag of tags) {
-    const weekId = thingsTagToWeekId(tag);
-    if (weekId) return weekId;
+function getCurrentWeekId(): string {
+  return getWeekIdForDate(new Date());
+}
+
+/**
+ * Check if a todo has the "week" tag
+ */
+function hasWeekTag(todo: Things3Todo): boolean {
+  return todo.tags?.some((t) => t.toLowerCase() === "week") ?? false;
+}
+
+/**
+ * Infer week ID from todo's deadline (or current week if no deadline)
+ */
+function inferWeekId(todo: Things3Todo): string {
+  if (todo.deadline) {
+    return getWeekIdForDate(new Date(todo.deadline));
   }
-  return null;
+  return getCurrentWeekId();
 }
 
 /**
@@ -158,16 +175,13 @@ export async function POST(request: NextRequest) {
           continue;
         }
 
-        // Check if it has a week tag
-        if (!todo.tags || todo.tags.length === 0) {
-          continue; // Skip todos without tags
+        // Check if it has the "week" tag
+        if (!hasWeekTag(todo)) {
+          continue; // Skip todos without "week" tag
         }
 
-        // Get the week from the todo's tags
-        const weekId = findWeekTag(todo.tags);
-        if (!weekId) {
-          continue; // Skip todos without week tags
-        }
+        // Infer week from deadline (or use current week)
+        const weekId = inferWeekId(todo);
 
         // If targeting a specific week, skip others
         if (targetWeekId && weekId !== targetWeekId) {

@@ -4,6 +4,10 @@
  * Handles syncing goals between Things 3 and the local database.
  * Uses the Things 3 MCP server for reading and writing todos.
  *
+ * Weekly goals are identified by:
+ * - Tag: "week" (simple tag)
+ * - Week inferred from: task deadline (or current week if no deadline)
+ *
  * Note: This module expects the Things 3 MCP server to be available.
  * MCP tool calls are made by the skill layer, not directly here.
  */
@@ -16,10 +20,11 @@ import {
 } from "./calendar-db.js";
 
 import {
-  thingsTagToWeekId,
-  weekIdToThingsTag,
   inferGoalType,
   parseEstimatedMinutes,
+  getCurrentWeekId,
+  getWeekIdForDate,
+  getWeekDateRange,
 } from "./weekly-goals.js";
 
 // ============================================================================
@@ -71,21 +76,45 @@ export interface SyncResult {
 // ============================================================================
 
 /**
- * Find week tag in a Things 3 todo's tags
+ * Check if a todo has the "week" tag (making it a weekly goal)
  */
-export function findWeekTag(tags: string[]): string | null {
-  for (const tag of tags) {
-    const weekId = thingsTagToWeekId(tag);
-    if (weekId) return weekId;
-  }
-  return null;
+export function hasWeekTag(todo: Things3Todo): boolean {
+  return todo.tags?.some((t) => t.toLowerCase() === "week") ?? false;
 }
 
 /**
- * Check if a todo is a goal (has a week tag)
+ * Infer the week ID from a todo's deadline
+ * Falls back to current week if no deadline
+ */
+export function inferWeekId(todo: Things3Todo): string {
+  if (todo.deadline) {
+    return getWeekIdForDate(new Date(todo.deadline));
+  }
+  return getCurrentWeekId();
+}
+
+/**
+ * Check if a todo is a weekly goal (has "week" tag)
  */
 export function isWeeklyGoal(todo: Things3Todo): boolean {
-  return !!(todo.tags && findWeekTag(todo.tags));
+  return hasWeekTag(todo);
+}
+
+/**
+ * Find week tag in a Things 3 todo's tags
+ * @deprecated Use inferWeekId() instead - week is now computed from deadline
+ */
+export function findWeekTag(tags: string[]): string | null {
+  // Legacy: look for wN-YYYY pattern
+  for (const tag of tags) {
+    const match = tag.match(/^w(\d{1,2})-(\d{4})$/i);
+    if (match) {
+      const week = parseInt(match[1], 10);
+      const year = parseInt(match[2], 10);
+      return `${year}-W${String(week).padStart(2, "0")}`;
+    }
+  }
+  return null;
 }
 
 /**
@@ -132,6 +161,10 @@ export function things3TodoToWeeklyGoal(
 
 /**
  * Sync goals from Things 3 todos to local database
+ *
+ * Weekly goals are identified by:
+ * - Tag: "week"
+ * - Week inferred from: deadline (or current week if no deadline)
  */
 export async function syncGoalsFromThings3(
   todos: Things3Todo[],
@@ -148,12 +181,11 @@ export async function syncGoalsFromThings3(
 
   for (const todo of todos) {
     try {
-      // Skip if not a weekly goal
+      // Skip if not a weekly goal (must have "week" tag)
       if (!isWeeklyGoal(todo)) continue;
 
-      // Get the week from the todo's tags
-      const weekId = findWeekTag(todo.tags || []);
-      if (!weekId) continue;
+      // Infer the week from the todo's deadline (or use current week)
+      const weekId = inferWeekId(todo);
 
       // If targeting a specific week, skip others
       if (targetWeekId && weekId !== targetWeekId) continue;
@@ -219,6 +251,8 @@ export async function syncCompletionStatus(
 
 /**
  * Generate a Things 3 URL to create a new goal
+ *
+ * Uses simple "week" tag and sets deadline to end of week
  */
 export function generateCreateGoalUrl(
   title: string,
@@ -230,18 +264,22 @@ export function generateCreateGoalUrl(
     checklist?: string[];
   }
 ): string {
-  const tag = weekIdToThingsTag(weekId);
   const params = new URLSearchParams();
 
   params.set("title", title);
-  params.set("tags", tag);
+  params.set("tags", "week"); // Simple "week" tag
 
   if (options?.notes) {
     params.set("notes", options.notes);
   }
 
+  // Use provided deadline, or default to end of the target week
   if (options?.deadline) {
     params.set("deadline", options.deadline);
+  } else {
+    // Default deadline to end of the week (Sunday)
+    const { end } = getWeekDateRange(weekId);
+    params.set("deadline", end.toISOString().split("T")[0]);
   }
 
   if (options?.list) {
@@ -259,11 +297,12 @@ export function generateCreateGoalUrl(
 }
 
 /**
- * Generate a Things 3 URL to show goals for a week
+ * Generate a Things 3 URL to show all weekly goals
+ * (searches for todos with "week" tag)
  */
-export function generateSearchGoalsUrl(weekId: string): string {
-  const tag = weekIdToThingsTag(weekId);
-  return `things:///search?query=${encodeURIComponent(`#${tag}`)}`;
+export function generateSearchGoalsUrl(_weekId?: string): string {
+  // Search for all todos with "week" tag
+  return `things:///search?query=${encodeURIComponent("#week")}`;
 }
 
 /**
@@ -286,14 +325,16 @@ export function generateCompleteGoalUrl(
 
 /**
  * Build parameters for Things 3 MCP search
+ * @deprecated MCP now queries by "week" tag and filters by weekId in results
  */
-export function buildSearchParams(weekId: string): { query: string } {
-  const tag = weekIdToThingsTag(weekId);
-  return { query: `#${tag}` };
+export function buildSearchParams(_weekId?: string): { query: string } {
+  // Search for "week" tag
+  return { query: "#week" };
 }
 
 /**
  * Build parameters for Things 3 MCP create
+ * Uses "week" tag and sets deadline based on weekId
  */
 export function buildCreateParams(
   title: string,
@@ -305,14 +346,21 @@ export function buildCreateParams(
     checklist?: string[];
   }
 ): Record<string, unknown> {
-  const weekTag = weekIdToThingsTag(weekId);
-  const tags = [weekTag, ...(options?.tags || [])];
+  // Always include "week" tag, plus any additional tags
+  const tags = ["week", ...(options?.tags || [])];
+
+  // Default deadline to end of the target week if not specified
+  let deadline = options?.deadline;
+  if (!deadline) {
+    const { end } = getWeekDateRange(weekId);
+    deadline = end.toISOString().split("T")[0];
+  }
 
   return {
     title,
     tags: tags.join(","),
     notes: options?.notes,
-    deadline: options?.deadline,
+    deadline,
     "checklist-items": options?.checklist?.join("\n"),
     when: "this week",
   };

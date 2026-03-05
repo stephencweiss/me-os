@@ -156,13 +156,15 @@ describe("Weekly Goals E2E Tests", () => {
       const { getGoalsForWeek } = await import("../lib/calendar-db.js");
 
       // Simulate Things 3 todo data (matches Things3Todo interface)
+      // Goals are identified by "week" tag, with week inferred from deadline
       const things3Todos = [
         {
           id: "things-uuid-1",
           title: "4 hours deep work",
           notes: "Focus on coding",
           completed: false,
-          tags: ["w10-2026", "important"],
+          tags: ["week", "important"],
+          deadline: "2026-03-06", // Falls in week 10
           project: "Personal Goals",
           area: "Personal",
         },
@@ -171,7 +173,8 @@ describe("Weekly Goals E2E Tests", () => {
           title: "Weekly review",
           notes: "Reflect on the week",
           completed: false,
-          tags: ["w10-2026"],
+          tags: ["week"],
+          deadline: "2026-03-08", // Falls in week 10
           project: undefined,
           area: "Work",
         },
@@ -201,7 +204,8 @@ describe("Weekly Goals E2E Tests", () => {
           title: "Original title",
           notes: undefined as string | undefined,
           completed: false,
-          tags: ["w10-2026"],
+          tags: ["week"],
+          deadline: "2026-03-06", // Falls in week 10
           project: undefined,
           area: undefined,
         },
@@ -232,7 +236,8 @@ describe("Weekly Goals E2E Tests", () => {
           title: "Completed task",
           notes: undefined,
           completed: true,
-          tags: ["w10-2026"],
+          tags: ["week"],
+          deadline: "2026-03-06", // Falls in week 10
           project: undefined,
           area: undefined,
         },
