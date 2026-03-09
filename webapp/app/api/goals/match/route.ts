@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireAuth } from "@/lib/auth-helpers";
 import {
   getGoalsForWeek,
   getEvents,
@@ -7,7 +8,7 @@ import {
   recalculateGoalProgress,
   type DbWeeklyGoal,
   type DbEvent,
-} from "@/lib/db";
+} from "@/lib/db-supabase";
 
 // ============================================================================
 // Matching Constants
@@ -195,6 +196,13 @@ function processBatchMatches(events: DbEvent[], goals: DbWeeklyGoal[]): BatchMat
  *   - autoRecord?: boolean - If true, automatically record high-confidence matches (default: false)
  */
 export async function POST(request: NextRequest) {
+  // Require authentication
+  const authResult = await requireAuth();
+  if (!authResult.authorized) {
+    return authResult.response;
+  }
+  const { userId } = authResult;
+
   try {
     const body = await request.json();
     const { weekId, autoRecord = false } = body;
@@ -219,8 +227,8 @@ export async function POST(request: NextRequest) {
     const { startDate, endDate } = getWeekDateRange(weekId);
 
     // Fetch goals and events
-    const goals = await getGoalsForWeek(weekId);
-    const events = await getEvents(startDate, endDate);
+    const goals = await getGoalsForWeek(userId, weekId);
+    const events = await getEvents(userId, startDate, endDate);
 
     // Process matches
     const matchResult = processBatchMatches(events, goals);
@@ -231,7 +239,7 @@ export async function POST(request: NextRequest) {
       const affectedGoalIds = new Set<string>();
 
       for (const match of matchResult.autoMatches) {
-        await recordGoalProgress({
+        await recordGoalProgress(userId, {
           goalId: match.goalId,
           eventId: match.eventId,
           matchType: "auto",
@@ -244,7 +252,7 @@ export async function POST(request: NextRequest) {
 
       // Recalculate progress for affected goals
       for (const goalId of affectedGoalIds) {
-        await recalculateGoalProgress(goalId);
+        await recalculateGoalProgress(userId, goalId);
       }
     }
 

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { updateEventColor, getEventById, COLOR_DEFINITIONS } from "@/lib/db";
+import { requireAuth } from "@/lib/auth-helpers";
+import { updateEventColor, getEventById, COLOR_DEFINITIONS } from "@/lib/db-supabase";
 import { updateGoogleEventColor, isGoogleSyncConfigured } from "@/lib/google-calendar-client";
 
 /**
@@ -9,10 +10,17 @@ import { updateGoogleEventColor, isGoogleSyncConfigured } from "@/lib/google-cal
  *   - eventId: Event ID to update
  *   - colorId: Color ID (1-11)
  *
- * Updates both the local SQLite database AND syncs to Google Calendar.
+ * Updates both the local database AND syncs to Google Calendar.
  * If Google sync fails, the local change is preserved and a warning is returned.
  */
 export async function PATCH(request: NextRequest) {
+  // Require authentication
+  const authResult = await requireAuth();
+  if (!authResult.authorized) {
+    return authResult.response;
+  }
+  const { userId } = authResult;
+
   try {
     const body = await request.json();
     const { eventId, colorId } = body;
@@ -33,7 +41,7 @@ export async function PATCH(request: NextRequest) {
     }
 
     // First, get the event to check it exists and get Google Calendar info
-    const existingEvent = await getEventById(eventId);
+    const existingEvent = await getEventById(userId, eventId);
     if (!existingEvent) {
       return NextResponse.json(
         { error: "Event not found" },
@@ -41,8 +49,8 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    // 1. Update local SQLite database first
-    const updatedEvent = await updateEventColor(eventId, colorId);
+    // 1. Update local database first
+    const updatedEvent = await updateEventColor(userId, eventId, colorId);
 
     if (!updatedEvent) {
       return NextResponse.json(

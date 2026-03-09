@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireAuth } from "@/lib/auth-helpers";
 import {
   getGoalsForWeek,
   getEvents,
@@ -9,8 +10,7 @@ import {
   getGoalById,
   type DbWeeklyGoal,
   type DbEvent,
-  type DbGoalProgress,
-} from "@/lib/db";
+} from "@/lib/db-supabase";
 
 // ============================================================================
 // Matching Constants (duplicated from match/route.ts for independence)
@@ -156,11 +156,11 @@ function calculateMatch(event: DbEvent, goal: DbWeeklyGoal): MatchResult {
 /**
  * Get all event IDs that already have progress recorded for any goal
  */
-async function getMatchedEventIds(goals: DbWeeklyGoal[]): Promise<Set<string>> {
+async function getMatchedEventIds(userId: string, goals: DbWeeklyGoal[]): Promise<Set<string>> {
   const matchedEventIds = new Set<string>();
 
   for (const goal of goals) {
-    const progressRecords = await getProgressRecordsForGoal(goal.id);
+    const progressRecords = await getProgressRecordsForGoal(userId, goal.id);
     for (const record of progressRecords) {
       matchedEventIds.add(record.event_id);
     }
@@ -173,6 +173,7 @@ async function getMatchedEventIds(goals: DbWeeklyGoal[]): Promise<Set<string>> {
  * Run the full sync process for a week
  */
 async function syncProgressForWeek(
+  userId: string,
   weekId: string,
   options: { dryRun?: boolean; forceRematch?: boolean } = {}
 ): Promise<SyncResult> {
@@ -182,7 +183,7 @@ async function syncProgressForWeek(
   const { startDate, endDate } = getWeekDateRange(weekId);
 
   // 1. Load goals for the week (only active ones)
-  const allGoals = await getGoalsForWeek(weekId);
+  const allGoals = await getGoalsForWeek(userId, weekId);
   const activeGoals = allGoals.filter((g) => g.status === "active");
 
   if (activeGoals.length === 0) {
@@ -199,7 +200,7 @@ async function syncProgressForWeek(
   }
 
   // 2. Load events for the week
-  const allEvents = await getEvents(startDate, endDate);
+  const allEvents = await getEvents(userId, startDate, endDate);
 
   // Filter out all-day events (they don't contribute meaningful time)
   const timedEvents = allEvents.filter((e) => !e.is_all_day);
@@ -207,7 +208,7 @@ async function syncProgressForWeek(
   // 3. Get already matched events (unless forceRematch)
   const matchedEventIds = forceRematch
     ? new Set<string>()
-    : await getMatchedEventIds(activeGoals);
+    : await getMatchedEventIds(userId, activeGoals);
 
   const unmatchedEvents = timedEvents.filter((e) => !matchedEventIds.has(e.id));
   const alreadyMatched = timedEvents.length - unmatchedEvents.length;
@@ -262,7 +263,7 @@ async function syncProgressForWeek(
     affectedGoalIds.add(match.goalId);
 
     if (!dryRun) {
-      await recordGoalProgress({
+      await recordGoalProgress(userId, {
         goalId: match.goalId,
         eventId: match.eventId,
         matchType: "auto",
@@ -285,13 +286,13 @@ async function syncProgressForWeek(
   const affectedGoals: SyncResult["affectedGoals"] = [];
 
   for (const goalId of affectedGoalIds) {
-    const goal = await getGoalById(goalId);
+    const goal = await getGoalById(userId, goalId);
     if (!goal) continue;
 
     const previousProgress = goal.progress_percent;
 
     if (!dryRun) {
-      const newProgress = await recalculateGoalProgress(goalId);
+      const newProgress = await recalculateGoalProgress(userId, goalId);
       affectedGoals.push({
         goalId,
         title: goal.title,
@@ -355,6 +356,13 @@ async function syncProgressForWeek(
  *   - forceRematch?: boolean - If true, re-match even events that already have progress
  */
 export async function POST(request: NextRequest) {
+  // Require authentication
+  const authResult = await requireAuth();
+  if (!authResult.authorized) {
+    return authResult.response;
+  }
+  const { userId } = authResult;
+
   try {
     const body = await request.json();
     const { weekId, dryRun = false, forceRematch = false } = body;
@@ -376,7 +384,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Run the sync process
-    const result = await syncProgressForWeek(weekId, { dryRun, forceRematch });
+    const result = await syncProgressForWeek(userId, weekId, { dryRun, forceRematch });
 
     // Get date range for response
     const { startDate, endDate } = getWeekDateRange(weekId);

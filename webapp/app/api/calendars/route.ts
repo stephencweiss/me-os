@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { getCalendars, getAccounts } from "@/lib/db";
+import { requireAuth } from "@/lib/auth-helpers";
+import { getCalendars, getAccounts } from "@/lib/db-supabase";
 
 /**
  * GET /api/calendars
@@ -7,10 +8,17 @@ import { getCalendars, getAccounts } from "@/lib/db";
  * Returns all distinct calendars and accounts from the database.
  */
 export async function GET() {
+  // Require authentication
+  const authResult = await requireAuth();
+  if (!authResult.authorized) {
+    return authResult.response;
+  }
+  const { userId } = authResult;
+
   try {
     const [calendars, accounts] = await Promise.all([
-      getCalendars(),
-      getAccounts(),
+      getCalendars(userId),
+      getAccounts(userId),
     ]);
 
     // Group calendars by account

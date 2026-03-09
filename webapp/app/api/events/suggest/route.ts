@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getEventById, type DbEvent } from "@/lib/db";
+import { requireAuth } from "@/lib/auth-helpers";
+import { getEventById, type DbEvent } from "@/lib/db-supabase";
 
 /**
  * Category patterns for event title matching.
@@ -229,6 +230,13 @@ function suggestCategory(event: DbEvent): CategorySuggestion {
  *   - suggestions: Array<{ eventId, colorId, colorName, colorMeaning, confidence }>
  */
 export async function POST(request: NextRequest) {
+  // Require authentication
+  const authResult = await requireAuth();
+  if (!authResult.authorized) {
+    return authResult.response;
+  }
+  const { userId } = authResult;
+
   try {
     const body = await request.json();
     const { eventIds } = body;
@@ -256,7 +264,7 @@ export async function POST(request: NextRequest) {
     const suggestions: CategorySuggestion[] = [];
 
     for (const eventId of eventIds) {
-      const event = await getEventById(eventId);
+      const event = await getEventById(userId, eventId);
       if (event) {
         const suggestion = suggestCategory(event);
         suggestions.push(suggestion);
