@@ -45,10 +45,54 @@ export interface Database {
           attended: string;
           auto_categorized: boolean;
         };
-        Insert: Omit<Database["public"]["Tables"]["events"]["Row"], "id"> & {
+        Insert: {
           id?: string;
+          user_id: string;
+          google_event_id: string;
+          date: string;
+          account: string;
+          calendar_name: string;
+          calendar_type: string;
+          summary: string;
+          description?: string | null;
+          start_time: string;
+          end_time: string;
+          duration_minutes: number;
+          color_id: string;
+          color_name: string;
+          color_meaning: string;
+          is_all_day?: boolean;
+          is_recurring?: boolean;
+          recurring_event_id?: string | null;
+          first_seen?: string;
+          last_seen?: string;
+          attended?: string;
+          auto_categorized?: boolean;
         };
-        Update: Partial<Database["public"]["Tables"]["events"]["Row"]>;
+        Update: {
+          id?: string;
+          user_id?: string;
+          google_event_id?: string;
+          date?: string;
+          account?: string;
+          calendar_name?: string;
+          calendar_type?: string;
+          summary?: string;
+          description?: string | null;
+          start_time?: string;
+          end_time?: string;
+          duration_minutes?: number;
+          color_id?: string;
+          color_name?: string;
+          color_meaning?: string;
+          is_all_day?: boolean;
+          is_recurring?: boolean;
+          recurring_event_id?: string | null;
+          first_seen?: string;
+          last_seen?: string;
+          attended?: string;
+          auto_categorized?: boolean;
+        };
       };
       daily_summaries: {
         Row: {
@@ -63,13 +107,30 @@ export interface Database {
           analysis_hours_end: number;
           snapshot_time: string;
         };
-        Insert: Omit<
-          Database["public"]["Tables"]["daily_summaries"]["Row"],
-          "id"
-        > & { id?: number };
-        Update: Partial<
-          Database["public"]["Tables"]["daily_summaries"]["Row"]
-        >;
+        Insert: {
+          id?: number;
+          user_id: string;
+          date: string;
+          total_scheduled_minutes: number;
+          total_gap_minutes: number;
+          categories_json?: Json;
+          is_work_day?: boolean;
+          analysis_hours_start?: number;
+          analysis_hours_end?: number;
+          snapshot_time?: string;
+        };
+        Update: {
+          id?: number;
+          user_id?: string;
+          date?: string;
+          total_scheduled_minutes?: number;
+          total_gap_minutes?: number;
+          categories_json?: Json;
+          is_work_day?: boolean;
+          analysis_hours_start?: number;
+          analysis_hours_end?: number;
+          snapshot_time?: string;
+        };
       };
       weekly_goals: {
         Row: {
@@ -87,15 +148,36 @@ export interface Database {
           created_at: string;
           updated_at: string;
         };
-        Insert: Omit<
-          Database["public"]["Tables"]["weekly_goals"]["Row"],
-          "id" | "created_at" | "updated_at"
-        > & {
+        Insert: {
           id?: string;
+          user_id: string;
+          week_id: string;
+          title: string;
+          notes?: string | null;
+          estimated_minutes?: number | null;
+          goal_type?: "time" | "outcome" | "habit";
+          color_id?: string | null;
+          status?: "active" | "completed" | "cancelled";
+          progress_percent?: number;
+          completed_at?: string | null;
           created_at?: string;
           updated_at?: string;
         };
-        Update: Partial<Database["public"]["Tables"]["weekly_goals"]["Row"]>;
+        Update: {
+          id?: string;
+          user_id?: string;
+          week_id?: string;
+          title?: string;
+          notes?: string | null;
+          estimated_minutes?: number | null;
+          goal_type?: "time" | "outcome" | "habit";
+          color_id?: string | null;
+          status?: "active" | "completed" | "cancelled";
+          progress_percent?: number;
+          completed_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
       };
       non_goals: {
         Row: {
@@ -109,14 +191,28 @@ export interface Database {
           active: boolean;
           created_at: string;
         };
-        Insert: Omit<
-          Database["public"]["Tables"]["non_goals"]["Row"],
-          "id" | "created_at"
-        > & {
+        Insert: {
           id?: string;
+          user_id: string;
+          week_id: string;
+          title: string;
+          pattern?: string;
+          color_id?: string | null;
+          reason?: string | null;
+          active?: boolean;
           created_at?: string;
         };
-        Update: Partial<Database["public"]["Tables"]["non_goals"]["Row"]>;
+        Update: {
+          id?: string;
+          user_id?: string;
+          week_id?: string;
+          title?: string;
+          pattern?: string;
+          color_id?: string | null;
+          reason?: string | null;
+          active?: boolean;
+          created_at?: string;
+        };
       };
       goal_progress: {
         Row: {
@@ -129,14 +225,26 @@ export interface Database {
           match_confidence: number | null;
           minutes_contributed: number;
         };
-        Insert: Omit<
-          Database["public"]["Tables"]["goal_progress"]["Row"],
-          "id" | "matched_at"
-        > & {
+        Insert: {
           id?: number;
+          user_id: string;
+          goal_id: string;
+          event_id: string;
           matched_at?: string;
+          match_type: "auto" | "manual";
+          match_confidence?: number | null;
+          minutes_contributed: number;
         };
-        Update: Partial<Database["public"]["Tables"]["goal_progress"]["Row"]>;
+        Update: {
+          id?: number;
+          user_id?: string;
+          goal_id?: string;
+          event_id?: string;
+          matched_at?: string;
+          match_type?: "auto" | "manual";
+          match_confidence?: number | null;
+          minutes_contributed?: number;
+        };
       };
       non_goal_alerts: {
         Row: {
@@ -147,16 +255,22 @@ export interface Database {
           detected_at: string;
           acknowledged: boolean;
         };
-        Insert: Omit<
-          Database["public"]["Tables"]["non_goal_alerts"]["Row"],
-          "id" | "detected_at"
-        > & {
+        Insert: {
           id?: number;
+          user_id: string;
+          non_goal_id: string;
+          event_id: string;
           detected_at?: string;
+          acknowledged?: boolean;
         };
-        Update: Partial<
-          Database["public"]["Tables"]["non_goal_alerts"]["Row"]
-        >;
+        Update: {
+          id?: number;
+          user_id?: string;
+          non_goal_id?: string;
+          event_id?: string;
+          detected_at?: string;
+          acknowledged?: boolean;
+        };
       };
       user_preferences: {
         Row: {
@@ -165,13 +279,18 @@ export interface Database {
           key: string;
           value: string;
         };
-        Insert: Omit<
-          Database["public"]["Tables"]["user_preferences"]["Row"],
-          "id"
-        > & { id?: number };
-        Update: Partial<
-          Database["public"]["Tables"]["user_preferences"]["Row"]
-        >;
+        Insert: {
+          id?: number;
+          user_id: string;
+          key: string;
+          value: string;
+        };
+        Update: {
+          id?: number;
+          user_id?: string;
+          key?: string;
+          value?: string;
+        };
       };
       linked_google_accounts: {
         Row: {
@@ -188,17 +307,34 @@ export interface Database {
           created_at: string;
           updated_at: string;
         };
-        Insert: Omit<
-          Database["public"]["Tables"]["linked_google_accounts"]["Row"],
-          "id" | "created_at" | "updated_at"
-        > & {
+        Insert: {
           id?: string;
+          user_id: string;
+          google_email: string;
+          google_user_id: string;
+          display_name?: string | null;
+          account_label: string;
+          access_token: string;
+          refresh_token?: string | null;
+          token_expiry?: string | null;
+          scopes: string;
           created_at?: string;
           updated_at?: string;
         };
-        Update: Partial<
-          Database["public"]["Tables"]["linked_google_accounts"]["Row"]
-        >;
+        Update: {
+          id?: string;
+          user_id?: string;
+          google_email?: string;
+          google_user_id?: string;
+          display_name?: string | null;
+          account_label?: string;
+          access_token?: string;
+          refresh_token?: string | null;
+          token_expiry?: string | null;
+          scopes?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
       };
     };
     Views: Record<string, never>;
