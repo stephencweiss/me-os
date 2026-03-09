@@ -25,6 +25,8 @@ import type {
   NonGoalAlert,
   NonGoalAlertUpdate,
   UserPreferenceInsert,
+  LinkedGoogleAccount,
+  LinkedGoogleAccountInsert,
   Json,
 } from "./database.types";
 
@@ -38,6 +40,7 @@ export type DbWeeklyGoal = WeeklyGoal;
 export type DbNonGoal = NonGoal;
 export type DbGoalProgress = GoalProgress;
 export type DbNonGoalAlert = NonGoalAlert;
+export type DbLinkedGoogleAccount = LinkedGoogleAccount;
 
 /**
  * Category from daily summary
@@ -913,4 +916,183 @@ export function getWeekDateRange(weekId: string): { startDate: string; endDate: 
   const formatDate = (d: Date) => d.toISOString().split("T")[0];
 
   return { startDate: formatDate(weekStart), endDate: formatDate(weekEnd) };
+}
+
+// ============================================================================
+// Linked Google Accounts
+// ============================================================================
+
+/**
+ * Get all linked Google accounts for a user
+ */
+export async function getLinkedGoogleAccounts(
+  userId: string
+): Promise<LinkedGoogleAccount[]> {
+  const supabase = createServerClient();
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (supabase.from("linked_google_accounts") as any)
+    .select("*")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: true });
+
+  if (error) throw error;
+  return data || [];
+}
+
+/**
+ * Get a linked Google account by ID
+ */
+export async function getLinkedGoogleAccountById(
+  userId: string,
+  accountId: string
+): Promise<LinkedGoogleAccount | null> {
+  const supabase = createServerClient();
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (supabase.from("linked_google_accounts") as any)
+    .select("*")
+    .eq("user_id", userId)
+    .eq("id", accountId)
+    .single();
+
+  if (error && error.code !== "PGRST116") throw error;
+  return data || null;
+}
+
+/**
+ * Get a linked Google account by email
+ */
+export async function getLinkedGoogleAccountByEmail(
+  userId: string,
+  googleEmail: string
+): Promise<LinkedGoogleAccount | null> {
+  const supabase = createServerClient();
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (supabase.from("linked_google_accounts") as any)
+    .select("*")
+    .eq("user_id", userId)
+    .eq("google_email", googleEmail)
+    .single();
+
+  if (error && error.code !== "PGRST116") throw error;
+  return data || null;
+}
+
+/**
+ * Parameters for creating/updating a linked Google account
+ */
+export interface UpsertLinkedGoogleAccountParams {
+  googleEmail: string;
+  googleUserId: string;
+  displayName: string | null;
+  accountLabel: string;
+  accessToken: string; // Should be pre-encrypted
+  refreshToken: string | null; // Should be pre-encrypted
+  tokenExpiry: string | null; // ISO timestamp
+  scopes: string;
+}
+
+/**
+ * Create or update a linked Google account
+ */
+export async function upsertLinkedGoogleAccount(
+  userId: string,
+  params: UpsertLinkedGoogleAccountParams
+): Promise<LinkedGoogleAccount> {
+  const supabase = createServerClient();
+
+  const id = `goog_${userId}_${params.googleUserId}`;
+  const now = new Date().toISOString();
+
+  const record: LinkedGoogleAccountInsert = {
+    id,
+    user_id: userId,
+    google_email: params.googleEmail,
+    google_user_id: params.googleUserId,
+    display_name: params.displayName,
+    account_label: params.accountLabel,
+    access_token: params.accessToken,
+    refresh_token: params.refreshToken,
+    token_expiry: params.tokenExpiry,
+    scopes: params.scopes,
+    created_at: now,
+    updated_at: now,
+  };
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (supabase.from("linked_google_accounts") as any)
+    .upsert(record, { onConflict: "user_id,google_email" })
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+/**
+ * Update tokens for a linked Google account
+ */
+export async function updateLinkedGoogleAccountTokens(
+  userId: string,
+  accountId: string,
+  accessToken: string, // Should be pre-encrypted
+  refreshToken: string | null, // Should be pre-encrypted
+  tokenExpiry: string | null
+): Promise<void> {
+  const supabase = createServerClient();
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (supabase.from("linked_google_accounts") as any)
+    .update({
+      access_token: accessToken,
+      refresh_token: refreshToken,
+      token_expiry: tokenExpiry,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("user_id", userId)
+    .eq("id", accountId);
+
+  if (error) throw error;
+}
+
+/**
+ * Update account label
+ */
+export async function updateLinkedGoogleAccountLabel(
+  userId: string,
+  accountId: string,
+  accountLabel: string
+): Promise<void> {
+  const supabase = createServerClient();
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (supabase.from("linked_google_accounts") as any)
+    .update({
+      account_label: accountLabel,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("user_id", userId)
+    .eq("id", accountId);
+
+  if (error) throw error;
+}
+
+/**
+ * Delete a linked Google account
+ */
+export async function deleteLinkedGoogleAccount(
+  userId: string,
+  accountId: string
+): Promise<void> {
+  const supabase = createServerClient();
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (supabase.from("linked_google_accounts") as any)
+    .delete()
+    .eq("user_id", userId)
+    .eq("id", accountId);
+
+  if (error) throw error;
 }

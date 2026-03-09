@@ -131,7 +131,9 @@ export async function POST(request: NextRequest) {
             const googleResult = await updateGoogleEventColor(
               existingEvent.google_event_id,
               existingEvent.account,
-              colorId
+              colorId,
+              "primary",
+              userId
             );
             googleSynced = googleResult.googleUpdated;
             if (googleSynced) {
