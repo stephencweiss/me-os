@@ -73,7 +73,9 @@ export async function PATCH(request: NextRequest) {
       googleSyncResult = await updateGoogleEventColor(
         existingEvent.google_event_id,
         existingEvent.account,
-        colorId
+        colorId,
+        "primary",
+        userId
       );
     } else if (!existingEvent.google_event_id) {
       googleSyncResult.warning = "Event has no Google Calendar ID - local only update";
