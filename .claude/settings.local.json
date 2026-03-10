@@ -1,11 +1,4 @@
 {
-  "disabledMcpjsonServers": [
-    "plaid-mcp"
-  ],
-  "enableAllProjectMcpServers": true,
-  "enabledMcpjsonServers": [
-    "google-calendar"
-  ],
   "permissions": {
     "allow": [
       "Bash(./node_modules/.bin/tsc:*)",
@@ -47,7 +40,17 @@
       "Skill(calendar-optimizer)",
       "Skill(time-report)",
       "WebFetch(domain:developers.google.com)",
-      "WebSearch"
+      "WebSearch",
+      "Bash(./dev-stats)",
+      "Bash(./scripts/worktree-start.sh:*)",
+      "Bash(dev-stats)"
     ]
-  }
+  },
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "google-calendar"
+  ],
+  "disabledMcpjsonServers": [
+    "plaid-mcp"
+  ]
 }
