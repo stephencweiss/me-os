@@ -502,6 +502,7 @@ function getTodosByTag(
 
 /**
  * Convert week ID (YYYY-WWW) to Things 3 tag format (wN-YYYY)
+ * @deprecated Use simple "week" tag with deadline-based inference instead
  */
 function weekIdToThings3Tag(weekId: string): string {
   const match = weekId.match(/^(\d{4})-W(\d{2})$/);
@@ -511,6 +512,63 @@ function weekIdToThings3Tag(weekId: string): string {
   const [, year, week] = match;
   // Things 3 uses wN-YYYY format (e.g., w10-2026)
   return `w${parseInt(week, 10)}-${year}`;
+}
+
+/**
+ * Get the end date (Sunday) for a week ID
+ */
+function getWeekEndDate(weekId: string): string {
+  const match = weekId.match(/^(\d{4})-W(\d{2})$/);
+  if (!match) {
+    throw new Error(`Invalid week ID format: ${weekId}. Expected YYYY-WWW (e.g., 2026-W10)`);
+  }
+  const year = parseInt(match[1], 10);
+  const week = parseInt(match[2], 10);
+
+  // ISO week 1 contains January 4th
+  const jan4 = new Date(Date.UTC(year, 0, 4));
+  const dayOfWeek = jan4.getUTCDay() || 7; // Make Sunday = 7
+
+  // Start of week 1 (Monday)
+  const week1Start = new Date(jan4);
+  week1Start.setUTCDate(jan4.getUTCDate() - dayOfWeek + 1);
+
+  // Start of requested week (Monday)
+  const weekStart = new Date(week1Start);
+  weekStart.setUTCDate(week1Start.getUTCDate() + (week - 1) * 7);
+
+  // End of week (Sunday)
+  const weekEnd = new Date(weekStart);
+  weekEnd.setUTCDate(weekStart.getUTCDate() + 6);
+
+  return weekEnd.toISOString().split("T")[0];
+}
+
+/**
+ * Generate Things 3 URL to create a new goal with "week" tag
+ */
+function generateCreateGoalUrl(
+  title: string,
+  weekId: string,
+  options?: { notes?: string; estimatedMinutes?: number }
+): string {
+  const params = new URLSearchParams();
+
+  params.set("title", title);
+  params.set("tags", "week");
+
+  // Set deadline to end of week (Sunday)
+  const deadline = getWeekEndDate(weekId);
+  params.set("deadline", deadline);
+
+  // Set "when" so it appears in This Week view
+  params.set("when", "this week");
+
+  if (options?.notes) {
+    params.set("notes", options.notes);
+  }
+
+  return `things:///add?${params.toString()}`;
 }
 
 // ============================================================================
@@ -661,6 +719,33 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           type: "object",
           properties: {},
           required: [],
+        },
+      },
+      {
+        name: "create_weekly_goal",
+        description:
+          "Generate a Things 3 URL to create a new weekly goal. Returns a URL that can be opened to create the todo in Things 3 with the 'week' tag and appropriate deadline.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            title: {
+              type: "string",
+              description: "Goal title",
+            },
+            weekId: {
+              type: "string",
+              description: "Week identifier in YYYY-WWW format (e.g., 2026-W10)",
+            },
+            notes: {
+              type: "string",
+              description: "Optional notes for the goal",
+            },
+            estimatedMinutes: {
+              type: "number",
+              description: "Optional estimated time in minutes",
+            },
+          },
+          required: ["title", "weekId"],
         },
       },
     ],
@@ -879,6 +964,38 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                 {
                   tags,
                   count: tags.length,
+                },
+                null,
+                2
+              ),
+            },
+          ],
+        };
+      }
+
+      case "create_weekly_goal": {
+        const { title, weekId, notes, estimatedMinutes } = args as {
+          title: string;
+          weekId: string;
+          notes?: string;
+          estimatedMinutes?: number;
+        };
+
+        const url = generateCreateGoalUrl(title, weekId, { notes, estimatedMinutes });
+        const deadline = getWeekEndDate(weekId);
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify(
+                {
+                  title,
+                  weekId,
+                  deadline,
+                  tag: "week",
+                  url,
+                  message: `Open this URL to create the goal in Things 3: ${url}`,
                 },
                 null,
                 2

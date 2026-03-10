@@ -11,6 +11,7 @@ Track weekly objectives with Things 3 as the source of truth. Auto-detects progr
 ## Usage
 
 - `/weekly-goals` - Show current week's goals and progress
+- `/weekly-goals add` - Quick add a single goal (conversational)
 - `/weekly-goals set` - Interactive goal setting (creates in Things 3)
 - `/weekly-goals sync` - Pull latest from Things 3
 - `/weekly-goals review` - Review progress and match events to goals
@@ -26,9 +27,10 @@ Goals use ISO week numbers with tags in Things 3:
 ## MCP Tools Used
 
 **Things 3 MCP** (if available):
-- `things3.search-things3-todos` - Search by week tag
-- `things3.create-things3-todo` - Create new goals
-- `things3.complete-things3-todo` - Mark complete
+- `things3.get_weekly_todos` - Get todos by week tag
+- `things3.create_weekly_goal` - Generate Things 3 URL to create goal with "week" tag
+- `things3.search_todos` - Search by text
+- `things3.get_todos_by_tag` - Get todos by tag
 
 **Google Calendar MCP**:
 - `google-calendar.get_week_view` - Get events for matching
@@ -81,6 +83,93 @@ Display current week's goals with progress:
    - `[2] Mark goal complete` - Update status
    - `[3] Add new goal` - Create in Things 3
    - `[4] Sync from Things 3` - Pull latest
+
+### Add Flow (`/weekly-goals add`)
+
+Quick conversational goal creation:
+
+1. **Parse user intent** from their message:
+   ```
+   User: "Add a goal for this week: 4 hours of deep work"
+
+   Parsed:
+   - title: "4 hours of deep work"
+   - goalType: "time" (inferred from "4 hours")
+   - estimatedMinutes: 240
+   - weekId: current week (e.g., "2026-W10")
+   ```
+
+2. **Confirm with user**:
+   ```
+   Creating time goal for 2026-W10:
+   - "4 hours of deep work"
+   - Estimate: 4h
+
+   Create and sync to Things 3? [Y/n]
+   ```
+
+3. **Create in database via API**:
+   ```bash
+   # POST to the webapp API
+   curl -X POST http://localhost:3001/api/goals \
+     -H "Content-Type: application/json" \
+     -d '{
+       "weekId": "2026-W10",
+       "title": "4 hours of deep work",
+       "goalType": "time",
+       "estimatedMinutes": 240,
+       "syncToThings3": true
+     }'
+   ```
+
+4. **Open Things 3 URL** (from API response):
+   ```bash
+   # API returns things3Url when syncToThings3 is true
+   open "things:///add?title=4+hours+of+deep+work&tags=week&deadline=2026-03-08&when=this+week"
+   ```
+
+5. **Confirm success**:
+   ```
+   ✅ Goal created!
+   - Added to MeOS database
+   - Things 3 opened to create matching todo
+
+   Tip: The goal will sync back from Things 3 on next `/weekly-goals sync`.
+   ```
+
+**Alternative: Use MCP tool directly**:
+```typescript
+// Use things3 MCP create_weekly_goal tool
+const result = await things3.create_weekly_goal({
+  title: "4 hours of deep work",
+  weekId: "2026-W10",
+  notes: "Focus on Project X",
+  estimatedMinutes: 240,
+});
+// Open the returned URL
+await shell.open(result.url);
+```
+
+**Example conversations**:
+
+```
+User: Add a goal for this week: finish the API spec
+Claude: Creating outcome goal for 2026-W10:
+        - "Finish the API spec"
+        Create and sync to Things 3? [Y/n]
+User: y
+Claude: ✅ Done! Goal created in MeOS and Things 3.
+```
+
+```
+User: /weekly-goals add workout 3x this week
+Claude: Creating habit goal for 2026-W10:
+        - "Workout 3x this week"
+        - Type: habit
+        Create and sync to Things 3? [Y/n]
+User: yes
+Claude: ✅ Goal created!
+```
 
 ### Set Flow (`/weekly-goals set`)
 

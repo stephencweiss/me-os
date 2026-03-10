@@ -7,7 +7,37 @@ import {
   updateGoalStatus,
   getGoalProgressMinutes,
   createGoal,
+  updateGoal,
+  getWeekDateRange,
 } from "@/lib/db-supabase";
+
+/**
+ * Generate a Things 3 URL to create a new goal
+ * Uses simple "week" tag with deadline-based week inference
+ */
+function generateThings3CreateUrl(
+  title: string,
+  weekId: string,
+  options?: { notes?: string; estimatedMinutes?: number }
+): string {
+  const params = new URLSearchParams();
+
+  params.set("title", title);
+  params.set("tags", "week");
+
+  // Set deadline to end of week (Sunday)
+  const { endDate } = getWeekDateRange(weekId);
+  params.set("deadline", endDate);
+
+  // Set "when" so it appears in This Week view
+  params.set("when", "this week");
+
+  if (options?.notes) {
+    params.set("notes", options.notes);
+  }
+
+  return `things:///add?${params.toString()}`;
+}
 
 /**
  * GET /api/goals
@@ -156,6 +186,7 @@ export async function PATCH(request: NextRequest) {
  *   - estimatedMinutes?: Estimated time to complete
  *   - notes?: Additional notes
  *   - goalType?: "time" | "outcome" | "habit" (default: "outcome")
+ *   - syncToThings3?: boolean - if true, include Things 3 URL in response
  */
 export async function POST(request: NextRequest) {
   // Require authentication
@@ -167,7 +198,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { weekId, title, colorId, estimatedMinutes, notes, goalType } = body;
+    const { weekId, title, colorId, estimatedMinutes, notes, goalType, syncToThings3 } = body;
 
     // Validate required fields
     if (!weekId) {
@@ -221,23 +252,139 @@ export async function POST(request: NextRequest) {
     }
 
     // Create the goal
+    const trimmedTitle = title.trim();
     const goal = await createGoal(userId, {
       weekId,
-      title: title.trim(),
+      title: trimmedTitle,
       colorId: colorId ?? null,
       estimatedMinutes: estimatedMinutes ?? null,
       notes: notes ?? null,
       goalType: goalType ?? "outcome",
     });
 
-    return NextResponse.json({
+    // Generate Things 3 URL if requested
+    const response: {
+      success: boolean;
+      goal: typeof goal;
+      things3Url?: string;
+    } = {
       success: true,
       goal,
-    });
+    };
+
+    if (syncToThings3) {
+      response.things3Url = generateThings3CreateUrl(trimmedTitle, weekId, {
+        notes: notes ?? undefined,
+        estimatedMinutes: estimatedMinutes ?? undefined,
+      });
+    }
+
+    return NextResponse.json(response);
   } catch (error) {
     console.error("Error creating goal:", error);
     return NextResponse.json(
       { error: "Failed to create goal" },
+      { status: 500 }
+    );
+  }
+}
+
+/**
+ * PUT /api/goals
+ *
+ * Update a goal's editable fields.
+ *
+ * Body:
+ *   - goalId: Goal ID to update - required
+ *   - title?: New title
+ *   - notes?: New notes (or null to clear)
+ *   - estimatedMinutes?: New estimate (or null to clear)
+ *   - goalType?: "time" | "outcome" | "habit"
+ *   - colorId?: New color ID (or null to clear)
+ */
+export async function PUT(request: NextRequest) {
+  // Require authentication
+  const authResult = await requireAuth();
+  if (!authResult.authorized) {
+    return authResult.response;
+  }
+  const { userId } = authResult;
+
+  try {
+    const body = await request.json();
+    const { goalId, title, notes, estimatedMinutes, goalType, colorId } = body;
+
+    if (!goalId) {
+      return NextResponse.json(
+        { error: "goalId is required" },
+        { status: 400 }
+      );
+    }
+
+    // Verify goal exists
+    const existing = await getGoalById(userId, goalId);
+    if (!existing) {
+      return NextResponse.json(
+        { error: "Goal not found" },
+        { status: 404 }
+      );
+    }
+
+    // Validate title if provided
+    if (title !== undefined) {
+      if (typeof title !== "string" || title.trim().length === 0) {
+        return NextResponse.json(
+          { error: "title must be a non-empty string" },
+          { status: 400 }
+        );
+      }
+    }
+
+    // Validate estimatedMinutes if provided
+    if (estimatedMinutes !== undefined && estimatedMinutes !== null) {
+      if (typeof estimatedMinutes !== "number" || estimatedMinutes < 0) {
+        return NextResponse.json(
+          { error: "estimatedMinutes must be a non-negative number" },
+          { status: 400 }
+        );
+      }
+    }
+
+    // Validate goalType if provided
+    if (goalType !== undefined) {
+      if (!["time", "outcome", "habit"].includes(goalType)) {
+        return NextResponse.json(
+          { error: "goalType must be 'time', 'outcome', or 'habit'" },
+          { status: 400 }
+        );
+      }
+    }
+
+    // Build updates object (only include provided fields)
+    const updates: {
+      title?: string;
+      notes?: string | null;
+      estimatedMinutes?: number | null;
+      goalType?: "time" | "outcome" | "habit";
+      colorId?: string | null;
+    } = {};
+
+    if (title !== undefined) updates.title = title.trim();
+    if (notes !== undefined) updates.notes = notes;
+    if (estimatedMinutes !== undefined) updates.estimatedMinutes = estimatedMinutes;
+    if (goalType !== undefined) updates.goalType = goalType;
+    if (colorId !== undefined) updates.colorId = colorId;
+
+    const updatedGoal = await updateGoal(userId, goalId, updates);
+
+    return NextResponse.json({
+      success: true,
+      goal: updatedGoal,
+    });
+  } catch (error) {
+    console.error("Error updating goal:", error);
+    return NextResponse.json(
+      { error: "Failed to update goal" },
       { status: 500 }
     );
   }

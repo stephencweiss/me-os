@@ -446,6 +446,25 @@ export interface DbWeeklyGoal {
 }
 
 /**
+ * Non-goal status values (stored as integers in database)
+ */
+export const NON_GOAL_STATUS = {
+  ACTIVE: 0,
+  COMPLETED: 1,
+  MISSED: 2,
+  ABANDONED: 3,
+} as const;
+
+export type NonGoalStatus = (typeof NON_GOAL_STATUS)[keyof typeof NON_GOAL_STATUS];
+
+export const NON_GOAL_STATUS_LABELS: Record<NonGoalStatus, string> = {
+  [NON_GOAL_STATUS.ACTIVE]: "Active",
+  [NON_GOAL_STATUS.COMPLETED]: "Completed",
+  [NON_GOAL_STATUS.MISSED]: "Missed",
+  [NON_GOAL_STATUS.ABANDONED]: "Abandoned",
+};
+
+/**
  * Non-goal from database
  */
 export interface DbNonGoal {
@@ -456,6 +475,7 @@ export interface DbNonGoal {
   color_id: string | null;
   reason: string | null;
   active: number;
+  status: NonGoalStatus;
   created_at: string;
 }
 
@@ -529,6 +549,83 @@ export async function updateGoalStatus(
     sql: `UPDATE weekly_goals SET status = ?, completed_at = ?, updated_at = ? WHERE id = ?`,
     args: [status, completedAt, now, goalId],
   });
+}
+
+/**
+ * Parameters for updating a goal
+ */
+export interface UpdateGoalParams {
+  title?: string;
+  notes?: string | null;
+  estimatedMinutes?: number | null;
+  goalType?: "time" | "outcome" | "habit";
+  colorId?: string | null;
+}
+
+/**
+ * Update a weekly goal's editable fields
+ */
+export async function updateGoal(
+  goalId: string,
+  updates: UpdateGoalParams
+): Promise<DbWeeklyGoal> {
+  const db = getDb();
+
+  // Verify goal exists
+  const existing = await getGoalById(goalId);
+  if (!existing) {
+    throw new Error(`Goal not found: ${goalId}`);
+  }
+
+  // Build dynamic update query
+  const setClauses: string[] = [];
+  const args: (string | number | null)[] = [];
+
+  if (updates.title !== undefined) {
+    setClauses.push("title = ?");
+    args.push(updates.title);
+  }
+  if (updates.notes !== undefined) {
+    setClauses.push("notes = ?");
+    args.push(updates.notes);
+  }
+  if (updates.estimatedMinutes !== undefined) {
+    setClauses.push("estimated_minutes = ?");
+    args.push(updates.estimatedMinutes);
+  }
+  if (updates.goalType !== undefined) {
+    setClauses.push("goal_type = ?");
+    args.push(updates.goalType);
+  }
+  if (updates.colorId !== undefined) {
+    setClauses.push("color_id = ?");
+    args.push(updates.colorId);
+  }
+
+  // Always update updated_at
+  const now = new Date().toISOString();
+  setClauses.push("updated_at = ?");
+  args.push(now);
+
+  // Add goalId for WHERE clause
+  args.push(goalId);
+
+  if (setClauses.length === 1) {
+    // Only updated_at was added, no actual updates requested
+    return existing;
+  }
+
+  await db.execute({
+    sql: `UPDATE weekly_goals SET ${setClauses.join(", ")} WHERE id = ?`,
+    args,
+  });
+
+  // Return updated goal
+  const updated = await getGoalById(goalId);
+  if (!updated) {
+    throw new Error("Failed to retrieve updated goal");
+  }
+  return updated;
 }
 
 /**
@@ -692,8 +789,8 @@ export async function createNonGoal(params: CreateNonGoalParams): Promise<DbNonG
 
   await db.execute({
     sql: `
-      INSERT INTO non_goals (id, week_id, title, pattern, color_id, reason, active, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO non_goals (id, week_id, title, pattern, color_id, reason, active, status, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `,
     args: [
       id,
@@ -703,6 +800,7 @@ export async function createNonGoal(params: CreateNonGoalParams): Promise<DbNonG
       params.colorId ?? null,
       params.reason ?? null,
       1,
+      NON_GOAL_STATUS.ACTIVE,
       now,
     ],
   });
@@ -727,6 +825,23 @@ export async function getNonGoalById(nonGoalId: string): Promise<DbNonGoal | nul
 
   if (result.rows.length === 0) return null;
   return result.rows[0] as unknown as DbNonGoal;
+}
+
+/**
+ * Update non-goal status
+ */
+export async function updateNonGoalStatus(
+  nonGoalId: string,
+  status: NonGoalStatus
+): Promise<DbNonGoal | null> {
+  const db = getDb();
+
+  await db.execute({
+    sql: `UPDATE non_goals SET status = ? WHERE id = ?`,
+    args: [status, nonGoalId],
+  });
+
+  return getNonGoalById(nonGoalId);
 }
 
 // ============================================================================

@@ -600,9 +600,95 @@ export async function createGoal(
   return data as WeeklyGoal;
 }
 
+/**
+ * Parameters for updating a goal
+ */
+export interface UpdateGoalParams {
+  title?: string;
+  notes?: string | null;
+  estimatedMinutes?: number | null;
+  goalType?: "time" | "outcome" | "habit";
+  colorId?: string | null;
+}
+
+/**
+ * Update a weekly goal's editable fields
+ */
+export async function updateGoal(
+  userId: string,
+  goalId: string,
+  updates: UpdateGoalParams
+): Promise<WeeklyGoal> {
+  const supabase = createServerClient();
+
+  // Verify goal exists
+  const existing = await getGoalById(userId, goalId);
+  if (!existing) {
+    throw new Error(`Goal not found: ${goalId}`);
+  }
+
+  // Build update object
+  const now = new Date().toISOString();
+  const updateData: WeeklyGoalUpdate = {
+    updated_at: now,
+  };
+
+  if (updates.title !== undefined) {
+    updateData.title = updates.title;
+  }
+  if (updates.notes !== undefined) {
+    updateData.notes = updates.notes;
+  }
+  if (updates.estimatedMinutes !== undefined) {
+    updateData.estimated_minutes = updates.estimatedMinutes;
+  }
+  if (updates.goalType !== undefined) {
+    updateData.goal_type = updates.goalType;
+  }
+  if (updates.colorId !== undefined) {
+    updateData.color_id = updates.colorId;
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (supabase.from("weekly_goals") as any)
+    .update(updateData)
+    .eq("user_id", userId)
+    .eq("id", goalId);
+
+  if (error) {
+    throw new Error(`Failed to update goal: ${error.message}`);
+  }
+
+  // Return updated goal
+  const updated = await getGoalById(userId, goalId);
+  if (!updated) {
+    throw new Error("Failed to retrieve updated goal");
+  }
+  return updated;
+}
+
 // ============================================================================
 // Non-Goals
 // ============================================================================
+
+/**
+ * Non-goal status values (stored as integers in database)
+ */
+export const NON_GOAL_STATUS = {
+  ACTIVE: 0,
+  COMPLETED: 1,
+  MISSED: 2,
+  ABANDONED: 3,
+} as const;
+
+export type NonGoalStatus = (typeof NON_GOAL_STATUS)[keyof typeof NON_GOAL_STATUS];
+
+export const NON_GOAL_STATUS_LABELS: Record<NonGoalStatus, string> = {
+  [NON_GOAL_STATUS.ACTIVE]: "Active",
+  [NON_GOAL_STATUS.COMPLETED]: "Completed",
+  [NON_GOAL_STATUS.MISSED]: "Missed",
+  [NON_GOAL_STATUS.ABANDONED]: "Abandoned",
+};
 
 /**
  * Get non-goals for a week
@@ -694,6 +780,29 @@ export async function createNonGoal(
   }
 
   return data as NonGoal;
+}
+
+/**
+ * Update non-goal status
+ */
+export async function updateNonGoalStatus(
+  userId: string,
+  nonGoalId: string,
+  status: NonGoalStatus
+): Promise<NonGoal | null> {
+  const supabase = createServerClient();
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (supabase.from("non_goals") as any)
+    .update({ status })
+    .eq("user_id", userId)
+    .eq("id", nonGoalId);
+
+  if (error) {
+    throw new Error(`Failed to update non-goal status: ${error.message}`);
+  }
+
+  return getNonGoalById(userId, nonGoalId);
 }
 
 // ============================================================================

@@ -5,6 +5,9 @@ import {
   getUnacknowledgedAlerts,
   acknowledgeAlert,
   createNonGoal,
+  updateNonGoalStatus,
+  NON_GOAL_STATUS,
+  type NonGoalStatus,
 } from "@/lib/db-supabase";
 
 /**
@@ -69,8 +72,9 @@ export async function GET(request: NextRequest) {
 /**
  * PATCH /api/non-goals
  *
- * Body:
+ * Body (one of):
  *   - alertId: Alert ID to acknowledge
+ *   - nonGoalId + status: Update non-goal status (0=active, 1=completed, 2=missed, 3=abandoned)
  */
 export async function PATCH(request: NextRequest) {
   // Require authentication
@@ -82,33 +86,72 @@ export async function PATCH(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { alertId } = body;
+    const { alertId, nonGoalId, status } = body;
 
-    if (!alertId) {
-      return NextResponse.json(
-        { error: "alertId is required" },
-        { status: 400 }
-      );
+    // Handle alert acknowledgment
+    if (alertId !== undefined) {
+      if (typeof alertId !== "number") {
+        return NextResponse.json(
+          { error: "alertId must be a number" },
+          { status: 400 }
+        );
+      }
+
+      await acknowledgeAlert(userId, alertId);
+
+      return NextResponse.json({
+        success: true,
+        alertId,
+        acknowledged: true,
+      });
     }
 
-    if (typeof alertId !== "number") {
-      return NextResponse.json(
-        { error: "alertId must be a number" },
-        { status: 400 }
-      );
+    // Handle non-goal status update
+    if (nonGoalId !== undefined && status !== undefined) {
+      if (typeof nonGoalId !== "string") {
+        return NextResponse.json(
+          { error: "nonGoalId must be a string" },
+          { status: 400 }
+        );
+      }
+
+      // Validate status is a valid value
+      const validStatuses = [
+        NON_GOAL_STATUS.ACTIVE,
+        NON_GOAL_STATUS.COMPLETED,
+        NON_GOAL_STATUS.MISSED,
+        NON_GOAL_STATUS.ABANDONED,
+      ];
+      if (!validStatuses.includes(status)) {
+        return NextResponse.json(
+          { error: "status must be 0 (active), 1 (completed), 2 (missed), or 3 (abandoned)" },
+          { status: 400 }
+        );
+      }
+
+      const updated = await updateNonGoalStatus(userId, nonGoalId, status as NonGoalStatus);
+
+      if (!updated) {
+        return NextResponse.json(
+          { error: "Non-goal not found" },
+          { status: 404 }
+        );
+      }
+
+      return NextResponse.json({
+        success: true,
+        nonGoal: updated,
+      });
     }
 
-    await acknowledgeAlert(userId, alertId);
-
-    return NextResponse.json({
-      success: true,
-      alertId,
-      acknowledged: true,
-    });
-  } catch (error) {
-    console.error("Error acknowledging alert:", error);
     return NextResponse.json(
-      { error: "Failed to acknowledge alert" },
+      { error: "Either alertId or (nonGoalId + status) is required" },
+      { status: 400 }
+    );
+  } catch (error) {
+    console.error("Error updating non-goal:", error);
+    return NextResponse.json(
+      { error: "Failed to update" },
       { status: 500 }
     );
   }
