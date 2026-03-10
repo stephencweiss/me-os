@@ -13,10 +13,13 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
+    "@auth/supabase-adapter": "^1.11.1",
     "@libsql/client": "^0.17.0",
+    "@supabase/supabase-js": "^2.98.0",
     "google-auth-library": "^10.6.1",
     "googleapis": "^171.4.0",
     "next": "16.1.6",
+    "next-auth": "^5.0.0-beta.30",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "recharts": "^3.7.0"

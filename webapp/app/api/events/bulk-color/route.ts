@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { updateEventColor, getEventById, COLOR_DEFINITIONS } from "@/lib/db";
+import { requireAuth } from "@/lib/auth-helpers";
+import { updateEventColor, getEventById, COLOR_DEFINITIONS } from "@/lib/db-supabase";
 import { updateGoogleEventColor, isGoogleSyncConfigured } from "@/lib/google-calendar-client";
 
 interface ColorUpdate {
@@ -32,6 +33,13 @@ interface UpdateResult {
  *   - errors: Array of errors (for partial failures)
  */
 export async function POST(request: NextRequest) {
+  // Require authentication
+  const authResult = await requireAuth();
+  if (!authResult.authorized) {
+    return authResult.response;
+  }
+  const { userId } = authResult;
+
   try {
     const body = await request.json();
     const { updates, syncToGoogle } = body as {
@@ -88,7 +96,7 @@ export async function POST(request: NextRequest) {
 
       try {
         // Get event to check it exists and get Google Calendar info
-        const existingEvent = await getEventById(eventId);
+        const existingEvent = await getEventById(userId, eventId);
         if (!existingEvent) {
           errors.push({ eventId, error: "Event not found" });
           results.push({
@@ -101,7 +109,7 @@ export async function POST(request: NextRequest) {
         }
 
         // Update local database
-        const updatedEvent = await updateEventColor(eventId, colorId);
+        const updatedEvent = await updateEventColor(userId, eventId, colorId);
         if (!updatedEvent) {
           errors.push({ eventId, error: "Failed to update in database" });
           results.push({
@@ -130,8 +138,9 @@ export async function POST(request: NextRequest) {
               googleSyncedCount++;
             }
             warning = googleResult.warning;
-          } catch (googleErr: any) {
-            warning = `Google sync failed: ${googleErr.message}`;
+          } catch (googleErr: unknown) {
+            const message = googleErr instanceof Error ? googleErr.message : String(googleErr);
+            warning = `Google sync failed: ${message}`;
           }
         } else if (syncToGoogle && !googleSyncEnabled) {
           warning = "Google Calendar sync not configured";
@@ -145,13 +154,14 @@ export async function POST(request: NextRequest) {
           googleSynced,
           warning,
         });
-      } catch (err: any) {
-        errors.push({ eventId, error: err.message });
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
+        errors.push({ eventId, error: message });
         results.push({
           eventId,
           success: false,
           googleSynced: false,
-          error: err.message,
+          error: message,
         });
       }
     }
@@ -163,7 +173,7 @@ export async function POST(request: NextRequest) {
       results,
       errors: errors.length > 0 ? errors : undefined,
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error("Error in bulk color update:", error);
     return NextResponse.json(
       { error: "Failed to process bulk update" },

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireAuth } from "@/lib/auth-helpers";
 import {
   getNonGoalsForWeek,
   getUnacknowledgedAlerts,
@@ -7,7 +8,7 @@ import {
   updateNonGoalStatus,
   NON_GOAL_STATUS,
   type NonGoalStatus,
-} from "@/lib/db";
+} from "@/lib/db-supabase";
 
 /**
  * GET /api/non-goals
@@ -17,6 +18,13 @@ import {
  *   - includeAlerts: Include unacknowledged alerts (default: true)
  */
 export async function GET(request: NextRequest) {
+  // Require authentication
+  const authResult = await requireAuth();
+  if (!authResult.authorized) {
+    return authResult.response;
+  }
+  const { userId } = authResult;
+
   const searchParams = request.nextUrl.searchParams;
   const week = searchParams.get("week");
   const includeAlerts = searchParams.get("includeAlerts") !== "false";
@@ -38,11 +46,11 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const nonGoals = await getNonGoalsForWeek(week);
+    const nonGoals = await getNonGoalsForWeek(userId, week);
 
     let alerts: Awaited<ReturnType<typeof getUnacknowledgedAlerts>> = [];
     if (includeAlerts) {
-      alerts = await getUnacknowledgedAlerts(week);
+      alerts = await getUnacknowledgedAlerts(userId, week);
     }
 
     return NextResponse.json({
@@ -69,6 +77,13 @@ export async function GET(request: NextRequest) {
  *   - nonGoalId + status: Update non-goal status (0=active, 1=completed, 2=missed, 3=abandoned)
  */
 export async function PATCH(request: NextRequest) {
+  // Require authentication
+  const authResult = await requireAuth();
+  if (!authResult.authorized) {
+    return authResult.response;
+  }
+  const { userId } = authResult;
+
   try {
     const body = await request.json();
     const { alertId, nonGoalId, status } = body;
@@ -82,7 +97,7 @@ export async function PATCH(request: NextRequest) {
         );
       }
 
-      await acknowledgeAlert(alertId);
+      await acknowledgeAlert(userId, alertId);
 
       return NextResponse.json({
         success: true,
@@ -114,7 +129,7 @@ export async function PATCH(request: NextRequest) {
         );
       }
 
-      const updated = await updateNonGoalStatus(nonGoalId, status as NonGoalStatus);
+      const updated = await updateNonGoalStatus(userId, nonGoalId, status as NonGoalStatus);
 
       if (!updated) {
         return NextResponse.json(
@@ -155,6 +170,13 @@ export async function PATCH(request: NextRequest) {
  *   - reason?: Why this should be avoided
  */
 export async function POST(request: NextRequest) {
+  // Require authentication
+  const authResult = await requireAuth();
+  if (!authResult.authorized) {
+    return authResult.response;
+  }
+  const { userId } = authResult;
+
   try {
     const body = await request.json();
     const { weekId, title, pattern, colorId, reason } = body;
@@ -210,7 +232,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Create the non-goal
-    const nonGoal = await createNonGoal({
+    const nonGoal = await createNonGoal(userId, {
       weekId,
       title: title.trim(),
       pattern: pattern ?? null,

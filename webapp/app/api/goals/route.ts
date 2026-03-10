@@ -1,14 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireAuth } from "@/lib/auth-helpers";
 import {
   getGoalsForWeek,
   getGoalById,
   updateGoalProgress,
   updateGoalStatus,
-  getGoalProgress,
+  getGoalProgressMinutes,
   createGoal,
   updateGoal,
   getWeekDateRange,
-} from "@/lib/db";
+} from "@/lib/db-supabase";
 
 /**
  * Generate a Things 3 URL to create a new goal
@@ -45,6 +46,13 @@ function generateThings3CreateUrl(
  *   - week: Week ID in ISO format (YYYY-WWW) - required
  */
 export async function GET(request: NextRequest) {
+  // Require authentication
+  const authResult = await requireAuth();
+  if (!authResult.authorized) {
+    return authResult.response;
+  }
+  const { userId } = authResult;
+
   const searchParams = request.nextUrl.searchParams;
   const week = searchParams.get("week");
 
@@ -65,12 +73,12 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const goals = await getGoalsForWeek(week);
+    const goals = await getGoalsForWeek(userId, week);
 
     // Enrich goals with progress data
     const enrichedGoals = await Promise.all(
       goals.map(async (goal) => {
-        const totalMinutesLogged = await getGoalProgress(goal.id);
+        const totalMinutesLogged = await getGoalProgressMinutes(userId, goal.id);
         return {
           ...goal,
           totalMinutesLogged,
@@ -101,6 +109,13 @@ export async function GET(request: NextRequest) {
  *   - status?: "active" | "completed" | "cancelled"
  */
 export async function PATCH(request: NextRequest) {
+  // Require authentication
+  const authResult = await requireAuth();
+  if (!authResult.authorized) {
+    return authResult.response;
+  }
+  const { userId } = authResult;
+
   try {
     const body = await request.json();
     const { goalId, progressPercent, status } = body;
@@ -113,7 +128,7 @@ export async function PATCH(request: NextRequest) {
     }
 
     // Verify goal exists
-    const goal = await getGoalById(goalId);
+    const goal = await getGoalById(userId, goalId);
     if (!goal) {
       return NextResponse.json(
         { error: "Goal not found" },
@@ -129,7 +144,7 @@ export async function PATCH(request: NextRequest) {
           { status: 400 }
         );
       }
-      await updateGoalProgress(goalId, progressPercent);
+      await updateGoalProgress(userId, goalId, progressPercent);
     }
 
     // Update status if provided
@@ -140,11 +155,11 @@ export async function PATCH(request: NextRequest) {
           { status: 400 }
         );
       }
-      await updateGoalStatus(goalId, status);
+      await updateGoalStatus(userId, goalId, status);
     }
 
     // Fetch updated goal
-    const updatedGoal = await getGoalById(goalId);
+    const updatedGoal = await getGoalById(userId, goalId);
 
     return NextResponse.json({
       success: true,
@@ -174,6 +189,13 @@ export async function PATCH(request: NextRequest) {
  *   - syncToThings3?: boolean - if true, include Things 3 URL in response
  */
 export async function POST(request: NextRequest) {
+  // Require authentication
+  const authResult = await requireAuth();
+  if (!authResult.authorized) {
+    return authResult.response;
+  }
+  const { userId } = authResult;
+
   try {
     const body = await request.json();
     const { weekId, title, colorId, estimatedMinutes, notes, goalType, syncToThings3 } = body;
@@ -231,7 +253,7 @@ export async function POST(request: NextRequest) {
 
     // Create the goal
     const trimmedTitle = title.trim();
-    const goal = await createGoal({
+    const goal = await createGoal(userId, {
       weekId,
       title: trimmedTitle,
       colorId: colorId ?? null,
@@ -281,6 +303,13 @@ export async function POST(request: NextRequest) {
  *   - colorId?: New color ID (or null to clear)
  */
 export async function PUT(request: NextRequest) {
+  // Require authentication
+  const authResult = await requireAuth();
+  if (!authResult.authorized) {
+    return authResult.response;
+  }
+  const { userId } = authResult;
+
   try {
     const body = await request.json();
     const { goalId, title, notes, estimatedMinutes, goalType, colorId } = body;
@@ -293,7 +322,7 @@ export async function PUT(request: NextRequest) {
     }
 
     // Verify goal exists
-    const existing = await getGoalById(goalId);
+    const existing = await getGoalById(userId, goalId);
     if (!existing) {
       return NextResponse.json(
         { error: "Goal not found" },
@@ -346,7 +375,7 @@ export async function PUT(request: NextRequest) {
     if (goalType !== undefined) updates.goalType = goalType;
     if (colorId !== undefined) updates.colorId = colorId;
 
-    const updatedGoal = await updateGoal(goalId, updates);
+    const updatedGoal = await updateGoal(userId, goalId, updates);
 
     return NextResponse.json({
       success: true,

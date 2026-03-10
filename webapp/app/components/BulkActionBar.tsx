@@ -74,7 +74,7 @@ export default function BulkActionBar({
         const data = await response.json();
         setSuggestions(data.suggestions);
         // Auto-accept high confidence suggestions
-        const autoAccepted = new Set(
+        const autoAccepted = new Set<string>(
           data.suggestions
             .filter((s: CategorySuggestion) => s.confidence >= 0.8)
             .map((s: CategorySuggestion) => s.eventId)

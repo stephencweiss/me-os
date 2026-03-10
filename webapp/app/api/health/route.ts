@@ -1,10 +1,35 @@
 import { NextResponse } from "next/server";
-import { getDb } from "@/lib/db";
+import { createServerClient, isSupabaseConfigured } from "@/lib/supabase-server";
 
+/**
+ * GET /api/health
+ *
+ * Health check endpoint - no auth required.
+ * Tests Supabase connectivity.
+ */
 export async function GET() {
   try {
-    const db = getDb();
-    await db.execute({ sql: "SELECT 1", args: [] });
+    // Check if Supabase is configured
+    if (!isSupabaseConfigured()) {
+      return NextResponse.json({
+        status: "degraded",
+        db: "not_configured",
+        message: "Supabase is not configured",
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    const supabase = createServerClient();
+
+    // Simple query to test connectivity
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (supabase.from("user_preferences") as any)
+      .select("id")
+      .limit(1);
+
+    if (error) {
+      throw error;
+    }
 
     return NextResponse.json({
       status: "ok",

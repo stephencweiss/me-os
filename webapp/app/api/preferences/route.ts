@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getPreference, setPreference, getAllPreferences } from "@/lib/db";
+import { requireAuth } from "@/lib/auth-helpers";
+import { getPreference, setPreference, getAllPreferences } from "@/lib/db-supabase";
 
 /**
  * GET /api/preferences
@@ -8,12 +9,19 @@ import { getPreference, setPreference, getAllPreferences } from "@/lib/db";
  *   - key: Specific preference key (optional, returns all if not specified)
  */
 export async function GET(request: NextRequest) {
+  // Require authentication
+  const authResult = await requireAuth();
+  if (!authResult.authorized) {
+    return authResult.response;
+  }
+  const { userId } = authResult;
+
   const searchParams = request.nextUrl.searchParams;
   const key = searchParams.get("key");
 
   try {
     if (key) {
-      const value = await getPreference(key);
+      const value = await getPreference(userId, key);
       return NextResponse.json({
         key,
         value,
@@ -21,7 +29,7 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    const preferences = await getAllPreferences();
+    const preferences = await getAllPreferences(userId);
     return NextResponse.json({
       preferences,
     });
@@ -42,6 +50,13 @@ export async function GET(request: NextRequest) {
  *   - value: Preference value (will be JSON stringified if object)
  */
 export async function PUT(request: NextRequest) {
+  // Require authentication
+  const authResult = await requireAuth();
+  if (!authResult.authorized) {
+    return authResult.response;
+  }
+  const { userId } = authResult;
+
   try {
     const body = await request.json();
     const { key, value } = body;
@@ -57,7 +72,7 @@ export async function PUT(request: NextRequest) {
     const stringValue =
       typeof value === "string" ? value : JSON.stringify(value);
 
-    await setPreference(key, stringValue);
+    await setPreference(userId, key, stringValue);
 
     return NextResponse.json({
       success: true,

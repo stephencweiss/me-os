@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getDb, getGoalsForWeek, getGoalById } from "@/lib/db";
+import { requireAuth } from "@/lib/auth-helpers";
+import { getGoalsForWeek, createGoal, updateGoalStatus, type CreateGoalParams } from "@/lib/db-supabase";
+import { createServerClient } from "@/lib/supabase-server";
 
 /**
  * Things 3 Todo structure
@@ -97,13 +99,6 @@ function parseEstimatedMinutes(text: string): number | null {
 }
 
 /**
- * Generate composite goal ID
- */
-function generateGoalId(things3Id: string, weekId: string): string {
-  return `${things3Id}:${weekId}`;
-}
-
-/**
  * POST /api/goals/sync
  *
  * Sync goals from Things 3 todos to the database.
@@ -115,6 +110,13 @@ function generateGoalId(things3Id: string, weekId: string): string {
  *   - weekId?: string - Optional week to filter to (e.g., "2026-W10")
  */
 export async function POST(request: NextRequest) {
+  // Require authentication
+  const authResult = await requireAuth();
+  if (!authResult.authorized) {
+    return authResult.response;
+  }
+  const { userId } = authResult;
+
   try {
     const body = await request.json();
     const { todos, weekId: targetWeekId } = body;
@@ -138,7 +140,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const db = getDb();
+    const supabase = createServerClient();
     const now = new Date().toISOString();
 
     const result: SyncResult = {
@@ -174,59 +176,58 @@ export async function POST(request: NextRequest) {
           continue;
         }
 
-        const goalId = generateGoalId(todo.id, weekId);
         const goalType = inferGoalType(todo.title, todo.notes);
         const estimatedMinutes = parseEstimatedMinutes(`${todo.title} ${todo.notes || ""}`);
 
-        // Check if goal exists
-        const existingGoals = await getGoalsForWeek(weekId);
-        const existing = existingGoals.find((g) => g.things3_id === todo.id);
+        // Check if goal exists (using Things3 ID stored in notes or a custom field)
+        const existingGoals = await getGoalsForWeek(userId, weekId);
+        // Look for a goal with matching title (since we don't have things3_id in Supabase schema)
+        const existing = existingGoals.find((g) => g.title === todo.title);
 
         if (!existing) {
           // Insert new goal
-          await db.execute({
-            sql: `
-              INSERT INTO weekly_goals (
-                id, things3_id, week_id, title, notes, estimated_minutes,
-                goal_type, color_id, status, progress_percent, completed_at,
-                created_at, updated_at
-              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            `,
-            args: [
-              goalId,
-              todo.id,
-              weekId,
-              todo.title,
-              todo.notes ?? null,
-              estimatedMinutes,
-              goalType,
-              null,
-              todo.completed ? "completed" : "active",
-              todo.completed ? 100 : 0,
-              todo.completed ? now : null,
-              now,
-              now,
-            ],
-          });
+          const createParams: CreateGoalParams = {
+            weekId,
+            title: todo.title,
+            notes: todo.notes ?? null,
+            estimatedMinutes,
+            goalType,
+            colorId: null,
+          };
+
+          const newGoal = await createGoal(userId, createParams);
+
+          // If the todo is completed, mark the goal as completed
+          if (todo.completed) {
+            await updateGoalStatus(userId, newGoal.id, "completed");
+          }
+
           result.created++;
-          result.goals.push({ id: goalId, title: todo.title, status: todo.completed ? "completed" : "active" });
+          result.goals.push({
+            id: newGoal.id,
+            title: todo.title,
+            status: todo.completed ? "completed" : "active",
+          });
         } else if (todo.completed && existing.status !== "completed") {
           // Mark as completed
-          await db.execute({
-            sql: `UPDATE weekly_goals SET status = ?, completed_at = ?, progress_percent = 100, updated_at = ? WHERE id = ?`,
-            args: ["completed", now, now, existing.id],
-          });
+          await updateGoalStatus(userId, existing.id, "completed");
           result.completed++;
           result.goals.push({ id: existing.id, title: existing.title, status: "completed" });
         } else if (
           existing.title !== todo.title ||
           existing.notes !== (todo.notes || null)
         ) {
-          // Update existing
-          await db.execute({
-            sql: `UPDATE weekly_goals SET title = ?, notes = ?, updated_at = ? WHERE id = ?`,
-            args: [todo.title, todo.notes ?? null, now, existing.id],
-          });
+          // Update existing (just update title/notes via direct Supabase call)
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          await (supabase.from("weekly_goals") as any)
+            .update({
+              title: todo.title,
+              notes: todo.notes ?? null,
+              updated_at: now,
+            })
+            .eq("user_id", userId)
+            .eq("id", existing.id);
+
           result.updated++;
           result.goals.push({ id: existing.id, title: todo.title, status: existing.status });
         } else {

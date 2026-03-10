@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getEvents, updateAttendance } from "@/lib/db";
+import { requireAuth } from "@/lib/auth-helpers";
+import { getEvents, updateAttendance } from "@/lib/db-supabase";
 
 /**
  * GET /api/events
@@ -13,6 +14,13 @@ import { getEvents, updateAttendance } from "@/lib/db";
  *   - uncategorized: "true" to filter only uncategorized events (optional)
  */
 export async function GET(request: NextRequest) {
+  // Require authentication
+  const authResult = await requireAuth();
+  if (!authResult.authorized) {
+    return authResult.response;
+  }
+  const { userId } = authResult;
+
   const searchParams = request.nextUrl.searchParams;
 
   const start = searchParams.get("start");
@@ -39,7 +47,12 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const options: { calendars?: string[]; accounts?: string[]; attended?: string[]; uncategorized?: boolean } = {};
+    const options: {
+      calendars?: string[];
+      accounts?: string[];
+      attended?: string[];
+      uncategorized?: boolean;
+    } = {};
 
     if (calendarsParam) {
       options.calendars = calendarsParam.split(",").map((c) => c.trim());
@@ -60,7 +73,7 @@ export async function GET(request: NextRequest) {
       options.uncategorized = true;
     }
 
-    const events = await getEvents(start, end, options);
+    const events = await getEvents(userId, start, end, options);
 
     return NextResponse.json({
       events,
@@ -69,10 +82,7 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error("Error fetching events:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch events" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Failed to fetch events" }, { status: 500 });
   }
 }
 
@@ -84,6 +94,13 @@ export async function GET(request: NextRequest) {
  *   - attended: "attended" | "skipped" | "unknown"
  */
 export async function PATCH(request: NextRequest) {
+  // Require authentication
+  const authResult = await requireAuth();
+  if (!authResult.authorized) {
+    return authResult.response;
+  }
+  const { userId } = authResult;
+
   try {
     const body = await request.json();
     const { eventId, attended } = body;
@@ -102,7 +119,7 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    await updateAttendance(eventId, attended);
+    await updateAttendance(userId, eventId, attended);
 
     return NextResponse.json({
       success: true,
@@ -111,9 +128,6 @@ export async function PATCH(request: NextRequest) {
     });
   } catch (error) {
     console.error("Error updating event:", error);
-    return NextResponse.json(
-      { error: "Failed to update event" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Failed to update event" }, { status: 500 });
   }
 }

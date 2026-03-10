@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireAuth } from "@/lib/auth-helpers";
 import {
   getDailySummaries,
   computeSummariesFromEvents,
   type Category,
-} from "@/lib/db";
+} from "@/lib/db-supabase";
 
 /**
  * Parsed daily summary with categories
@@ -32,6 +33,13 @@ interface ParsedDailySummary {
  * Without filters, pre-computed summaries from daily_summaries table are used.
  */
 export async function GET(request: NextRequest) {
+  // Require authentication
+  const authResult = await requireAuth();
+  if (!authResult.authorized) {
+    return authResult.response;
+  }
+  const { userId } = authResult;
+
   const searchParams = request.nextUrl.searchParams;
 
   const start = searchParams.get("start");
@@ -70,7 +78,7 @@ export async function GET(request: NextRequest) {
           ? calendarsParam.split(",").map((c) => c.trim())
           : undefined,
       };
-      const computed = await computeSummariesFromEvents(start, end, options);
+      const computed = await computeSummariesFromEvents(userId, start, end, options);
       summaries = computed.summaries.map((s) => ({
         ...s,
         analysisHoursStart: 9,
@@ -79,13 +87,15 @@ export async function GET(request: NextRequest) {
       }));
     } else {
       // Use pre-computed summaries (faster) when no filters
-      const rawSummaries = await getDailySummaries(start, end);
+      const rawSummaries = await getDailySummaries(userId, start, end);
       summaries = rawSummaries.map((s) => ({
         date: s.date,
         totalScheduledMinutes: s.total_scheduled_minutes,
         totalGapMinutes: s.total_gap_minutes,
-        categories: JSON.parse(s.categories_json) as Category[],
-        isWorkDay: s.is_work_day === 1,
+        categories: (typeof s.categories_json === 'string'
+          ? JSON.parse(s.categories_json)
+          : s.categories_json) as Category[],
+        isWorkDay: s.is_work_day,
         analysisHoursStart: s.analysis_hours_start,
         analysisHoursEnd: s.analysis_hours_end,
         snapshotTime: s.snapshot_time,
