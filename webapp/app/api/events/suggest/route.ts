@@ -1,6 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth } from "@/lib/auth-helpers";
-import { getEventById, type DbEvent } from "@/lib/db-supabase";
+import { requireAuthUnlessLocal } from "@/lib/auth-helpers";
+import { getEventById } from "@/lib/db-unified";
+
+// Minimal event type needed for category suggestion
+interface EventForSuggestion {
+  id: string;
+  summary: string;
+  color_id: string;
+}
 
 /**
  * Category patterns for event title matching.
@@ -191,7 +198,7 @@ interface CategorySuggestion {
 /**
  * Suggest a category (color) for an event based on its title.
  */
-function suggestCategory(event: DbEvent): CategorySuggestion {
+function suggestCategory(event: EventForSuggestion): CategorySuggestion {
   const title = event.summary || "";
 
   for (const category of CATEGORY_PATTERNS) {
@@ -230,8 +237,8 @@ function suggestCategory(event: DbEvent): CategorySuggestion {
  *   - suggestions: Array<{ eventId, colorId, colorName, colorMeaning, confidence }>
  */
 export async function POST(request: NextRequest) {
-  // Require authentication
-  const authResult = await requireAuth();
+  // Require authentication (skipped in local mode)
+  const authResult = await requireAuthUnlessLocal();
   if (!authResult.authorized) {
     return authResult.response;
   }

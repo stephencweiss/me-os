@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth } from "@/lib/auth-helpers";
-import { updateEventColor, getEventById, COLOR_DEFINITIONS } from "@/lib/db-supabase";
+import { requireAuthUnlessLocal } from "@/lib/auth-helpers";
+import { updateEventColor, getEventById, COLOR_DEFINITIONS } from "@/lib/db-unified";
 import { updateGoogleEventColor, isGoogleSyncConfigured } from "@/lib/google-calendar-client";
 
 /**
@@ -14,8 +14,8 @@ import { updateGoogleEventColor, isGoogleSyncConfigured } from "@/lib/google-cal
  * If Google sync fails, the local change is preserved and a warning is returned.
  */
 export async function PATCH(request: NextRequest) {
-  // Require authentication
-  const authResult = await requireAuth();
+  // Require authentication (skipped in local mode)
+  const authResult = await requireAuthUnlessLocal();
   if (!authResult.authorized) {
     return authResult.response;
   }

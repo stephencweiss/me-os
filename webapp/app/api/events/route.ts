@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth } from "@/lib/auth-helpers";
-import { getEvents, updateAttendance } from "@/lib/db-supabase";
+import { requireAuthUnlessLocal } from "@/lib/auth-helpers";
+import { getEvents, updateAttendance } from "@/lib/db-unified";
 
 /**
  * GET /api/events
@@ -14,8 +14,8 @@ import { getEvents, updateAttendance } from "@/lib/db-supabase";
  *   - uncategorized: "true" to filter only uncategorized events (optional)
  */
 export async function GET(request: NextRequest) {
-  // Require authentication
-  const authResult = await requireAuth();
+  // Require authentication (skipped in local mode)
+  const authResult = await requireAuthUnlessLocal();
   if (!authResult.authorized) {
     return authResult.response;
   }
@@ -94,8 +94,8 @@ export async function GET(request: NextRequest) {
  *   - attended: "attended" | "skipped" | "unknown"
  */
 export async function PATCH(request: NextRequest) {
-  // Require authentication
-  const authResult = await requireAuth();
+  // Require authentication (skipped in local mode)
+  const authResult = await requireAuthUnlessLocal();
   if (!authResult.authorized) {
     return authResult.response;
   }
