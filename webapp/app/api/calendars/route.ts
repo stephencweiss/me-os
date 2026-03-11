@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { requireAuth } from "@/lib/auth-helpers";
-import { getCalendars, getAccounts } from "@/lib/db-supabase";
+import { requireAuthUnlessLocal } from "@/lib/auth-helpers";
+import { getCalendars, getAccounts } from "@/lib/db-unified";
 
 /**
  * GET /api/calendars
@@ -8,8 +8,8 @@ import { getCalendars, getAccounts } from "@/lib/db-supabase";
  * Returns all distinct calendars and accounts from the database.
  */
 export async function GET() {
-  // Require authentication
-  const authResult = await requireAuth();
+  // Require authentication (skipped in local mode)
+  const authResult = await requireAuthUnlessLocal();
   if (!authResult.authorized) {
     return authResult.response;
   }

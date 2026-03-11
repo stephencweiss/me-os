@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth } from "@/lib/auth-helpers";
+import { requireAuthUnlessLocal } from "@/lib/auth-helpers";
 import {
   getDailySummaries,
   computeSummariesFromEvents,
   type Category,
-} from "@/lib/db-supabase";
+} from "@/lib/db-unified";
 
 /**
  * Parsed daily summary with categories
@@ -33,8 +33,8 @@ interface ParsedDailySummary {
  * Without filters, pre-computed summaries from daily_summaries table are used.
  */
 export async function GET(request: NextRequest) {
-  // Require authentication
-  const authResult = await requireAuth();
+  // Require authentication (skipped in local mode)
+  const authResult = await requireAuthUnlessLocal();
   if (!authResult.authorized) {
     return authResult.response;
   }
@@ -95,7 +95,8 @@ export async function GET(request: NextRequest) {
         categories: (typeof s.categories_json === 'string'
           ? JSON.parse(s.categories_json)
           : s.categories_json) as Category[],
-        isWorkDay: s.is_work_day,
+        // Handle Turso (number) vs Supabase (boolean) for is_work_day
+        isWorkDay: typeof s.is_work_day === 'number' ? s.is_work_day === 1 : s.is_work_day,
         analysisHoursStart: s.analysis_hours_start,
         analysisHoursEnd: s.analysis_hours_end,
         snapshotTime: s.snapshot_time,
