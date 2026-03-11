@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth } from "@/lib/auth-helpers";
-import { getPreference, setPreference, getAllPreferences } from "@/lib/db-supabase";
+import { requireAuthUnlessLocal } from "@/lib/auth-helpers";
+import { getPreference, setPreference, getAllPreferences } from "@/lib/db-unified";
 
 /**
  * GET /api/preferences
@@ -9,8 +9,8 @@ import { getPreference, setPreference, getAllPreferences } from "@/lib/db-supaba
  *   - key: Specific preference key (optional, returns all if not specified)
  */
 export async function GET(request: NextRequest) {
-  // Require authentication
-  const authResult = await requireAuth();
+  // Require authentication (skipped in local mode)
+  const authResult = await requireAuthUnlessLocal();
   if (!authResult.authorized) {
     return authResult.response;
   }
@@ -50,8 +50,8 @@ export async function GET(request: NextRequest) {
  *   - value: Preference value (will be JSON stringified if object)
  */
 export async function PUT(request: NextRequest) {
-  // Require authentication
-  const authResult = await requireAuth();
+  // Require authentication (skipped in local mode)
+  const authResult = await requireAuthUnlessLocal();
   if (!authResult.authorized) {
     return authResult.response;
   }

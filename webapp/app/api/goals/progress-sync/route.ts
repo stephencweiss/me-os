@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth } from "@/lib/auth-helpers";
+import { requireAuthUnlessLocal } from "@/lib/auth-helpers";
 import {
   getGoalsForWeek,
   getEvents,
@@ -8,9 +8,28 @@ import {
   recalculateGoalProgress,
   getProgressRecordsForGoal,
   getGoalById,
-  type DbWeeklyGoal,
-  type DbEvent,
-} from "@/lib/db-supabase";
+} from "@/lib/db-unified";
+
+// Minimal types for matching - compatible with both Turso and Supabase
+interface SyncableEvent {
+  id: string;
+  summary: string;
+  description?: string | null;
+  duration_minutes: number;
+  color_id: string;
+  color_name: string;
+  is_all_day: boolean | number;
+}
+
+interface SyncableGoal {
+  id: string;
+  title: string;
+  notes?: string | null;
+  color_id: string | null;
+  estimated_minutes: number | null;
+  progress_percent: number;
+  status: string;
+}
 
 // ============================================================================
 // Matching Constants (duplicated from match/route.ts for independence)
@@ -100,7 +119,7 @@ function keywordOverlapRatio(keywords1: string[], keywords2: string[]): number {
 // Matching Logic
 // ============================================================================
 
-function calculateMatch(event: DbEvent, goal: DbWeeklyGoal): MatchResult {
+function calculateMatch(event: SyncableEvent, goal: SyncableGoal): MatchResult {
   const reasons: string[] = [];
   let confidence = 0;
 
@@ -156,7 +175,7 @@ function calculateMatch(event: DbEvent, goal: DbWeeklyGoal): MatchResult {
 /**
  * Get all event IDs that already have progress recorded for any goal
  */
-async function getMatchedEventIds(userId: string, goals: DbWeeklyGoal[]): Promise<Set<string>> {
+async function getMatchedEventIds(userId: string | null, goals: SyncableGoal[]): Promise<Set<string>> {
   const matchedEventIds = new Set<string>();
 
   for (const goal of goals) {
@@ -173,7 +192,7 @@ async function getMatchedEventIds(userId: string, goals: DbWeeklyGoal[]): Promis
  * Run the full sync process for a week
  */
 async function syncProgressForWeek(
-  userId: string,
+  userId: string | null,
   weekId: string,
   options: { dryRun?: boolean; forceRematch?: boolean } = {}
 ): Promise<SyncResult> {
@@ -356,8 +375,8 @@ async function syncProgressForWeek(
  *   - forceRematch?: boolean - If true, re-match even events that already have progress
  */
 export async function POST(request: NextRequest) {
-  // Require authentication
-  const authResult = await requireAuth();
+  // Require authentication (skipped in local mode)
+  const authResult = await requireAuthUnlessLocal();
   if (!authResult.authorized) {
     return authResult.response;
   }

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth } from "@/lib/auth-helpers";
-import { updateEventColor, getEventById, COLOR_DEFINITIONS } from "@/lib/db-supabase";
+import { requireAuthUnlessLocal } from "@/lib/auth-helpers";
+import { updateEventColor, getEventById, COLOR_DEFINITIONS } from "@/lib/db-unified";
 import { updateGoogleEventColor, isGoogleSyncConfigured } from "@/lib/google-calendar-client";
 
 interface ColorUpdate {
@@ -33,8 +33,8 @@ interface UpdateResult {
  *   - errors: Array of errors (for partial failures)
  */
 export async function POST(request: NextRequest) {
-  // Require authentication
-  const authResult = await requireAuth();
+  // Require authentication (skipped in local mode)
+  const authResult = await requireAuthUnlessLocal();
   if (!authResult.authorized) {
     return authResult.response;
   }
