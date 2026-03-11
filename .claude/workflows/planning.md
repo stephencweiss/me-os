@@ -25,16 +25,27 @@ For new features and non-trivial changes, always write a plan first. Follow this
 
 ## 4. Implement with Stacked PRs (Jujutsu)
 
-- Each step in the plan should be independently verified and committed
+- Each step/phase in the plan should be independently verified and committed
+- Initialize jj if not already done:
+  ```bash
+  jj git init --colocate
+  jj bookmark track main --remote=origin
+  ```
 - Use `jj` (Jujutsu) for stacked diffs:
   ```bash
-  jj new -m "Step 1: description"
-  # ... implement step 1 ...
-  jj new -m "Step 2: description"
-  # ... implement step 2 ...
+  # Start from main or your base branch
+  jj new main -m "Phase 1: description"
+  # ... implement phase 1 ...
+  jj bookmark create sw-phase1  # create bookmark for PR
+
+  jj new -m "Phase 2: description"  # automatically stacks on Phase 1
+  # ... implement phase 2 ...
+  jj bookmark create sw-phase2
   ```
 - Each commit should be reviewable and revertable on its own
-- Run tests after each step before moving to the next
+- Run tests after each phase before moving to the next
+- View your stack: `jj log`
+- Push all bookmarks: `jj git push --all`
 
 ## 5. Create PRs
 
