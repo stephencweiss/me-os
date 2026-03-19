@@ -1,14 +1,32 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth } from "@/lib/auth-helpers";
+import { requireAuthUnlessLocal } from "@/lib/auth-helpers";
 import {
   getGoalsForWeek,
   getEvents,
   getWeekDateRange,
   recordGoalProgress,
   recalculateGoalProgress,
-  type DbWeeklyGoal,
-  type DbEvent,
-} from "@/lib/db-supabase";
+} from "@/lib/db-unified";
+
+// Minimal types for matching - compatible with both Turso and Supabase
+interface MatchableEvent {
+  id: string;
+  summary: string;
+  duration_minutes: number;
+  color_id: string;
+  color_name: string;
+  description?: string | null;
+}
+
+interface MatchableGoal {
+  id: string;
+  title: string;
+  color_id: string | null;
+  estimated_minutes: number | null;
+  goal_type: string;
+  notes?: string | null;
+  status: string;
+}
 
 // ============================================================================
 // Matching Constants
@@ -83,7 +101,7 @@ function keywordOverlapRatio(keywords1: string[], keywords2: string[]): number {
 // Matching Logic
 // ============================================================================
 
-function calculateMatch(event: DbEvent, goal: DbWeeklyGoal): MatchResult {
+function calculateMatch(event: MatchableEvent, goal: MatchableGoal): MatchResult {
   const reasons: string[] = [];
   let confidence = 0;
 
@@ -132,7 +150,7 @@ function calculateMatch(event: DbEvent, goal: DbWeeklyGoal): MatchResult {
   };
 }
 
-function processBatchMatches(events: DbEvent[], goals: DbWeeklyGoal[]): BatchMatchResult {
+function processBatchMatches(events: MatchableEvent[], goals: MatchableGoal[]): BatchMatchResult {
   const allMatches: MatchResult[] = [];
 
   // Calculate all potential matches
@@ -196,8 +214,8 @@ function processBatchMatches(events: DbEvent[], goals: DbWeeklyGoal[]): BatchMat
  *   - autoRecord?: boolean - If true, automatically record high-confidence matches (default: false)
  */
 export async function POST(request: NextRequest) {
-  // Require authentication
-  const authResult = await requireAuth();
+  // Require authentication (skipped in local mode)
+  const authResult = await requireAuthUnlessLocal();
   if (!authResult.authorized) {
     return authResult.response;
   }

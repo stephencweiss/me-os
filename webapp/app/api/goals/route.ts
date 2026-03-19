@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth } from "@/lib/auth-helpers";
+import { requireAuthUnlessLocal } from "@/lib/auth-helpers";
 import {
   getGoalsForWeek,
   getGoalById,
@@ -9,7 +9,7 @@ import {
   createGoal,
   updateGoal,
   getWeekDateRange,
-} from "@/lib/db-supabase";
+} from "@/lib/db-unified";
 
 /**
  * Generate a Things 3 URL to create a new goal
@@ -46,8 +46,8 @@ function generateThings3CreateUrl(
  *   - week: Week ID in ISO format (YYYY-WWW) - required
  */
 export async function GET(request: NextRequest) {
-  // Require authentication
-  const authResult = await requireAuth();
+  // Require authentication (skipped in local mode)
+  const authResult = await requireAuthUnlessLocal();
   if (!authResult.authorized) {
     return authResult.response;
   }
@@ -109,8 +109,8 @@ export async function GET(request: NextRequest) {
  *   - status?: "active" | "completed" | "cancelled"
  */
 export async function PATCH(request: NextRequest) {
-  // Require authentication
-  const authResult = await requireAuth();
+  // Require authentication (skipped in local mode)
+  const authResult = await requireAuthUnlessLocal();
   if (!authResult.authorized) {
     return authResult.response;
   }
@@ -189,8 +189,8 @@ export async function PATCH(request: NextRequest) {
  *   - syncToThings3?: boolean - if true, include Things 3 URL in response
  */
 export async function POST(request: NextRequest) {
-  // Require authentication
-  const authResult = await requireAuth();
+  // Require authentication (skipped in local mode)
+  const authResult = await requireAuthUnlessLocal();
   if (!authResult.authorized) {
     return authResult.response;
   }
@@ -303,8 +303,8 @@ export async function POST(request: NextRequest) {
  *   - colorId?: New color ID (or null to clear)
  */
 export async function PUT(request: NextRequest) {
-  // Require authentication
-  const authResult = await requireAuth();
+  // Require authentication (skipped in local mode)
+  const authResult = await requireAuthUnlessLocal();
   if (!authResult.authorized) {
     return authResult.response;
   }

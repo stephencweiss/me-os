@@ -1,7 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth } from "@/lib/auth-helpers";
-import { getGoalsForWeek, createGoal, updateGoalStatus, type CreateGoalParams } from "@/lib/db-supabase";
+import { requireAuthUnlessLocal } from "@/lib/auth-helpers";
+import { getGoalsForWeek, createGoal, updateGoalStatus } from "@/lib/db-unified";
 import { createServerClient } from "@/lib/supabase-server";
+
+// Local type for goal creation params (matches db-unified createGoal signature)
+interface GoalCreateParams {
+  weekId: string;
+  title: string;
+  notes?: string | null;
+  estimatedMinutes?: number | null;
+  goalType?: "time" | "outcome" | "habit";
+  colorId?: string | null;
+}
 
 /**
  * Things 3 Todo structure
@@ -110,8 +120,8 @@ function parseEstimatedMinutes(text: string): number | null {
  *   - weekId?: string - Optional week to filter to (e.g., "2026-W10")
  */
 export async function POST(request: NextRequest) {
-  // Require authentication
-  const authResult = await requireAuth();
+  // Require authentication (skipped in local mode)
+  const authResult = await requireAuthUnlessLocal();
   if (!authResult.authorized) {
     return authResult.response;
   }
@@ -186,7 +196,7 @@ export async function POST(request: NextRequest) {
 
         if (!existing) {
           // Insert new goal
-          const createParams: CreateGoalParams = {
+          const createParams: GoalCreateParams = {
             weekId,
             title: todo.title,
             notes: todo.notes ?? null,

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth } from "@/lib/auth-helpers";
+import { requireAuthUnlessLocal } from "@/lib/auth-helpers";
 import {
   getNonGoalsForWeek,
   getUnacknowledgedAlerts,
@@ -8,7 +8,7 @@ import {
   updateNonGoalStatus,
   NON_GOAL_STATUS,
   type NonGoalStatus,
-} from "@/lib/db-supabase";
+} from "@/lib/db-unified";
 
 /**
  * GET /api/non-goals
@@ -18,8 +18,8 @@ import {
  *   - includeAlerts: Include unacknowledged alerts (default: true)
  */
 export async function GET(request: NextRequest) {
-  // Require authentication
-  const authResult = await requireAuth();
+  // Require authentication (skipped in local mode)
+  const authResult = await requireAuthUnlessLocal();
   if (!authResult.authorized) {
     return authResult.response;
   }
@@ -77,8 +77,8 @@ export async function GET(request: NextRequest) {
  *   - nonGoalId + status: Update non-goal status (0=active, 1=completed, 2=missed, 3=abandoned)
  */
 export async function PATCH(request: NextRequest) {
-  // Require authentication
-  const authResult = await requireAuth();
+  // Require authentication (skipped in local mode)
+  const authResult = await requireAuthUnlessLocal();
   if (!authResult.authorized) {
     return authResult.response;
   }
@@ -170,8 +170,8 @@ export async function PATCH(request: NextRequest) {
  *   - reason?: Why this should be avoided
  */
 export async function POST(request: NextRequest) {
-  // Require authentication
-  const authResult = await requireAuth();
+  // Require authentication (skipped in local mode)
+  const authResult = await requireAuthUnlessLocal();
   if (!authResult.authorized) {
     return authResult.response;
   }
