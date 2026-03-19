@@ -18,6 +18,33 @@
 
 ---
 
+## UTC, `DATE`, and `TIMESTAMPTZ` (storage vs UI)
+
+**Mostly right, with one nuance:**
+
+- **`start_time` / `end_time`** (`TIMESTAMPTZ` in Postgres): Stored as **absolute instants**; PostgreSQL keeps them in **UTC** internally. Clients and drivers typically send/receive ISO-8601 with offset or Z. **Rendering** should convert to the user’s display timezone (or a fixed app convention) in the UI/API response formatting layer.
+- **`events.date`** (`DATE`): A **calendar date with no timezone** in the database—it is not “stored in UTC” the way a timestamp is. In practice we should **derive `date` with one explicit rule** from the event’s instant (e.g. **UTC calendar date of `start_time`**, or “local date in timezone X”) and **document that rule** so sync, summaries, and queries stay consistent. Display can still show “Tuesday” in the user locale by combining `start_time` + tz.
+- **Summary:** Treat **timestamps as UTC instants**; treat **`date` as a denormalized bucket** derived under a fixed rule; **format for humans when rendering**, not by storing ambiguous local strings in the DB.
+
+---
+
+## Google OAuth scopes (NextAuth `Google()` vs Calendar API)
+
+There is **no “five scopes”** requirement—the earlier spec item **5** was the fifth *bullet* in a list, not “request five scopes.”
+
+**What’s going on:**
+
+- NextAuth’s **Google** provider, by default, drives **OpenID Connect sign-in** (`openid`, `profile`, `email`). That lets MeOS **identify the user** and get tokens, but it does **not** automatically include **Google Calendar API** access.
+- To call **Calendar API** (`events.list`, `calendarList.list`, etc.), the OAuth consent must include a **Calendar scope**, e.g.  
+  **`https://www.googleapis.com/auth/calendar.readonly`** — read calendars and events only.
+- If the webapp must **change** events in Google (e.g. color updates via existing APIs), you may need a **broader** scope such as **`https://www.googleapis.com/auth/calendar`** (read/write). That is a **stricter** consent than `calendar.readonly`.
+
+**Implementation direction:** Set `authorization.params.scope` on the `Google({...})` provider to **OIDC scopes + the Calendar scope(s) you need** (space-separated), e.g.  
+`openid email profile https://www.googleapis.com/auth/calendar.readonly`  
+or include full `calendar` if writes are required. **Google Cloud Console** OAuth client must allow those scopes; users re-consent when scopes change.
+
+---
+
 ## 1. Problem
 
 - The dashboard reads **`events`** and **`daily_summaries`** via `/api/summaries`, `/api/events`, `/api/calendars` (`webapp/lib/db-supabase.ts`).
@@ -128,7 +155,7 @@ sequenceDiagram
 
 - **Server-only:** sync route and crypto; no tokens in browser beyond session cookie.
 - **`TOKEN_ENCRYPTION_KEY`** required in production for token columns (already in `.env.example`).
-- **Scopes:** reuse webapp Google OAuth client; ensure Calendar **read** scope is included for sync (extend provider `authorization.params.scope` if needed).
+- **Scopes:** extend NextAuth **`Google()`** `authorization.params.scope` to include **Calendar API** (see **Google OAuth scopes** section above); use **`calendar.readonly`** if sync is read-only, or **`calendar`** if the product mutates Google events.
 - **Service role:** existing pattern — server enforces `userId` from session on every query.
 
 ---
@@ -161,17 +188,15 @@ This item is **blocking** for reliable sync writes; confirm on a dev branch with
 
 ---
 
-## 10. Remaining decisions (implementation plan)
+## 10. Implementation decisions (locked)
 
-These were not fully specified yet; decide during build or leave as sensible defaults:
-
-1. **`events.id` format** — Must be stable for upserts and Turso→Supabase imports. Lock one convention (e.g. match SQLite `calendar-db` / `migrate-turso-to-supabase` expectations).
-2. **`date` column timezone** — Use calendar local date vs UTC date boundary (align with SQLite sync / `formatDateKey` behavior).
-3. **Recurring / instance IDs** — Same rules as `lib/calendar-sync.ts` / `time-analysis` for expanded instances vs masters.
-4. **Concurrent sync** — Debounce or row-level “sync in progress” to avoid double **Sync** clicks causing overlapping writes.
-5. **Google scopes** — Confirm `calendar.readonly` (or broader) on the NextAuth Google provider matches sync needs.
-6. **Soft-remove shape** — If using **`removed_at`**, add migration + update **`getEvents`** / summary queries to exclude removed rows by default; optional “show removed” later.
-7. **Quota / errors** — Partial success policy (e.g. fail whole sync vs per-calendar errors in response).
+1. **`events.id` —** **Supabase-first:** define one **stable string key** for upserts (document the format in code). **Do not** optimize around Turso/SQLite or CLI imports long-term; deprecate/remove Turso-centric assumptions in new code paths.
+2. **`date` / time —** **UTC discipline:** `TIMESTAMPTZ` fields are UTC instants; derive **`date`** under a **single documented rule** (see **UTC, `DATE`, and `TIMESTAMPTZ`** above). **Format for display** in the UI (and in API responses if we emit localized strings).
+3. **Recurring / instance IDs —** Same behavior as existing **`calendar-sync` / `time-analysis`** (no new rules).
+4. **Concurrent sync —** **Debounce** and/or **in-progress guard** so overlapping syncs cannot run (double-click, two tabs).
+5. **Google scopes —** Add explicit **Calendar** scope(s) on NextAuth **`Google()`**; use **`calendar.readonly`** unless write features require full **`calendar`** (see **Google OAuth scopes** section).
+6. **Removed events —** **Soft remove:** **`removed_at TIMESTAMPTZ NULL`** on **`events`**; exclude by default in reads/summaries; optional “show removed” later.
+7. **Errors —** **Fail per calendar**, not whole sync: return partial success + per-calendar errors in the API response.
 
 ---
 
