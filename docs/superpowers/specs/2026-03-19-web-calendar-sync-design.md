@@ -2,7 +2,19 @@
 
 **Date:** 2026-03-19  
 **Status:** Draft for review  
-**Decision:** **Option C** — v1 is **explicit user-triggered sync** (“Sync now” / connect flow), with storage and APIs shaped so we can add **automatic sync on login** or **scheduled jobs** later without redesign.
+**Decision:** **Option C** — v1 is **explicit user-triggered sync** (“Sync now” / connect flow), with storage and APIs shaped so we can add **automatic sync on login** or **scheduled jobs** later without redesign. **First slice:** **B** (reuse NextAuth Google tokens).
+
+---
+
+## Product decisions (locked — 2026-03-19)
+
+| Topic | Decision |
+|--------|-----------|
+| **Which calendars (v1)** | Sync **all** calendars returned by Google Calendar **`calendarList.list`** for the linked account (typically “selected” / visible calendars; confirm in implementation against API defaults). **No** per-calendar picker in v1. |
+| **Calendar include/exclude (later)** | **Future:** user setting to **disable** specific calendars for **sync and/or dashboard math** (persisted, changeable over time) — e.g. `user_preferences` JSON or dedicated table; **out of scope for v1** beyond noting hooks in sync engine (`shouldIncludeCalendar(calendarId)`). |
+| **Default sync window** | **30 days in the past → 30 days in the future** (60-day span). Implementation may use **multiple `events.list` calls** (pagination via `pageToken`, and/or chunking by time range) to stay within quotas/timeouts. |
+| **Events gone from Google** | **Mark as removed** (retain row for history/audit). *Note:* SQLite today **`markEventRemoved`** writes an audit row then **DELETE**s from `events`; Postgres has no `event_changes` table in `001`. **Implementation choice:** add **`removed_at TIMESTAMPTZ NULL`** (or `sync_status`) on **`public.events`** + filter `removed_at IS NULL` in reads **or** hard-delete to match SQLite only — **recommend soft column** to match your “mark removed” wording. |
+| **Colors / categories** | Reuse the same mapping / auto-categorization as the **SQLite sync path** (`COLOR_DEFINITIONS`, `suggestCategory` / `calendar-manager` behavior ported or shared). |
 
 ---
 
@@ -94,8 +106,8 @@ sequenceDiagram
 
 - **`POST /api/calendar/sync`**
   - Body (optional): `{ "start": "YYYY-MM-DD", "end": "YYYY-MM-DD", "linkedAccountId": "..." }`
-  - Default window: last **30** days (align with CLI default) or **7** for faster first sync — **product choice** in implementation plan.
-  - Response: `{ ok, stats: { fetched, upserted, deleted?, summariesUpdated }, errors?: [...] }`
+  - **Default window:** **today − 30 days** through **today + 30 days** (inclusive of boundaries per implementation).
+  - Response: `{ ok, stats: { fetched, upserted, markedRemoved, summariesUpdated }, errors?: [...] }`
 - **Auth:** `requireAuth()`; **never** accept `userId` from client.
 
 ### 4.5 UI (minimal v1)
@@ -137,6 +149,7 @@ This item is **blocking** for reliable sync writes; confirm on a dev branch with
 - **Auto-sync on signIn:** call same engine with short cooldown (store `last_calendar_sync_at`).
 - **Cron:** Vercel cron / external worker with **service role + explicit user list** or per-user scheduled jobs.
 - **Multi-account:** second OAuth flow writing additional **`linked_google_accounts`** rows; sync iterates all links.
+- **Per-calendar toggles:** persisted exclude list; sync skips those calendars; dashboard/summary queries optionally exclude the same set.
 
 ---
 
@@ -148,11 +161,17 @@ This item is **blocking** for reliable sync writes; confirm on a dev branch with
 
 ---
 
-## 10. Open questions (for implementation plan)
+## 10. Remaining decisions (implementation plan)
 
-1. Default sync window: **7** vs **30** days for first run?
-2. **Deletes:** when an event disappears from Google, mark removed vs hard delete from `events`? (CLI may already define behavior — align.)
-3. **Color / category mapping:** reuse **`COLOR_DEFINITIONS`** + `suggestCategory` from `calendar-manager` as in SQLite sync?
+These were not fully specified yet; decide during build or leave as sensible defaults:
+
+1. **`events.id` format** — Must be stable for upserts and Turso→Supabase imports. Lock one convention (e.g. match SQLite `calendar-db` / `migrate-turso-to-supabase` expectations).
+2. **`date` column timezone** — Use calendar local date vs UTC date boundary (align with SQLite sync / `formatDateKey` behavior).
+3. **Recurring / instance IDs** — Same rules as `lib/calendar-sync.ts` / `time-analysis` for expanded instances vs masters.
+4. **Concurrent sync** — Debounce or row-level “sync in progress” to avoid double **Sync** clicks causing overlapping writes.
+5. **Google scopes** — Confirm `calendar.readonly` (or broader) on the NextAuth Google provider matches sync needs.
+6. **Soft-remove shape** — If using **`removed_at`**, add migration + update **`getEvents`** / summary queries to exclude removed rows by default; optional “show removed” later.
+7. **Quota / errors** — Partial success policy (e.g. fail whole sync vs per-calendar errors in response).
 
 ---
 
