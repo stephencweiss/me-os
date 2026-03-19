@@ -4,7 +4,12 @@
 
 - [ ] Add **`DESIGN.md`** at repo root as the design source of truth (typography scale, spacing/radius tokens, color roles beyond Tailwind defaults, motion if any, dark-mode rules, component primitives map to `webapp/app/components/`).
   - Why: No single doc today; plan-design-review capped “design system alignment” at 7/10 until this exists.
-  - How: `/design-consultation` or hand-author after slot-finder UI lands — pick one when you start implementation.
+  - How: `/design-consultation` or hand-author after the **mobile alignment MVP** — pick one when you start implementation.
+
+## CEO reprioritization (2026-03-19)
+
+- [x] Reconcile **`/plan-eng-review`** with CEO amendment — **done:** `plans/eng-review-mobile-goal-alignment-phase1.md` (Phase 1 alignment + audit + `alignment-mobile-v1` schema). Slot-finder eng spec remains `plans/eng-review-slot-finder-2026-03-19.md` (**Phase 2**; supersession banner at top).
+  - Context: CEO narrative `plans/ceo-mobile-goal-alignment.md`.
 
 ## Deferred from CEO review (2026-03-19)
 

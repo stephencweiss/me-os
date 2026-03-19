@@ -1,10 +1,12 @@
 # Engineering review: Slot finder + widget contract + weekly audit
 
+> **Superseded for *ordering* (not content):** CEO plan now prioritizes **Phase 1 = iOS goal alignment + audit**; **slot-finder is Phase 2**. Use **`plans/ceo-mobile-goal-alignment.md`** and **`plans/eng-review-mobile-goal-alignment-phase1.md`** as the implementation order. This document remains the **technical blueprint for Phase 2** (schemas, `lib/slot-finder`, slot API, widget payload).
+
 **Generated:** 2026-03-19 (`/plan-eng-review`)  
 **Branch:** `main` | **Repo:** me-os  
 **Inputs:** CEO plan `~/.gstack/projects/stephencweiss-me-os/ceo-plans/2026-03-19-meos-ios-widget-slot-finder.md`, `docs/designs/slot-finder-widget.md`, `TODOS.md`
 
-**Mode:** `FULL_REVIEW` — decisions below are **locked for implementation** unless you explicitly reopen them.
+**Mode:** `FULL_REVIEW` — decisions below are **locked for Phase 2** unless you explicitly reopen them.
 
 ---
 
