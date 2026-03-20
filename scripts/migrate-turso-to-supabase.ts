@@ -6,7 +6,7 @@
  * It's designed for single-user migration when transitioning from CLI to web app.
  *
  * Usage:
- *   1. Set up Supabase project and run 001_initial_schema.sql
+ *   1. Set up Supabase project and run `pnpm db:push` (includes 00000 next_auth + MeOS migrations)
  *   2. Create a user account in the web app (sign in with Google)
  *   3. Get your Supabase user ID from the auth.users table
  *   4. Run: npx tsx scripts/migrate-turso-to-supabase.ts --user-id <your-user-id>

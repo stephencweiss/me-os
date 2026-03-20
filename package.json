@@ -5,6 +5,11 @@
   "type": "module",
   "scripts": {
     "build": "tsc",
+    "db:push": "node scripts/db-push.mjs",
+    "db:push:prod": "NODE_ENV=production node scripts/db-push.mjs",
+    "db:status": "node scripts/db-push.mjs --status",
+    "db:types": "node scripts/db-gen-types.mjs",
+    "db:types:check": "node -e \"const fs=require('fs');const p='webapp/lib/database.types.ts';process.exit(fs.readFileSync(p,'utf8').includes('export type Database')?0:1)\"",
     "test": "vitest run",
     "test:watch": "vitest",
     "validate:dependencies": "node --loader ts-node/esm scripts/validate-dependencies.ts",
@@ -26,6 +31,7 @@
   "author": "",
   "license": "MIT",
   "devDependencies": {
+    "dotenv": "^17.3.1",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.1",

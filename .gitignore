@@ -16,6 +16,9 @@ data/
 # Generated output (dashboard, etc.)
 output/
 
+# Supabase CLI local cache (not migrations)
+supabase/.temp/
+
 # Environment
 .env
 .env.local
