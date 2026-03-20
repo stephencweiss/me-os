@@ -8,36 +8,7 @@ import {
   getGoalProgressMinutes,
   createGoal,
   updateGoal,
-  getWeekDateRange,
 } from "@/lib/db-unified";
-
-/**
- * Generate a Things 3 URL to create a new goal
- * Uses simple "week" tag with deadline-based week inference
- */
-function generateThings3CreateUrl(
-  title: string,
-  weekId: string,
-  options?: { notes?: string; estimatedMinutes?: number }
-): string {
-  const params = new URLSearchParams();
-
-  params.set("title", title);
-  params.set("tags", "week");
-
-  // Set deadline to end of week (Sunday)
-  const { endDate } = getWeekDateRange(weekId);
-  params.set("deadline", endDate);
-
-  // Set "when" so it appears in This Week view
-  params.set("when", "this week");
-
-  if (options?.notes) {
-    params.set("notes", options.notes);
-  }
-
-  return `things:///add?${params.toString()}`;
-}
 
 /**
  * GET /api/goals
@@ -186,7 +157,6 @@ export async function PATCH(request: NextRequest) {
  *   - estimatedMinutes?: Estimated time to complete
  *   - notes?: Additional notes
  *   - goalType?: "time" | "outcome" | "habit" (default: "outcome")
- *   - syncToThings3?: boolean - if true, include Things 3 URL in response
  */
 export async function POST(request: NextRequest) {
   // Require authentication (skipped in local mode)
@@ -198,7 +168,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { weekId, title, colorId, estimatedMinutes, notes, goalType, syncToThings3 } = body;
+    const { weekId, title, colorId, estimatedMinutes, notes, goalType } = body;
 
     // Validate required fields
     if (!weekId) {
@@ -262,24 +232,10 @@ export async function POST(request: NextRequest) {
       goalType: goalType ?? "outcome",
     });
 
-    // Generate Things 3 URL if requested
-    const response: {
-      success: boolean;
-      goal: typeof goal;
-      things3Url?: string;
-    } = {
+    return NextResponse.json({
       success: true,
       goal,
-    };
-
-    if (syncToThings3) {
-      response.things3Url = generateThings3CreateUrl(trimmedTitle, weekId, {
-        notes: notes ?? undefined,
-        estimatedMinutes: estimatedMinutes ?? undefined,
-      });
-    }
-
-    return NextResponse.json(response);
+    });
   } catch (error) {
     console.error("Error creating goal:", error);
     return NextResponse.json(

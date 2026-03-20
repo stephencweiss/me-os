@@ -147,6 +147,7 @@ export interface Database {
           completed_at: string | null;
           created_at: string;
           updated_at: string;
+          constraints_json: Json | null;
         };
         Insert: {
           id?: string;
@@ -162,6 +163,7 @@ export interface Database {
           completed_at?: string | null;
           created_at?: string;
           updated_at?: string;
+          constraints_json?: Json | null;
         };
         Update: {
           id?: string;
@@ -176,6 +178,39 @@ export interface Database {
           progress_percent?: number;
           completed_at?: string | null;
           created_at?: string;
+          updated_at?: string;
+          constraints_json?: Json | null;
+        };
+      };
+      weekly_audit_state: {
+        Row: {
+          id: string;
+          user_id: string;
+          week_id: string;
+          dismissed_at: string | null;
+          snoozed_until: string | null;
+          prompt_count: number;
+          last_prompt_at: string | null;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          week_id: string;
+          dismissed_at?: string | null;
+          snoozed_until?: string | null;
+          prompt_count?: number;
+          last_prompt_at?: string | null;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          week_id?: string;
+          dismissed_at?: string | null;
+          snoozed_until?: string | null;
+          prompt_count?: number;
+          last_prompt_at?: string | null;
           updated_at?: string;
         };
       };
@@ -356,6 +391,7 @@ export interface Database {
 export type Event = Database["public"]["Tables"]["events"]["Row"];
 export type DailySummary = Database["public"]["Tables"]["daily_summaries"]["Row"];
 export type WeeklyGoal = Database["public"]["Tables"]["weekly_goals"]["Row"];
+export type WeeklyAuditState = Database["public"]["Tables"]["weekly_audit_state"]["Row"];
 export type NonGoal = Database["public"]["Tables"]["non_goals"]["Row"];
 export type GoalProgress = Database["public"]["Tables"]["goal_progress"]["Row"];
 export type NonGoalAlert = Database["public"]["Tables"]["non_goal_alerts"]["Row"];
@@ -366,6 +402,7 @@ export type LinkedGoogleAccount = Database["public"]["Tables"]["linked_google_ac
 export type EventInsert = Database["public"]["Tables"]["events"]["Insert"];
 export type DailySummaryInsert = Database["public"]["Tables"]["daily_summaries"]["Insert"];
 export type WeeklyGoalInsert = Database["public"]["Tables"]["weekly_goals"]["Insert"];
+export type WeeklyAuditStateInsert = Database["public"]["Tables"]["weekly_audit_state"]["Insert"];
 export type NonGoalInsert = Database["public"]["Tables"]["non_goals"]["Insert"];
 export type GoalProgressInsert = Database["public"]["Tables"]["goal_progress"]["Insert"];
 export type NonGoalAlertInsert = Database["public"]["Tables"]["non_goal_alerts"]["Insert"];
@@ -376,6 +413,7 @@ export type LinkedGoogleAccountInsert = Database["public"]["Tables"]["linked_goo
 export type EventUpdate = Database["public"]["Tables"]["events"]["Update"];
 export type DailySummaryUpdate = Database["public"]["Tables"]["daily_summaries"]["Update"];
 export type WeeklyGoalUpdate = Database["public"]["Tables"]["weekly_goals"]["Update"];
+export type WeeklyAuditStateUpdate = Database["public"]["Tables"]["weekly_audit_state"]["Update"];
 export type NonGoalUpdate = Database["public"]["Tables"]["non_goals"]["Update"];
 export type GoalProgressUpdate = Database["public"]["Tables"]["goal_progress"]["Update"];
 export type NonGoalAlertUpdate = Database["public"]["Tables"]["non_goal_alerts"]["Update"];

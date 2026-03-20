@@ -443,6 +443,8 @@ export interface DbWeeklyGoal {
   completed_at: string | null;
   created_at: string;
   updated_at: string;
+  /** Optional JSON string; column may be absent until local migration */
+  constraints_json?: string | null;
 }
 
 /**
@@ -640,6 +642,138 @@ export async function getGoalProgress(goalId: string): Promise<number> {
   });
 
   return (result.rows[0]?.total as number) || 0;
+}
+
+/**
+ * Sum progress minutes for many goals (single query).
+ */
+export async function getGoalProgressMinutesBatch(goalIds: string[]): Promise<Record<string, number>> {
+  if (goalIds.length === 0) {
+    return {};
+  }
+
+  const db = getDb();
+  const placeholders = goalIds.map(() => "?").join(", ");
+  const result = await db.execute({
+    sql: `
+      SELECT goal_id, COALESCE(SUM(minutes_contributed), 0) AS total
+      FROM goal_progress
+      WHERE goal_id IN (${placeholders})
+      GROUP BY goal_id
+    `,
+    args: goalIds,
+  });
+
+  const totals: Record<string, number> = {};
+  for (const id of goalIds) {
+    totals[id] = 0;
+  }
+  for (const row of result.rows as unknown as { goal_id: string; total: number }[]) {
+    totals[row.goal_id] = row.total ?? 0;
+  }
+  return totals;
+}
+
+// ============================================================================
+// Weekly audit (local Turso / single-tenant)
+// ============================================================================
+
+export interface DbWeeklyAuditState {
+  week_id: string;
+  dismissed_at: string | null;
+  snoozed_until: string | null;
+  prompt_count: number;
+  last_prompt_at: string | null;
+  updated_at: string;
+}
+
+let alignmentMobileSchemaEnsured = false;
+
+async function ensureAlignmentMobileLocalSchema(): Promise<void> {
+  if (alignmentMobileSchemaEnsured) {
+    return;
+  }
+  const db = getDb();
+  await db.execute({
+    sql: `CREATE TABLE IF NOT EXISTS weekly_audit_state (
+      week_id TEXT PRIMARY KEY,
+      dismissed_at TEXT,
+      snoozed_until TEXT,
+      prompt_count INTEGER NOT NULL DEFAULT 0,
+      last_prompt_at TEXT,
+      updated_at TEXT NOT NULL
+    )`,
+  });
+  try {
+    await db.execute({ sql: `ALTER TABLE weekly_goals ADD COLUMN constraints_json TEXT` });
+  } catch {
+    /* column may already exist */
+  }
+  alignmentMobileSchemaEnsured = true;
+}
+
+export async function getWeeklyAuditStateLocal(weekId: string): Promise<DbWeeklyAuditState | null> {
+  await ensureAlignmentMobileLocalSchema();
+  const db = getDb();
+  const result = await db.execute({
+    sql: `SELECT * FROM weekly_audit_state WHERE week_id = ?`,
+    args: [weekId],
+  });
+  if (result.rows.length === 0) {
+    return null;
+  }
+  const r = result.rows[0] as Record<string, unknown>;
+  return {
+    week_id: String(r.week_id),
+    dismissed_at: r.dismissed_at != null ? String(r.dismissed_at) : null,
+    snoozed_until: r.snoozed_until != null ? String(r.snoozed_until) : null,
+    prompt_count: Number(r.prompt_count ?? 0),
+    last_prompt_at: r.last_prompt_at != null ? String(r.last_prompt_at) : null,
+    updated_at: String(r.updated_at),
+  };
+}
+
+export type WeeklyAuditActionLocal = "dismiss" | "snooze" | "seen";
+
+export async function applyWeeklyAuditActionLocal(
+  weekId: string,
+  action: WeeklyAuditActionLocal,
+  options?: { snoozedUntil?: string }
+): Promise<DbWeeklyAuditState> {
+  await ensureAlignmentMobileLocalSchema();
+  const existing = await getWeeklyAuditStateLocal(weekId);
+  const now = new Date().toISOString();
+
+  let dismissed_at: string | null = existing?.dismissed_at ?? null;
+  let snoozed_until: string | null = existing?.snoozed_until ?? null;
+  let prompt_count = existing?.prompt_count ?? 0;
+  let last_prompt_at: string | null = existing?.last_prompt_at ?? null;
+
+  if (action === "dismiss") {
+    dismissed_at = now;
+  } else if (action === "snooze") {
+    if (!options?.snoozedUntil) {
+      throw new Error("snooze requires snoozedUntil (ISO-8601)");
+    }
+    snoozed_until = options.snoozedUntil;
+  } else if (action === "seen") {
+    prompt_count += 1;
+    last_prompt_at = now;
+  }
+
+  const db = getDb();
+  await db.execute({
+    sql: `INSERT OR REPLACE INTO weekly_audit_state
+      (week_id, dismissed_at, snoozed_until, prompt_count, last_prompt_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?)`,
+    args: [weekId, dismissed_at, snoozed_until, prompt_count, last_prompt_at, now],
+  });
+
+  const updated = await getWeeklyAuditStateLocal(weekId);
+  if (!updated) {
+    throw new Error("Failed to persist weekly audit state");
+  }
+  return updated;
 }
 
 // ============================================================================
