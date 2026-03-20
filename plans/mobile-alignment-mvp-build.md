@@ -27,13 +27,26 @@ This folder was created as jj workspace **`mobile-alignment-mvp`** with bookmark
 
 ---
 
+## Client strategy (locked — 2026-03-19)
+
+**Ship a native iOS app (SwiftUI), not mobile web as the product.** Optimize for **polish and speed inside the Apple ecosystem**; **Android is out of scope** until deliberately revisited.
+
+- **Main app:** SwiftUI, calling existing MeOS HTTP APIs (`/api/week-alignment`, `/api/week-alignment/audit`).
+- **Auth:** Native path (**eng Track C**): sign-in on device + API/session strategy compatible with a non-browser client (not NextAuth cookies alone).
+- **Widgets (Phase 2):** WidgetKit remains **Swift**; SwiftUI for the main app keeps Apple surfaces in one stack.
+- **Deferred:** React Native / Expo, responsive `/m/*` “mobile website” as the primary experience, Capacitor-as-product.
+
+Full write-up: **`docs/designs/mobile-goal-alignment.md`**.
+
+---
+
 ## MVP definition (ship criteria)
 
 1. **One-week alignment view** — goals with minutes vs target and honest **empty / stale / unknown** states (no silent success on errors).
 2. **`GET /api/week-alignment?week=YYYY-Www`** — single aggregation endpoint; response matches **`schemas/alignment-mobile-v1.json`** (or equivalent generated JSON Schema kept in sync with TS types).
 3. **Weekly audit persistence (E3)** — table such as `weekly_audit_state`: `user_id`, `week_id`, `dismissed_at`, `snoozed_until`, `prompt_count`, `last_prompt_at`; POST (or PATCH) for dismiss/snooze with **idempotence / conflict policy documented**.
 4. **E4 groundwork** — `constraints_json` on `weekly_goals` (shared shape with Phase 2 slot work); **defaults** OK until UI edits constraints; alignment scoring respects per-goal windows when present.
-5. **Auth path (default)** — **Track A or B** first: responsive web or Capacitor/WebView using existing **NextAuth + Google** cookies; **401 → explicit re-sign-in**, never an empty “logged-in” shell. **Track C** (native Bearer) only after a deliberate spike.
+5. **Auth path (mobile client)** — **Track C (native):** Google (or ASWebAuthenticationSession) on device + **token/session** the API accepts; **401 → explicit re-sign-in**, never an empty “logged-in” shell. (Tracks A/B remain valid for **desktop web** or internal shortcuts, not the shipped iOS app.)
 6. **Tests** — unit tests for `buildAlignmentMobileV1` (empty, full, stale hint); integration tests for `GET /api/week-alignment` (401, 400 bad week, 200 shape); audit state transitions + backoff.
 
 **Explicitly out of MVP:** slot-finder API, widget, APNs, Android, LLM parsing.
@@ -51,8 +64,8 @@ This folder was created as jj workspace **`mobile-alignment-mvp`** with bookmark
 | 4 | **`webapp/lib/week-alignment-core.ts` + `week-alignment.ts`** | **Done** — pure DTO builder + `loadWeekAlignmentMobileV1`; `getWeekDateRange` via `db-unified`; batch progress `getGoalProgressMinutesBatch`. |
 | 5 | **Route** | **Done** — `GET /api/week-alignment`, `POST /api/week-alignment/audit` (`dismiss` \| `snooze` \| `seen`). |
 | 6 | **Tests** | **Partial** — `webapp/lib/week-alignment.test.ts` (core + audit + constraints). Add route integration tests when harness exists. |
-| 7 | **Client MVP** | Prefer **`/m/*` or responsive goals/alignment pages** in Next.js *or* Capacitor shell; wire audit UI + backoff copy. |
-| 8 | **Design** | `docs/designs/mobile-goal-alignment.md` when IA/copy stabilizes; optional `/plan-design-review` on wireframes. |
+| 7 | **iOS client MVP** | **SwiftUI** app: week alignment from `AlignmentMobileV1`, audit flow (dismiss / snooze / seen), honest sync/empty states; wire to APIs above. |
+| 8 | **Design** | **`docs/designs/mobile-goal-alignment.md`** (client strategy + references). Add wireframes/IA when ready; optional `/plan-design-review`. |
 
 ---
 
