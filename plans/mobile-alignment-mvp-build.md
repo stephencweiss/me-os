@@ -59,7 +59,7 @@ Full write-up: **`docs/designs/mobile-goal-alignment.md`**.
 |------|-------------|--------|
 | 0 | **Branch base** | **Done:** `mobile-alignment-mvp` rebased on `main@origin` (PR #91). Re-run `jj git fetch` + rebase if `origin/main` advances. |
 | 1 | **`schemas/alignment-mobile-v1.json`** | **Done** — repo root `schemas/alignment-mobile-v1.json`. |
-| 2 | **Migrations** | **Done (SQL artifact)** — `scripts/migrations/003_alignment_mobile.sql` (+ SQLite snippet in comments). Apply on Supabase; Turso auto-creates audit table on first use in local mode. |
+| 2 | **Migrations** | **Done (SQL artifact)** — `supabase/migrations/00003_alignment_mobile.sql` (+ SQLite snippet in comments). Apply via `pnpm db:push` or SQL Editor; Turso auto-creates audit table on first use in local mode. |
 | 3 | **`webapp/lib/goal-constraints.ts`** | **Done** — `parseGoalConstraints` (shared with Phase 2). |
 | 4 | **`webapp/lib/week-alignment-core.ts` + `week-alignment.ts`** | **Done** — pure DTO builder + `loadWeekAlignmentMobileV1`; `getWeekDateRange` via `db-unified`; batch progress `getGoalProgressMinutesBatch`. |
 | 5 | **Route** | **Done** — `GET /api/week-alignment`, `POST /api/week-alignment/audit` (`dismiss` \| `snooze` \| `seen`). |

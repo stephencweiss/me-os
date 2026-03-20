@@ -8,7 +8,16 @@ where versioning applies.
 
 ## [Unreleased]
 
-Nothing yet.
+### Added
+
+- **`supabase/migrations/00000_next_auth_schema.sql`** — Official Auth.js / NextAuth `next_auth` schema (replaces manual adapter SQL before `db:push`).
+- **`pnpm db:push` / `db:status` / `db:push:prod`** — Supabase migrations via Management API (`scripts/db-push.mjs`, adapted from animus-training training-app).
+- **`pnpm db:types` / `db:types:check`** — Regenerate `webapp/lib/database.types.ts` (`scripts/db-gen-types.mjs`).
+- **`supabase/migrations/`** — Canonical ordered DDL (`00000` Auth.js `next_auth`, then `00001`–`00005`); see `scripts/migrations/README.md`.
+
+### Changed
+
+- Postgres migration **`.sql` files** moved from `scripts/migrations/` to **`supabase/migrations/`** (same content, versioned names for `db:push`).
 
 ## [0.2.0] - 2026-03-20
 
