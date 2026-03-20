@@ -18,6 +18,7 @@ import type {
   WeeklyGoal,
   WeeklyGoalUpdate,
   WeeklyGoalInsert,
+  WeeklyAuditState,
   NonGoal,
   NonGoalInsert,
   GoalProgress,
@@ -894,6 +895,117 @@ export async function getGoalProgressMinutes(userId: string, goalId: string): Pr
 
   const rows = (data || []) as { minutes_contributed: number }[];
   return rows.reduce((sum, row) => sum + row.minutes_contributed, 0);
+}
+
+/**
+ * Sum progress minutes for many goals in one query (avoids N+1).
+ */
+export async function getGoalProgressMinutesBatch(
+  userId: string,
+  goalIds: string[]
+): Promise<Record<string, number>> {
+  if (goalIds.length === 0) {
+    return {};
+  }
+
+  const supabase = createServerClient();
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (supabase.from("goal_progress") as any)
+    .select("goal_id, minutes_contributed")
+    .eq("user_id", userId)
+    .in("goal_id", goalIds);
+
+  if (error) {
+    throw new Error(`Failed to batch goal progress: ${error.message}`);
+  }
+
+  const totals: Record<string, number> = {};
+  for (const id of goalIds) {
+    totals[id] = 0;
+  }
+  for (const row of (data || []) as { goal_id: string; minutes_contributed: number }[]) {
+    totals[row.goal_id] = (totals[row.goal_id] ?? 0) + row.minutes_contributed;
+  }
+  return totals;
+}
+
+/**
+ * Weekly alignment audit row (E3), or null if never written.
+ */
+export async function getWeeklyAuditState(
+  userId: string,
+  weekId: string
+): Promise<WeeklyAuditState | null> {
+  const supabase = createServerClient();
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (supabase.from("weekly_audit_state") as any)
+    .select("*")
+    .eq("user_id", userId)
+    .eq("week_id", weekId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(`Failed to read weekly audit state: ${error.message}`);
+  }
+
+  return (data as WeeklyAuditState | null) ?? null;
+}
+
+export type WeeklyAuditAction = "dismiss" | "snooze" | "seen";
+
+/**
+ * Idempotent-friendly updates for weekly audit (dismiss / snooze / prompt seen).
+ */
+export async function applyWeeklyAuditAction(
+  userId: string,
+  weekId: string,
+  action: WeeklyAuditAction,
+  options?: { snoozedUntil?: string }
+): Promise<WeeklyAuditState> {
+  const supabase = createServerClient();
+  const now = new Date().toISOString();
+
+  const existing = await getWeeklyAuditState(userId, weekId);
+  let dismissed_at: string | null = existing?.dismissed_at ?? null;
+  let snoozed_until: string | null = existing?.snoozed_until ?? null;
+  let prompt_count = existing?.prompt_count ?? 0;
+  let last_prompt_at: string | null = existing?.last_prompt_at ?? null;
+
+  if (action === "dismiss") {
+    dismissed_at = now;
+  } else if (action === "snooze") {
+    if (!options?.snoozedUntil) {
+      throw new Error("snooze requires snoozedUntil (ISO-8601)");
+    }
+    snoozed_until = options.snoozedUntil;
+  } else if (action === "seen") {
+    prompt_count += 1;
+    last_prompt_at = now;
+  }
+
+  const row = {
+    user_id: userId,
+    week_id: weekId,
+    dismissed_at,
+    snoozed_until,
+    prompt_count,
+    last_prompt_at,
+    updated_at: now,
+  };
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (supabase.from("weekly_audit_state") as any)
+    .upsert(row, { onConflict: "user_id,week_id" })
+    .select()
+    .single();
+
+  if (error) {
+    throw new Error(`Failed to upsert weekly audit state: ${error.message}`);
+  }
+
+  return data as WeeklyAuditState;
 }
 
 /**

@@ -11,6 +11,7 @@
 import { isLocalMode } from "./auth-helpers";
 import * as turso from "./db";
 import * as supabase from "./db-supabase";
+import type { WeeklyAuditAction } from "./db-supabase";
 
 // Re-export types and constants that are common
 export type { Category } from "./db-supabase";
@@ -230,6 +231,79 @@ export async function getGoalProgressMinutes(userId: string | null, goalId: stri
     return turso.getGoalProgress(goalId);
   }
   return supabase.getGoalProgressMinutes(userId, goalId);
+}
+
+export async function getGoalProgressMinutesBatch(
+  userId: string | null,
+  goalIds: string[]
+): Promise<Record<string, number>> {
+  if (goalIds.length === 0) {
+    return {};
+  }
+  if (isLocalMode() || !userId) {
+    return turso.getGoalProgressMinutesBatch(goalIds);
+  }
+  return supabase.getGoalProgressMinutesBatch(userId, goalIds);
+}
+
+/** Fields consumed by week-alignment DTO (works for Turso + Supabase rows). */
+export type WeeklyAuditStateLike = {
+  dismissed_at: string | null;
+  snoozed_until: string | null;
+  prompt_count: number;
+  last_prompt_at: string | null;
+};
+
+export async function getWeeklyAuditState(
+  userId: string | null,
+  weekId: string
+): Promise<WeeklyAuditStateLike | null> {
+  if (isLocalMode() || !userId) {
+    const row = await turso.getWeeklyAuditStateLocal(weekId);
+    if (!row) {
+      return null;
+    }
+    return {
+      dismissed_at: row.dismissed_at,
+      snoozed_until: row.snoozed_until,
+      prompt_count: row.prompt_count,
+      last_prompt_at: row.last_prompt_at,
+    };
+  }
+  const row = await supabase.getWeeklyAuditState(userId, weekId);
+  if (!row) {
+    return null;
+  }
+  return {
+    dismissed_at: row.dismissed_at,
+    snoozed_until: row.snoozed_until,
+    prompt_count: row.prompt_count,
+    last_prompt_at: row.last_prompt_at,
+  };
+}
+
+export async function applyWeeklyAuditAction(
+  userId: string | null,
+  weekId: string,
+  action: WeeklyAuditAction,
+  options?: { snoozedUntil?: string }
+): Promise<WeeklyAuditStateLike> {
+  if (isLocalMode() || !userId) {
+    const row = await turso.applyWeeklyAuditActionLocal(weekId, action, options);
+    return {
+      dismissed_at: row.dismissed_at,
+      snoozed_until: row.snoozed_until,
+      prompt_count: row.prompt_count,
+      last_prompt_at: row.last_prompt_at,
+    };
+  }
+  const row = await supabase.applyWeeklyAuditAction(userId, weekId, action, options);
+  return {
+    dismissed_at: row.dismissed_at,
+    snoozed_until: row.snoozed_until,
+    prompt_count: row.prompt_count,
+    last_prompt_at: row.last_prompt_at,
+  };
 }
 
 // =============================================================================

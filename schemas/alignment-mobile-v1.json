@@ -1,0 +1,90 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "me-os:alignment-mobile-v1",
+  "title": "AlignmentMobileV1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "weekId", "generatedAt", "syncHint", "goals", "audit"],
+  "properties": {
+    "schemaVersion": {
+      "type": "integer",
+      "const": 1
+    },
+    "weekId": {
+      "type": "string",
+      "pattern": "^\\d{4}-W\\d{2}$"
+    },
+    "generatedAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO-8601 instant when the payload was built"
+    },
+    "syncHint": {
+      "type": "string",
+      "enum": ["fresh", "stale", "unknown"],
+      "description": "Whether calendar-linked data looks up to date"
+    },
+    "goals": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/alignmentGoal" }
+    },
+    "audit": { "$ref": "#/$defs/weeklyAudit" }
+  },
+  "$defs": {
+    "alignmentGoal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "title",
+        "goalType",
+        "status",
+        "progressPercent",
+        "minutesLogged",
+        "estimatedMinutes",
+        "constraints"
+      ],
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "goalType": {
+          "type": "string",
+          "enum": ["time", "outcome", "habit"]
+        },
+        "status": {
+          "type": "string",
+          "enum": ["active", "completed", "cancelled"]
+        },
+        "progressPercent": { "type": "integer", "minimum": 0, "maximum": 100 },
+        "minutesLogged": { "type": "integer", "minimum": 0 },
+        "estimatedMinutes": { "type": ["integer", "null"], "minimum": 0 },
+        "colorId": { "type": ["string", "null"] },
+        "constraints": {
+          "description": "Parsed goal constraints; null = use defaults",
+          "type": ["object", "null"],
+          "additionalProperties": true
+        }
+      }
+    },
+    "weeklyAudit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "eligibleForPrompt",
+        "dismissedAt",
+        "snoozedUntil",
+        "promptCount",
+        "lastPromptAt",
+        "maxPromptsPerWeek"
+      ],
+      "properties": {
+        "eligibleForPrompt": { "type": "boolean" },
+        "dismissedAt": { "type": ["string", "null"], "format": "date-time" },
+        "snoozedUntil": { "type": ["string", "null"], "format": "date-time" },
+        "promptCount": { "type": "integer", "minimum": 0 },
+        "lastPromptAt": { "type": ["string", "null"], "format": "date-time" },
+        "maxPromptsPerWeek": { "type": "integer", "minimum": 1 }
+      }
+    }
+  }
+}

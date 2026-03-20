@@ -45,12 +45,12 @@ This folder was created as jj workspace **`mobile-alignment-mvp`** with bookmark
 | Step | Deliverable | Notes |
 |------|-------------|--------|
 | 0 | **Branch base** | **Done:** `mobile-alignment-mvp` rebased on `main@origin` (PR #91). Re-run `jj git fetch` + rebase if `origin/main` advances. |
-| 1 | **`schemas/alignment-mobile-v1.json`** | `schemaVersion`, `weekId`, `generatedAt`, `goals[]`, `syncHint`, audit eligibility flags — contract before heavy UI. |
-| 2 | **Migrations** | `weekly_audit_state`; `constraints_json` on `weekly_goals` if not present; mirror in Supabase types workflow. |
-| 3 | **`lib/goal-constraints.ts`** | Single module for constraints shape; consumed later by Phase 2 slot-finder. |
-| 4 | **`lib/week-alignment.ts`** | `buildAlignmentMobileV1(...)` — reuse `getWeekDateRange` from `lib/weekly-goals.ts`; batch progress (avoid N+1). |
-| 5 | **Route** | Thin `GET /api/week-alignment` + audit **write** route; `requireAuth` + user scoping like `/api/goals`. |
-| 6 | **Tests** | As in eng review + failure mode: no **200 with fabricated data** on DB errors. |
+| 1 | **`schemas/alignment-mobile-v1.json`** | **Done** — repo root `schemas/alignment-mobile-v1.json`. |
+| 2 | **Migrations** | **Done (SQL artifact)** — `scripts/migrations/003_alignment_mobile.sql` (+ SQLite snippet in comments). Apply on Supabase; Turso auto-creates audit table on first use in local mode. |
+| 3 | **`webapp/lib/goal-constraints.ts`** | **Done** — `parseGoalConstraints` (shared with Phase 2). |
+| 4 | **`webapp/lib/week-alignment-core.ts` + `week-alignment.ts`** | **Done** — pure DTO builder + `loadWeekAlignmentMobileV1`; `getWeekDateRange` via `db-unified`; batch progress `getGoalProgressMinutesBatch`. |
+| 5 | **Route** | **Done** — `GET /api/week-alignment`, `POST /api/week-alignment/audit` (`dismiss` \| `snooze` \| `seen`). |
+| 6 | **Tests** | **Partial** — `webapp/lib/week-alignment.test.ts` (core + audit + constraints). Add route integration tests when harness exists. |
 | 7 | **Client MVP** | Prefer **`/m/*` or responsive goals/alignment pages** in Next.js *or* Capacitor shell; wire audit UI + backoff copy. |
 | 8 | **Design** | `docs/designs/mobile-goal-alignment.md` when IA/copy stabilizes; optional `/plan-design-review` on wireframes. |
 
