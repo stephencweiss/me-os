@@ -47,7 +47,7 @@ or include full `calendar` if writes are required. **Google Cloud Console** OAut
 
 ## 1. Problem
 
-- The dashboard reads **`events`** and **`daily_summaries`** via `/api/summaries`, `/api/events`, `/api/calendars` (`webapp/lib/db-supabase.ts`).
+- The dashboard reads **`events`** and **`daily_summaries`** via `/api/summaries`, `/api/events`, `/api/calendars` (`web/lib/db-supabase.ts`).
 - **NextAuth + Google** only establishes identity in **`next_auth`**; it does **not** populate calendar rows.
 - **`linked_google_accounts`** exists (encrypted tokens, per-user Google identities) but has **no working write path** from the web app; Settings still shows “Coming Soon”.
 - **`lib/calendar-sync.ts`** + **`scripts/sync-calendar.ts`** target **SQLite** (`calendar-db`), not Supabase — not reusable as-is for the webapp.
@@ -74,7 +74,7 @@ Non-goals (v1): background queue service, multi-region, incremental Google push 
 
 ### B. Capture tokens from existing NextAuth Google sign-in
 
-- **Pros:** One consent (already `access_type: offline` + `prompt: consent` in `webapp/lib/auth.ts`); refresh token available on **first** consent; minimal new OAuth surface.
+- **Pros:** One consent (already `access_type: offline` + `prompt: consent` in `web/lib/auth.ts`); refresh token available on **first** consent; minimal new OAuth surface.
 - **Cons:** Must hook **`events` or `signIn` callback** (or a one-time migration path) to encrypt and upsert **`linked_google_accounts`**; token rotation must update DB.
 
 ### C. Hybrid (recommended for v1)

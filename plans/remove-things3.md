@@ -34,7 +34,7 @@
 
 ### Files to Modify
 - `lib/calendar-db.ts`
-- `webapp/lib/db.ts`
+- `web/lib/db.ts`
 
 ### Changes
 
@@ -83,7 +83,7 @@ function generateGoalId(): string {
 
 **1.5 Update `upsertWeeklyGoal()`** - remove `things3_id` parameter
 
-**1.6 Mirror changes in `webapp/lib/db.ts`**:
+**1.6 Mirror changes in `web/lib/db.ts`**:
 - Remove `generateWebappThings3Id()`
 - Update `createGoal()` to use native ID
 - Update `DbWeeklyGoal` interface
@@ -96,9 +96,9 @@ function generateGoalId(): string {
 - `lib/things3-sync.ts`
 - `scripts/sync-goals.ts`
 - `mcp/things3/` (entire directory)
-- `webapp/app/api/goals/sync/route.ts`
-- `webapp/app/api/goals/match/route.ts` (unused)
-- `webapp/app/api/goals/progress-sync/route.ts` (unused)
+- `web/app/api/goals/sync/route.ts`
+- `web/app/api/goals/match/route.ts` (unused)
+- `web/app/api/goals/progress-sync/route.ts` (unused)
 - `tests/things3-mcp.test.ts`
 
 ### Files to Update
@@ -177,32 +177,32 @@ import { createGoal, getGoalsForWeek } from '../../lib/goals-controller.js';
 ## Phase 4: Update Webapp
 
 ### Files to Delete
-- `webapp/app/api/goals/sync/route.ts`
-- `webapp/app/api/goals/match/route.ts`
-- `webapp/app/api/goals/match/` (directory)
-- `webapp/app/api/goals/progress-sync/route.ts`
-- `webapp/app/api/goals/progress-sync/` (directory)
+- `web/app/api/goals/sync/route.ts`
+- `web/app/api/goals/match/route.ts`
+- `web/app/api/goals/match/` (directory)
+- `web/app/api/goals/progress-sync/route.ts`
+- `web/app/api/goals/progress-sync/` (directory)
 
 ### Files to Modify
 
-#### `webapp/app/api/goals/route.ts`
+#### `web/app/api/goals/route.ts`
 - Delete `generateThings3CreateUrl()` function
 - Remove `syncToThings3` from POST handler
 - Remove `things3Url` from response
 
-#### `webapp/app/components/GoalForm.tsx`
+#### `web/app/components/GoalForm.tsx`
 - Remove `syncToThings3` state
 - Remove checkbox UI (~15 lines)
 - Remove from `onSave` callback interface
 - Update `handleSubmit()`
 
-#### `webapp/app/components/WeeklyGoals.tsx`
+#### `web/app/components/WeeklyGoals.tsx`
 - Remove `things3_id` from Goal interface
 - Verify no Things 3 references remain
 
 ### New: Dedicated Goals Page
 
-#### Create `webapp/app/goals/page.tsx`
+#### Create `web/app/goals/page.tsx`
 
 Standalone goals management page with:
 - Week selector (defaults to current week)
@@ -288,7 +288,7 @@ These should work fine since they read from the database, not Things 3 directly.
 3. Update `.claude/settings.local.json` if MCP server is registered there
 4. Verify `.mcp.json` doesn't reference Things 3 (confirmed: it doesn't)
 5. Run full test suite: `pnpm test`
-6. Verify webapp builds: `cd webapp && pnpm run build`
+6. Verify webapp builds: `cd web && pnpm run build`
 
 ---
 
@@ -315,14 +315,14 @@ These should work fine since they read from the database, not Things 3 directly.
 | `lib/calendar-optimizer.ts` | Verify native goal loading |
 | `lib/goals-controller.ts` | CREATE - new controller |
 | `mcp/things3/` | DELETE (entire directory) |
-| `webapp/lib/db.ts` | Remove Things 3 ID generation |
-| `webapp/app/api/goals/route.ts` | Remove Things 3 URL generation |
-| `webapp/app/api/goals/sync/` | DELETE |
-| `webapp/app/api/goals/match/` | DELETE |
-| `webapp/app/api/goals/progress-sync/` | DELETE |
-| `webapp/app/goals/page.tsx` | CREATE - dedicated goals page |
-| `webapp/app/components/GoalForm.tsx` | Remove sync checkbox |
-| `webapp/app/components/WeeklyGoals.tsx` | Remove things3_id from interface |
+| `web/lib/db.ts` | Remove Things 3 ID generation |
+| `web/app/api/goals/route.ts` | Remove Things 3 URL generation |
+| `web/app/api/goals/sync/` | DELETE |
+| `web/app/api/goals/match/` | DELETE |
+| `web/app/api/goals/progress-sync/` | DELETE |
+| `web/app/goals/page.tsx` | CREATE - dedicated goals page |
+| `web/app/components/GoalForm.tsx` | Remove sync checkbox |
+| `web/app/components/WeeklyGoals.tsx` | Remove things3_id from interface |
 | `.claude/skills/weekly-goals/SKILL.md` | Rewrite for native goals |
 | `.claude/skills/calendar-optimizer/SKILL.md` | Remove Things 3 reference |
 | `scripts/sync-goals.ts` | DELETE |
@@ -339,16 +339,16 @@ These should work fine since they read from the database, not Things 3 directly.
 Found via grep - all 19 files:
 1. `package.json`
 2. `CLAUDE.md`
-3. `webapp/lib/db.ts`
+3. `web/lib/db.ts`
 4. `lib/calendar-db.ts`
-5. `webapp/app/api/goals/sync/route.ts`
+5. `web/app/api/goals/sync/route.ts`
 6. `tests/weekly-goals-e2e.test.ts`
 7. `tests/goals-api.test.ts`
 8. `tests/things3-mcp.test.ts`
 9. `tests/goal-progress-sync.test.ts`
 10. `mcp/things3/index.ts`
 11. `lib/weekly-goals.ts`
-12. `webapp/app/components/WeeklyGoals.tsx`
+12. `web/app/components/WeeklyGoals.tsx`
 13. `tests/goal-matcher.test.ts`
 14. `tests/weekly-goals.test.ts`
 15. `plans/weekly-goals.md`

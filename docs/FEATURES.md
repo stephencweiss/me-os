@@ -2,7 +2,7 @@
 
 **GitHub Issue**: https://github.com/stephencweiss/me-os/issues/27
 
-This document tracks features for the calendar dashboard webapp.
+This document tracks features for the calendar dashboard in the **`web/`** Next.js app.
 
 ---
 

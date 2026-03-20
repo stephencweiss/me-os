@@ -19,7 +19,7 @@ A skill is a set of local instructions stored in a `SKILL.md` file. Use these en
 - `calendar-setup`: Configure calendar-type behavior for tracking, gap analysis, and scheduling. (file: `/Users/sweiss/code/me-os/.claude/skills/calendar-setup/SKILL.md`)
 - `calendar-manager`: Active calendar management for conflicts, categorization, and flex-time creation. (file: `/Users/sweiss/code/me-os/.claude/skills/calendar-manager/SKILL.md`)
 - `calendar-optimizer`: Goal-based schedule optimization and proposal/apply flow. (file: `/Users/sweiss/code/me-os/.claude/skills/calendar-optimizer/SKILL.md`)
-- `weekly-goals`: Set, track, and review weekly goals in MeOS (database / webapp) with progress tracking and non-goal alerts. (file: `/Users/sweiss/code/me-os/.claude/skills/weekly-goals/SKILL.md`)
+- `weekly-goals`: Set, track, and review weekly goals in MeOS (database / web) with progress tracking and non-goal alerts. (file: `/Users/sweiss/code/me-os/.claude/skills/weekly-goals/SKILL.md`)
 - `time-report`: Weekly/daily time analysis with gap detection and interactive categorization. (file: `/Users/sweiss/code/me-os/.claude/skills/time-report/SKILL.md`)
 - `one-on-one`: Process and summarize 1:1 notes from voice, images, files, or text. (file: `/Users/sweiss/code/me-os/.claude/skills/one-on-one/SKILL.md`)
 
@@ -68,7 +68,7 @@ me-os/
 │   ├── plans/          # Implementation plans (canonical for new work)
 │   └── specs/          # Design specs (brainstorming output)
 ├── plans/              # Legacy / ad-hoc plans (prefer docs/superpowers/plans/ for new features)
-├── supabase/migrations/# Postgres DDL for webapp (apply: pnpm db:push from root)
+├── supabase/migrations/# Postgres DDL for the Next.js app in `web/` (apply: pnpm db:push from root)
 ├── scripts/            # Standalone scripts (callable by skills); see scripts/migrations/README.md
 ├── lib/                # Shared utilities
 └── config/             # Configuration and credentials
@@ -128,7 +128,7 @@ Tests are critical for maintaining code quality. When making changes:
 
 1. **Write tests for new functionality** - All new features, API endpoints, and database functions should have corresponding tests
 2. **Update tests when modifying existing code** - If you change behavior, update or add tests to cover the changes
-3. **Run tests before committing** - Root: `pnpm test`. Webapp: `pnpm --filter webapp test:run` (or `cd webapp && pnpm run test:run`)
+3. **Run tests before committing** - Root: `pnpm test`. Web: `pnpm --filter web test:run` (or `cd web && pnpm run test:run`)
 4. **Test file locations**:
    - Unit/integration tests: `tests/` directory
    - Test naming: `<feature>.test.ts` (e.g., `goal-creation.test.ts`)
@@ -142,7 +142,7 @@ Example test coverage expectations:
 
 Maintain a consistent user experience by reusing existing components:
 
-1. **Check for existing components first** - Before creating new UI elements, check `webapp/app/components/` for existing solutions
+1. **Check for existing components first** - Before creating new UI elements, check `web/app/components/` for existing solutions
 2. **Use standard components** - Prefer shared components over inline styles:
    - `Button.tsx` - Standard button with variants (primary, secondary, ghost, danger) and sizes (sm, md, lg)
    - More components to be added as the design system grows
@@ -184,8 +184,8 @@ cp "$MAIN_REPO/config/calendars.json" ./config/
 # Copy sensitive directory (Google OAuth tokens, etc.)
 cp -r "$MAIN_REPO/config/sensitive" ./config/
 
-# Copy webapp environment variables
-cp "$MAIN_REPO/webapp/.env.local" ./webapp/
+# Copy web environment variables
+cp "$MAIN_REPO/web/.env.local" ./web/
 ```
 
 ### Required Config Files
@@ -195,22 +195,22 @@ cp "$MAIN_REPO/webapp/.env.local" ./webapp/
 | `config/turso.json` | Turso database credentials |
 | `config/calendars.json` | Google Calendar account configs |
 | `config/sensitive/` | OAuth tokens and credentials |
-| `webapp/.env.local` | Next.js environment variables |
+| `web/.env.local` | Next.js environment variables |
 
-### Running the Webapp
+### Running the web app
 ```bash
-# From repo root (installs root + webapp workspace)
+# From repo root (installs root + web workspace)
 pnpm install
 
-cd webapp
+cd web
 pnpm dev
 # Default http://localhost:3000 (or next free port)
 ```
 
-### Supabase schema (webapp)
+### Supabase schema (`web/`)
 
 - **DDL:** `supabase/migrations/` (`00000_…` = Auth.js `next_auth`, then `00001_…`–`00005_…` MeOS).
-- **Apply from repo root:** `pnpm db:push` (needs `SUPABASE_ACCESS_TOKEN` + project ref in `webapp/.env.local`; see `scripts/migrations/README.md`).
+- **Apply from repo root:** `pnpm db:push` (needs `SUPABASE_ACCESS_TOKEN` + project ref in `web/.env.local`; see `scripts/migrations/README.md`).
 - **Regenerate TS types:** `pnpm db:types`.
 
 ## Getting Started
@@ -218,7 +218,7 @@ pnpm dev
 1. Set up Google Calendar API credentials
 2. Configure JIRA MCP server connection
 3. (Optional) Set up Lattice API access
-4. Install dependencies: **`pnpm` only** — `pnpm install` at repo root and `cd webapp && pnpm install`. If Corepack/registry 401: `export COREPACK_NPM_REGISTRY=https://registry.npmjs.org` (see README).
+4. Install dependencies: **`pnpm` only** — `pnpm install` at repo root and `cd web && pnpm install`. If Corepack/registry 401: `export COREPACK_NPM_REGISTRY=https://registry.npmjs.org` (see README).
 
 ## Commands
 

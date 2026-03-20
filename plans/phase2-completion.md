@@ -38,7 +38,7 @@
 - The code looks correct: `days` state changes → `useEffect` triggers → API call made
 - Possible issues: caching, state not updating, or API returning same data
 
-**File to modify**: `webapp/app/components/Dashboard.tsx`
+**File to modify**: `web/app/components/Dashboard.tsx`
 
 **Tasks**:
 1. Add console.log to verify state changes and API calls
@@ -52,7 +52,7 @@
 
 **Problem**: The bar chart shows daily data but has no visual indicators for week boundaries.
 
-**File to modify**: `webapp/app/components/Dashboard.tsx`
+**File to modify**: `web/app/components/Dashboard.tsx`
 
 **Approach**: Use Recharts `ReferenceArea` to shade weekends (user preference).
 
@@ -85,9 +85,9 @@ import { ReferenceArea } from "recharts";
 
 **Problem**: No UI to view individual events or mark attendance.
 
-**Files to create**: `webapp/app/components/EventList.tsx`
+**Files to create**: `web/app/components/EventList.tsx`
 
-**File to modify**: `webapp/app/components/Dashboard.tsx`
+**File to modify**: `web/app/components/Dashboard.tsx`
 
 **EventList Component Design**:
 ```tsx
@@ -121,7 +121,7 @@ interface EventListProps {
 **Problem**: Cannot click chart elements to see related events.
 
 **Files to modify**:
-- `webapp/app/components/Dashboard.tsx`
+- `web/app/components/Dashboard.tsx`
 
 **Implementation**:
 
@@ -170,9 +170,9 @@ interface EventListProps {
 
 **Problem**: No UI to filter by account or calendar.
 
-**Files to create**: `webapp/app/components/FilterBar.tsx`
+**Files to create**: `web/app/components/FilterBar.tsx`
 
-**File to modify**: `webapp/app/components/Dashboard.tsx`
+**File to modify**: `web/app/components/Dashboard.tsx`
 
 **FilterBar Component Design**:
 ```tsx
@@ -209,11 +209,11 @@ interface FilterBarProps {
 
 | File | Action | Purpose |
 |------|--------|---------|
-| `webapp/app/components/Dashboard.tsx` | Modify | Add drill-down, event list state, week markers |
-| `webapp/app/components/EventList.tsx` | Create | Event list with attendance toggle |
-| `webapp/app/components/FilterBar.tsx` | Create | Account/calendar filter dropdowns |
-| `webapp/app/api/summaries/route.ts` | Modify | Add account/calendar filtering |
-| `webapp/lib/db.ts` | Modify | Add query for events by category |
+| `web/app/components/Dashboard.tsx` | Modify | Add drill-down, event list state, week markers |
+| `web/app/components/EventList.tsx` | Create | Event list with attendance toggle |
+| `web/app/components/FilterBar.tsx` | Create | Account/calendar filter dropdowns |
+| `web/app/api/summaries/route.ts` | Modify | Add account/calendar filtering |
+| `web/lib/db.ts` | Modify | Add query for events by category |
 
 ---
 
@@ -340,7 +340,7 @@ jj bookmark create sw-filter-bar
 
 ```bash
 # Start dev server
-cd webapp && pnpm dev
+cd web && pnpm dev
 ```
 
 **Task 1 Tests** (Date Range):

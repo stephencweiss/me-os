@@ -15,7 +15,7 @@ Add the ability to create and edit weekly goals through:
 
 ### Phase 1: API Enhancements
 
-**File:** `webapp/app/api/goals/route.ts`
+**File:** `web/app/api/goals/route.ts`
 
 1. Enhance `POST /api/goals`:
    - Add `syncToThings3` boolean parameter
@@ -26,7 +26,7 @@ Add the ability to create and edit weekly goals through:
    - Update title, notes, estimatedMinutes, goalType, colorId
    - Validate goal exists before update
 
-**File:** `webapp/lib/db.ts`
+**File:** `web/lib/db.ts`
 
 3. Add `updateGoal()` function:
 ```typescript
@@ -43,7 +43,7 @@ export async function updateGoal(goalId: string, updates: {
 
 ### Phase 2: Web UI Components
 
-**New File:** `webapp/app/components/GoalForm.tsx`
+**New File:** `web/app/components/GoalForm.tsx`
 
 Modal form component with:
 - Title (required)
@@ -53,11 +53,11 @@ Modal form component with:
 - Color picker (using existing COLOR_MAP)
 - "Also create in Things 3" checkbox (default: true)
 
-**New File:** `webapp/app/components/ColorPicker.tsx`
+**New File:** `web/app/components/ColorPicker.tsx`
 
 Reusable color selection using calendar color schema.
 
-**File:** `webapp/app/components/WeeklyGoals.tsx`
+**File:** `web/app/components/WeeklyGoals.tsx`
 
 Modifications:
 1. Add "Create Goal" button in header (next to week nav)
@@ -128,11 +128,11 @@ Claude: Done! Goal created.
 
 | File | Changes |
 |------|---------|
-| `webapp/app/api/goals/route.ts` | Add syncToThings3 to POST, add PUT handler |
-| `webapp/lib/db.ts` | Add updateGoal() function |
-| `webapp/app/components/WeeklyGoals.tsx` | Add create/edit buttons, integrate form |
-| `webapp/app/components/GoalForm.tsx` | **NEW** - Modal form component |
-| `webapp/app/components/ColorPicker.tsx` | **NEW** - Color selection component |
+| `web/app/api/goals/route.ts` | Add syncToThings3 to POST, add PUT handler |
+| `web/lib/db.ts` | Add updateGoal() function |
+| `web/app/components/WeeklyGoals.tsx` | Add create/edit buttons, integrate form |
+| `web/app/components/GoalForm.tsx` | **NEW** - Modal form component |
+| `web/app/components/ColorPicker.tsx` | **NEW** - Color selection component |
 | `mcp/things3/index.ts` | Add create_weekly_goal tool |
 | `.claude/skills/weekly-goals/SKILL.md` | Add conversational create flow |
 
