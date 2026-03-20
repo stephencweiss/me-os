@@ -15,7 +15,7 @@ COMMENT ON COLUMN weekly_goals.constraints_json IS
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS weekly_audit_state (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES next_auth.users(id) ON DELETE CASCADE,
   week_id TEXT NOT NULL,
   dismissed_at TIMESTAMPTZ,
   snoozed_until TIMESTAMPTZ,

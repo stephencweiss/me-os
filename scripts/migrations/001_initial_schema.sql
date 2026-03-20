@@ -1,8 +1,12 @@
 -- MeOS Initial Schema for Supabase/Postgres
 -- This schema uses Row Level Security (RLS) for multi-tenant data isolation
 --
--- Run this in Supabase SQL Editor after creating your project
--- Note: auth.users table is created automatically by Supabase Auth
+-- Prerequisite: Create the **next_auth** schema and tables for Auth.js / NextAuth
+-- (@auth/supabase-adapter) so **next_auth.users** exists before running this file.
+-- See: https://authjs.dev/getting-started/adapters/supabase
+--
+-- All `user_id` columns reference **next_auth.users(id)**, not **auth.users** — the webapp
+-- signs in with Google via NextAuth; those user rows live in next_auth, not Supabase Auth.
 
 -- ============================================================================
 -- EVENTS TABLE
@@ -10,7 +14,7 @@
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS events (
   id TEXT PRIMARY KEY,
-  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES next_auth.users(id) ON DELETE CASCADE,
   google_event_id TEXT NOT NULL,
   date DATE NOT NULL,
   account TEXT NOT NULL,
@@ -53,7 +57,7 @@ CREATE POLICY "events_delete" ON events FOR DELETE USING (user_id = auth.uid());
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS daily_summaries (
   id SERIAL PRIMARY KEY,
-  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES next_auth.users(id) ON DELETE CASCADE,
   date DATE NOT NULL,
   total_scheduled_minutes INTEGER NOT NULL,
   total_gap_minutes INTEGER NOT NULL,
@@ -81,7 +85,7 @@ CREATE POLICY "summaries_delete" ON daily_summaries FOR DELETE USING (user_id = 
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS weekly_goals (
   id TEXT PRIMARY KEY,
-  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES next_auth.users(id) ON DELETE CASCADE,
   week_id TEXT NOT NULL,  -- Format: "2026-W10"
   title TEXT NOT NULL,
   notes TEXT,
@@ -113,7 +117,7 @@ CREATE POLICY "goals_delete" ON weekly_goals FOR DELETE USING (user_id = auth.ui
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS non_goals (
   id TEXT PRIMARY KEY,
-  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES next_auth.users(id) ON DELETE CASCADE,
   week_id TEXT NOT NULL,
   title TEXT NOT NULL,
   pattern TEXT NOT NULL,  -- Regex or keyword pattern to match events
@@ -140,7 +144,7 @@ CREATE POLICY "non_goals_delete" ON non_goals FOR DELETE USING (user_id = auth.u
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS goal_progress (
   id SERIAL PRIMARY KEY,
-  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES next_auth.users(id) ON DELETE CASCADE,
   goal_id TEXT NOT NULL REFERENCES weekly_goals(id) ON DELETE CASCADE,
   event_id TEXT NOT NULL REFERENCES events(id) ON DELETE CASCADE,
   matched_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -167,7 +171,7 @@ CREATE POLICY "progress_delete" ON goal_progress FOR DELETE USING (user_id = aut
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS non_goal_alerts (
   id SERIAL PRIMARY KEY,
-  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES next_auth.users(id) ON DELETE CASCADE,
   non_goal_id TEXT NOT NULL REFERENCES non_goals(id) ON DELETE CASCADE,
   event_id TEXT NOT NULL REFERENCES events(id) ON DELETE CASCADE,
   detected_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -191,7 +195,7 @@ CREATE POLICY "alerts_delete" ON non_goal_alerts FOR DELETE USING (user_id = aut
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS user_preferences (
   id SERIAL PRIMARY KEY,
-  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES next_auth.users(id) ON DELETE CASCADE,
   key TEXT NOT NULL,
   value TEXT NOT NULL,
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -213,7 +217,7 @@ CREATE POLICY "preferences_delete" ON user_preferences FOR DELETE USING (user_id
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS linked_google_accounts (
   id TEXT PRIMARY KEY,
-  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES next_auth.users(id) ON DELETE CASCADE,
   google_email TEXT NOT NULL,
   google_user_id TEXT NOT NULL,
   display_name TEXT,
