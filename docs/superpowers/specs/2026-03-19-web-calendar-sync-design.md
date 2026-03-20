@@ -203,4 +203,4 @@ This item is **blocking** for reliable sync writes; confirm on a dev branch with
 ## Approval
 
 - [ ] User reviewed and approved this spec (or noted edits).
-- [ ] Then: create implementation plan (`plans/` or writing-plans workflow) and execute in small PRs: **FK migration → token capture → sync engine → API → UI**.
+- [ ] Then: create implementation plan in `docs/superpowers/plans/` (see `.claude/workflows/planning.md`) and execute in small PRs: **FK migration → token capture → sync engine → API → UI**.
