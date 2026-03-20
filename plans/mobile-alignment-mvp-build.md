@@ -1,15 +1,19 @@
 ---
 status: ACTIVE
 created: 2026-03-19
+rebased: 2026-03-19
 jj_workspace: mobile-alignment-mvp
 jj_bookmark: mobile-alignment-mvp
+base: origin/main (includes PR #91)
 ---
 
 # Build plan: Mobile alignment MVP (Phase 1)
 
 **Intent:** Executable checklist for the **Phase 1 “alignment mobile”** product described in [PR #91](https://github.com/stephencweiss/me-os/pull/91) (merged): goals ↔ calendar truth, weekly audit (E3), versioned DTOs (E2), per-goal windows (E4). **Slot-finder + widget stay Phase 2** — do not block MVP on them.
 
-**Canonical strategy docs** (ensure they exist on your branch after rebasing on `main`; filenames may vary if docs moved):
+**Repo state (jj):** Bookmark **`mobile-alignment-mvp`** was **rebased onto `main@origin`** (merge commit for PR #91) so this line includes the CEO + Phase 1 eng plans. The conflicted jj **`main`** bookmark was pointed at **`main@origin`** to match GitHub; if your **local `git main`** has diverged (e.g. docs-only commits not on `origin/main`), reconcile with `git merge` / `git rebase` separately — this MVP branch intentionally tracks **published** `origin/main` for the alignment docs.
+
+**Canonical strategy docs** (present on this base under `plans/`):
 
 - `plans/ceo-mobile-goal-alignment.md` — phased scope, “alignment first”
 - `plans/eng-review-mobile-goal-alignment-phase1.md` — locked APIs, auth tracks, tests
@@ -40,7 +44,7 @@ This folder was created as jj workspace **`mobile-alignment-mvp`** with bookmark
 
 | Step | Deliverable | Notes |
 |------|-------------|--------|
-| 0 | **Rebase / sync `main`** | Pull merged PR #91 docs if missing locally; resolve `main` bookmark conflicts in jj if any before large work. |
+| 0 | **Branch base** | **Done:** `mobile-alignment-mvp` rebased on `main@origin` (PR #91). Re-run `jj git fetch` + rebase if `origin/main` advances. |
 | 1 | **`schemas/alignment-mobile-v1.json`** | `schemaVersion`, `weekId`, `generatedAt`, `goals[]`, `syncHint`, audit eligibility flags — contract before heavy UI. |
 | 2 | **Migrations** | `weekly_audit_state`; `constraints_json` on `weekly_goals` if not present; mirror in Supabase types workflow. |
 | 3 | **`lib/goal-constraints.ts`** | Single module for constraints shape; consumed later by Phase 2 slot-finder. |
