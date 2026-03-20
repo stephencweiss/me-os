@@ -76,10 +76,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  let linkedAccountId = body.linkedAccountId;
-  if (!linkedAccountId) {
-    linkedAccountId = linked[0]!.id;
-  }
+  const linkedAccountId = body.linkedAccountId ?? linked[0]!.id;
   if (!linked.some((l) => l.id === linkedAccountId)) {
     return NextResponse.json({ error: "linkedAccountId not found for user" }, { status: 400 });
   }
