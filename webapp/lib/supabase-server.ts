@@ -92,6 +92,22 @@ export function createUserClient(userId: string): TypedSupabaseClient {
  * For security, all db-supabase functions require userId parameter
  * and include user_id in all queries.
  */
+/**
+ * Client scoped to the `next_auth` schema (Auth.js Supabase adapter tables).
+ * Use service role only on the server.
+ */
+export function createNextAuthSchemaClient() {
+  if (!supabaseUrl || !supabaseServiceKey) {
+    throw new Error(
+      "SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required for next_auth schema client"
+    );
+  }
+  return createClient(supabaseUrl, supabaseServiceKey, {
+    db: { schema: "next_auth" },
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+}
+
 export function createServerClient(): TypedSupabaseClient {
   if (!supabaseUrl || !supabaseServiceKey) {
     throw new Error(
