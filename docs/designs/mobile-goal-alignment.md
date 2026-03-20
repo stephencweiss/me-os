@@ -27,6 +27,10 @@ Product decision for **Phase 1 alignment mobile** (see `plans/ceo-mobile-goal-al
 - Honest **syncHint** copy (`fresh` / `stale` / `unknown`) surfaced in UI, aligned with the DTO.
 - Audit UX: dismiss, snooze, backoff consistent with `weekly_audit_state` and eng review.
 
+## Local testing (backend before SwiftUI)
+
+See **`docs/testing-week-alignment-local.md`** (where to `cd`, `pnpm` commands, env, Supabase migration, browser vs local mode, manual GET/POST checks, and how to open a PR from jj).
+
 ## References
 
 - API: `webapp/app/api/week-alignment/route.ts`, `webapp/app/api/week-alignment/audit/route.ts`
