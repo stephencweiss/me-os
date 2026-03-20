@@ -79,7 +79,7 @@ There is **no `pnpm db:push`** (or similar) wired up on this branch—migrations
 
 Details, `psql` option, Turso notes, and ordering with `001_…`: **`scripts/migrations/README.md`**.
 
-Without this on Supabase, **`POST /api/week-alignment/audit`** can fail (missing `weekly_audit_state`).
+Without this on Supabase, **`POST /api/week-alignment/audit`** fails with a clear error pointing at the migration. **`GET /api/week-alignment`** still returns **200** (goals + `syncHint`); **`audit`** reflects “no row yet” until the table exists and you persist dismiss/snooze/seen.
 
 ### Optional: “local mode” (no login)
 

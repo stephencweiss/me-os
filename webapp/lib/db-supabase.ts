@@ -930,8 +930,29 @@ export async function getGoalProgressMinutesBatch(
   return totals;
 }
 
+/** PostgREST: table not exposed or missing from schema cache (migration not applied). */
+function isMissingWeeklyAuditTableError(err: { message?: string; code?: string }): boolean {
+  const msg = err.message ?? "";
+  if (err.code === "PGRST205" && msg.includes("weekly_audit_state")) {
+    return true;
+  }
+  if (
+    msg.includes("weekly_audit_state") &&
+    (msg.includes("schema cache") ||
+      msg.includes("Could not find the table") ||
+      msg.includes("does not exist"))
+  ) {
+    return true;
+  }
+  return false;
+}
+
+export const WEEKLY_AUDIT_MIGRATION_HINT =
+  "Apply scripts/migrations/003_alignment_mobile.sql in the Supabase SQL Editor (see scripts/migrations/README.md).";
+
 /**
  * Weekly alignment audit row (E3), or null if never written.
+ * If the table is missing (migration not run), returns null so GET /api/week-alignment can still load goals + syncHint.
  */
 export async function getWeeklyAuditState(
   userId: string,
@@ -947,6 +968,10 @@ export async function getWeeklyAuditState(
     .maybeSingle();
 
   if (error) {
+    if (isMissingWeeklyAuditTableError(error)) {
+      console.warn(`getWeeklyAuditState: ${WEEKLY_AUDIT_MIGRATION_HINT}`);
+      return null;
+    }
     throw new Error(`Failed to read weekly audit state: ${error.message}`);
   }
 
@@ -1002,6 +1027,9 @@ export async function applyWeeklyAuditAction(
     .single();
 
   if (error) {
+    if (isMissingWeeklyAuditTableError(error)) {
+      throw new Error(`Weekly audit table missing. ${WEEKLY_AUDIT_MIGRATION_HINT}`);
+    }
     throw new Error(`Failed to upsert weekly audit state: ${error.message}`);
   }
 
