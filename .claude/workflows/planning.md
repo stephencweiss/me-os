@@ -4,9 +4,10 @@ For new features and non-trivial changes, always write a plan first. Follow this
 
 ## 1. Create the Plan
 
-- Save the plan as a `.md` file in `plans/` as the **first step** (e.g., `plans/feature-name.md`)
+- Save the plan as a `.md` file in **`docs/superpowers/plans/`** as the **first step** (e.g., `docs/superpowers/plans/YYYY-MM-DD-feature-name.md`). Link the design spec from `docs/superpowers/specs/` when one exists.
 - Include a testing strategy section: how will we verify each step works?
 - Commit the plan file before starting implementation
+- **Legacy:** older plans may remain under `plans/`; new work should use `docs/superpowers/plans/`.
 
 ## 2. Create a GitHub Issue
 

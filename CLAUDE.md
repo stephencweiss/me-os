@@ -19,7 +19,7 @@ A skill is a set of local instructions stored in a `SKILL.md` file. Use these en
 - `calendar-setup`: Configure calendar-type behavior for tracking, gap analysis, and scheduling. (file: `/Users/sweiss/code/me-os/.claude/skills/calendar-setup/SKILL.md`)
 - `calendar-manager`: Active calendar management for conflicts, categorization, and flex-time creation. (file: `/Users/sweiss/code/me-os/.claude/skills/calendar-manager/SKILL.md`)
 - `calendar-optimizer`: Goal-based schedule optimization and proposal/apply flow. (file: `/Users/sweiss/code/me-os/.claude/skills/calendar-optimizer/SKILL.md`)
-- `weekly-goals`: Set, track, and review weekly goals from Things 3 with progress tracking and non-goal alerts. (file: `/Users/sweiss/code/me-os/.claude/skills/weekly-goals/SKILL.md`)
+- `weekly-goals`: Set, track, and review weekly goals in MeOS (database / webapp) with progress tracking and non-goal alerts. (file: `/Users/sweiss/code/me-os/.claude/skills/weekly-goals/SKILL.md`)
 - `time-report`: Weekly/daily time analysis with gap detection and interactive categorization. (file: `/Users/sweiss/code/me-os/.claude/skills/time-report/SKILL.md`)
 - `one-on-one`: Process and summarize 1:1 notes from voice, images, files, or text. (file: `/Users/sweiss/code/me-os/.claude/skills/one-on-one/SKILL.md`)
 
@@ -37,6 +37,8 @@ Before getting started, load and internalize .claude/SYSTEM-PROMPT.md.
 ## Planning Workflow
 
 For new features and non-trivial changes, follow the planning workflow in `.claude/workflows/planning.md`.
+
+**Plans (canonical):** `docs/superpowers/plans/` — implementation plans for multi-step work. Older notes may still live under `plans/` until migrated.
 
 ## Tech Stack
 
@@ -62,7 +64,10 @@ me-os/
 │   └── one-on-one/     # 1:1 note processing and reporting
 ├── mcp/                # MCP server implementations
 │   └── google-calendar/# Google Calendar MCP server
-├── plans/              # Plans for new features. Creates a record of work. Used for development. 
+├── docs/superpowers/
+│   ├── plans/          # Implementation plans (canonical for new work)
+│   └── specs/          # Design specs (brainstorming output)
+├── plans/              # Legacy / ad-hoc plans (prefer docs/superpowers/plans/ for new features)
 ├── scripts/            # Standalone scripts (callable by skills)
 ├── lib/                # Shared utilities
 └── config/             # Configuration and credentials
@@ -116,14 +121,13 @@ Load `config/colors.json` which is the source of truth.
 - Follow the Planning Workflow (above) for all non-trivial changes
 - `.claude/settings.local.json` is Claude runtime configuration and permissions. It is not the Codex skill registration mechanism.
 
-<<<<<<< goal-creation
 ### Testing Requirements
 
 Tests are critical for maintaining code quality. When making changes:
 
 1. **Write tests for new functionality** - All new features, API endpoints, and database functions should have corresponding tests
 2. **Update tests when modifying existing code** - If you change behavior, update or add tests to cover the changes
-3. **Run tests before committing** - Use `npm run test:run` (or `npx vitest run`) to verify all tests pass
+3. **Run tests before committing** - Root: `pnpm test`. Webapp: `pnpm --filter webapp test:run` (or `cd webapp && pnpm run test:run`)
 4. **Test file locations**:
    - Unit/integration tests: `tests/` directory
    - Test naming: `<feature>.test.ts` (e.g., `goal-creation.test.ts`)
@@ -152,8 +156,6 @@ When creating a new UI element:
 - If similar functionality exists, consider refactoring to make it reusable
 - If creating new, follow the patterns established in existing components
 
-=======
->>>>>>> main
 ## Worktree Development
 
 Use git worktrees for isolated feature development:
@@ -196,10 +198,12 @@ cp "$MAIN_REPO/webapp/.env.local" ./webapp/
 
 ### Running the Webapp
 ```bash
+# From repo root (installs root + webapp workspace)
+pnpm install
+
 cd webapp
-npm install
-npm run dev
-# Opens at http://localhost:3001
+pnpm dev
+# Default http://localhost:3000 (or next free port)
 ```
 
 ## Getting Started
@@ -207,7 +211,7 @@ npm run dev
 1. Set up Google Calendar API credentials
 2. Configure JIRA MCP server connection
 3. (Optional) Set up Lattice API access
-4. Install dependencies: `npm install`
+4. Install dependencies: `pnpm install` (repo root). If Corepack/registry 401: `export COREPACK_NPM_REGISTRY=https://registry.npmjs.org` (see README).
 
 ## Commands
 
