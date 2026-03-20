@@ -6,7 +6,7 @@
  * into Supabase for a specific user account.
  *
  * Usage (repo root):
- *   pnpm exec tsx webapp/scripts/migrate-local-to-web.ts --email user@example.com [--dry-run]
+ *   pnpm exec tsx web/scripts/migrate-local-to-web.ts --email user@example.com [--dry-run]
  *
  * Prerequisites:
  *   - Local Turso database configured (TURSO_DATABASE_URL, TURSO_AUTH_TOKEN)
@@ -35,7 +35,7 @@ if (args.values.help || !args.values.email) {
 Migrate Local Mode to Web Mode
 
 Usage:
-  pnpm exec tsx webapp/scripts/migrate-local-to-web.ts --email user@example.com [--dry-run]
+  pnpm exec tsx web/scripts/migrate-local-to-web.ts --email user@example.com [--dry-run]
 
 Options:
   --email, -e     Email of the user to migrate data to (required)
