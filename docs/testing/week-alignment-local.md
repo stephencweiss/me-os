@@ -72,11 +72,14 @@ At minimum for **signed-in browser testing**, `webapp/.env.local` should match y
 
 ### Database migration (Supabase)
 
-If you use **Supabase** in web mode, apply:
+There is **no `pnpm db:push`** (or similar) wired up on this branch—migrations are **manual**.
 
-`scripts/migrations/003_alignment_mobile.sql`
+1. Supabase Dashboard → your project → **SQL Editor** → **New query**.
+2. Paste the full contents of **`scripts/migrations/003_alignment_mobile.sql`** from this repo and **Run**.
 
-in the Supabase SQL editor so **`weekly_audit_state`** and **`weekly_goals.constraints_json`** exist. Without this, **audit writes** can fail with a missing-relation error.
+Details, `psql` option, Turso notes, and ordering with `001_…`: **`scripts/migrations/README.md`**.
+
+Without this on Supabase, **`POST /api/week-alignment/audit`** can fail (missing `weekly_audit_state`).
 
 ### Optional: “local mode” (no login)
 
