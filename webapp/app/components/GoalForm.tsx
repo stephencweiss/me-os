@@ -21,7 +21,6 @@ interface GoalFormProps {
     estimatedMinutes: number | null;
     goalType: "time" | "outcome" | "habit";
     colorId: string | null;
-    syncToThings3: boolean;
   }) => Promise<void>;
   onCancel: () => void;
   isSubmitting: boolean;
@@ -46,7 +45,6 @@ export default function GoalForm({
     editingGoal?.goal_type || "outcome"
   );
   const [colorId, setColorId] = useState<string | null>(editingGoal?.color_id || null);
-  const [syncToThings3, setSyncToThings3] = useState(!editingGoal); // Default true for new goals
   const [showColorPicker, setShowColorPicker] = useState(false);
 
   const titleRef = useRef<HTMLInputElement>(null);
@@ -82,7 +80,6 @@ export default function GoalForm({
       estimatedMinutes: estimatedMinutes > 0 ? estimatedMinutes : null,
       goalType,
       colorId,
-      syncToThings3,
     });
   };
 
@@ -292,24 +289,6 @@ export default function GoalForm({
               </div>
             </div>
 
-            {/* Sync to Things 3 (only for new goals) */}
-            {!editingGoal && (
-              <div className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  id="syncToThings3"
-                  checked={syncToThings3}
-                  onChange={(e) => setSyncToThings3(e.target.checked)}
-                  className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500"
-                />
-                <label
-                  htmlFor="syncToThings3"
-                  className="text-sm text-gray-700 dark:text-gray-300"
-                >
-                  Also create in Things 3
-                </label>
-              </div>
-            )}
           </div>
 
           {/* Footer */}

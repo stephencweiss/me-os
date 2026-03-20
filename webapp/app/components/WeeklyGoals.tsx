@@ -278,7 +278,6 @@ export default function WeeklyGoals() {
     estimatedMinutes: number | null;
     goalType: "time" | "outcome" | "habit";
     colorId: string | null;
-    syncToThings3: boolean;
   }) {
     setIsSubmitting(true);
 
@@ -322,18 +321,12 @@ export default function WeeklyGoals() {
             estimatedMinutes: data.estimatedMinutes,
             goalType: data.goalType,
             colorId: data.colorId,
-            syncToThings3: data.syncToThings3,
           }),
         });
 
         if (!res.ok) throw new Error("Failed to create goal");
 
         const result = await res.json();
-
-        // Open Things 3 if URL returned
-        if (result.things3Url) {
-          window.open(result.things3Url, "_blank");
-        }
 
         // Add to local state
         setGoals((prev) => [...prev, { ...result.goal, totalMinutesLogged: 0 }]);

@@ -3,7 +3,6 @@
  *
  * Tests for the goal creation and editing feature:
  * - updateGoal() function
- * - Things 3 URL generation
  * - Week end date calculation
  */
 
@@ -63,98 +62,6 @@ describe("Week End Date Calculation", () => {
     expect(() => getWeekEndDate("2026-10")).toThrow();
     expect(() => getWeekEndDate("W10-2026")).toThrow();
     expect(() => getWeekEndDate("invalid")).toThrow();
-  });
-});
-
-// ============================================================================
-// Things 3 URL Generation Tests
-// ============================================================================
-
-describe("Things 3 URL Generation", () => {
-  /**
-   * Get the end date (Sunday) for a week ID
-   */
-  function getWeekEndDate(weekId: string): string {
-    const match = weekId.match(/^(\d{4})-W(\d{2})$/);
-    if (!match) {
-      throw new Error(`Invalid week ID format: ${weekId}`);
-    }
-    const year = parseInt(match[1], 10);
-    const week = parseInt(match[2], 10);
-
-    const jan4 = new Date(Date.UTC(year, 0, 4));
-    const dayOfWeek = jan4.getUTCDay() || 7;
-    const week1Start = new Date(jan4);
-    week1Start.setUTCDate(jan4.getUTCDate() - dayOfWeek + 1);
-    const weekStart = new Date(week1Start);
-    weekStart.setUTCDate(week1Start.getUTCDate() + (week - 1) * 7);
-    const weekEnd = new Date(weekStart);
-    weekEnd.setUTCDate(weekStart.getUTCDate() + 6);
-
-    return weekEnd.toISOString().split("T")[0];
-  }
-
-  /**
-   * Generate Things 3 URL to create a new goal with "week" tag
-   */
-  function generateCreateGoalUrl(
-    title: string,
-    weekId: string,
-    options?: { notes?: string; estimatedMinutes?: number }
-  ): string {
-    const params = new URLSearchParams();
-
-    params.set("title", title);
-    params.set("tags", "week");
-
-    // Set deadline to end of week (Sunday)
-    const deadline = getWeekEndDate(weekId);
-    params.set("deadline", deadline);
-
-    // Set "when" so it appears in This Week view
-    params.set("when", "this week");
-
-    if (options?.notes) {
-      params.set("notes", options.notes);
-    }
-
-    return `things:///add?${params.toString()}`;
-  }
-
-  it("generates URL with required parameters", () => {
-    const url = generateCreateGoalUrl("Test Goal", "2026-W10");
-
-    expect(url).toContain("things:///add?");
-    expect(url).toContain("title=Test+Goal");
-    expect(url).toContain("tags=week");
-    expect(url).toContain("deadline=2026-03-08");
-    expect(url).toContain("when=this+week");
-  });
-
-  it("generates URL with optional notes", () => {
-    const url = generateCreateGoalUrl("Test Goal", "2026-W10", {
-      notes: "Some notes here",
-    });
-
-    expect(url).toContain("notes=Some+notes+here");
-  });
-
-  it("uses simple 'week' tag, not legacy format", () => {
-    const url = generateCreateGoalUrl("Test Goal", "2026-W10");
-
-    expect(url).toContain("tags=week");
-    expect(url).not.toContain("w10-2026");
-    expect(url).not.toContain("wN-YYYY");
-  });
-
-  it("sets deadline to Sunday of the specified week", () => {
-    const url1 = generateCreateGoalUrl("Goal 1", "2026-W10");
-    const url2 = generateCreateGoalUrl("Goal 2", "2026-W01");
-    const url3 = generateCreateGoalUrl("Goal 3", "2025-W52");
-
-    expect(url1).toContain("deadline=2026-03-08");
-    expect(url2).toContain("deadline=2026-01-04");
-    expect(url3).toContain("deadline=2025-12-28");
   });
 });
 
@@ -263,7 +170,6 @@ describe("Create Goal Parameter Validation", () => {
     estimatedMinutes?: number | null;
     goalType?: "time" | "outcome" | "habit";
     colorId?: string | null;
-    syncToThings3?: boolean;
   }
 
   function validateCreateParams(params: CreateGoalParams): string[] {
@@ -312,7 +218,6 @@ describe("Create Goal Parameter Validation", () => {
       estimatedMinutes: 120,
       goalType: "time",
       colorId: "2",
-      syncToThings3: true,
     });
     expect(errors).toHaveLength(0);
   });
