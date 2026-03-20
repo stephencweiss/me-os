@@ -72,7 +72,7 @@ Full write-up: **`docs/designs/mobile-goal-alignment.md`**.
 ## Local dev (worktree)
 
 **Full local test playbook (directory, install, env, migration, curl/browser, PR push):**  
-`docs/testing-week-alignment-local.md`
+`docs/testing/week-alignment-local.md`
 
 This checkout does **not** copy gitignored config automatically. From repo root (or main clone), when you need DB/OAuth locally:
 

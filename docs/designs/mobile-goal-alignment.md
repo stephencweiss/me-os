@@ -29,7 +29,7 @@ Product decision for **Phase 1 alignment mobile** (see `plans/ceo-mobile-goal-al
 
 ## Local testing (backend before SwiftUI)
 
-See **`docs/testing-week-alignment-local.md`** (where to `cd`, `pnpm` commands, env, Supabase migration, browser vs local mode, manual GET/POST checks, and how to open a PR from jj).
+See **`docs/testing/week-alignment-local.md`** (where to `cd`, `pnpm` commands, env, Supabase migration, browser vs local mode, manual GET/POST checks, and how to open a PR from jj). Index: **`docs/testing/README.md`**.
 
 ## References
 

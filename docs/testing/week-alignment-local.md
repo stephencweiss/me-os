@@ -7,6 +7,8 @@ created: 2026-03-19
 
 End-to-end checklist for **`GET /api/week-alignment`** and **`POST /api/week-alignment/audit`** after you have this branch checked out.
 
+**Path:** `docs/testing/week-alignment-local.md`
+
 ## Where to work from
 
 Use **either**:
