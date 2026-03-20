@@ -10,7 +10,7 @@ Same pattern as **animus-training/training-app** (`scripts/db-push.mjs`): migrat
 
 1. **Access token** — In [Supabase Account → Access Tokens](https://supabase.com/dashboard/account/tokens), create a token.
 
-2. **Env** — In **`webapp/.env.local`** (or repo-root `.env.local`), set:
+2. **Env** — In **`web/.env.local`** (or repo-root `.env.local`), set:
 
    | Variable | Purpose |
    |----------|---------|
@@ -21,10 +21,10 @@ Same pattern as **animus-training/training-app** (`scripts/db-push.mjs`): migrat
 
 ```bash
 pnpm db:status       # pending vs applied
-pnpm db:push         # apply pending migrations (dev: loads webapp/.env.local)
+pnpm db:push         # apply pending migrations (dev: loads web/.env.local)
 pnpm db:push -- --dry-run
-pnpm db:push:prod    # uses webapp/.env.production or .env.production
-pnpm db:types        # regenerate webapp/lib/database.types.ts (runs `pnpm dlx supabase`; network on first use)
+pnpm db:push:prod    # uses web/.env.production or .env.production
+pnpm db:types        # regenerate web/lib/database.types.ts (runs `pnpm dlx supabase`; network on first use)
 pnpm db:types:check  # CI: ensure database.types.ts looks generated
 ```
 
@@ -47,7 +47,7 @@ psql "$DATABASE_URL" -f supabase/migrations/00005_repoint_user_fk_to_next_auth.s
 
 ## Local Turso / SQLite (`MEOS_MODE=local`)
 
-Postgres migrations do not run on Turso. For alignment features, use the SQLite section in **`supabase/migrations/00003_alignment_mobile.sql`** comments, or rely on the webapp Turso bootstrap in `webapp/lib/db.ts`.
+Postgres migrations do not run on Turso. For alignment features, use the SQLite section in **`supabase/migrations/00003_alignment_mobile.sql`** comments, or rely on the webapp Turso bootstrap in `web/lib/db.ts`.
 
 ## File order (new Supabase project)
 

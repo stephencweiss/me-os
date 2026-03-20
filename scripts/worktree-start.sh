@@ -62,7 +62,7 @@ echo "Copying config files to worktree..."
 copy_if_exists "config/turso.json" "$TARGET_PATH/config/"
 copy_if_exists "config/calendars.json" "$TARGET_PATH/config/"
 copy_if_exists "config/sensitive" "$TARGET_PATH/config/"
-copy_if_exists "webapp/.env.local" "$TARGET_PATH/webapp/"
+copy_if_exists "web/.env.local" "$TARGET_PATH/web/"
 copy_if_exists ".env.local" "$TARGET_PATH/"
 
 echo ""

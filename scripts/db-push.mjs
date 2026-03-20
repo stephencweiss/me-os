@@ -9,9 +9,9 @@
  *   pnpm db:push              # Apply pending migrations
  *   pnpm db:push -- --dry-run # Preview only
  *   pnpm db:push -- --status  # Show applied vs pending
- *   pnpm db:push:prod         # NODE_ENV=production → webapp/.env.production
+ *   pnpm db:push:prod         # NODE_ENV=production → web/.env.production
  *
- * Env (in webapp/.env.local first, then repo-root .env.local):
+ * Env (in web/.env.local first, then repo-root .env.local):
  *   SUPABASE_ACCESS_TOKEN — https://supabase.com/dashboard/account/tokens
  *   SUPABASE_PROJECT_REF or NEXT_PUBLIC_SUPABASE_URL (project ref inferred from URL)
  */
@@ -28,7 +28,7 @@ function resolveEnvPath() {
   const isProd = process.env.NODE_ENV === "production";
   const name = isProd ? ".env.production" : ".env.local";
   const candidates = [
-    join(projectRoot, "webapp", name),
+    join(projectRoot, "web", name),
     join(projectRoot, name),
   ];
   for (const p of candidates) {
@@ -43,8 +43,8 @@ if (!resolved) {
   console.error("Error: no env file found.");
   console.error(
     isProd
-      ? "Create webapp/.env.production or .env.production with Supabase credentials."
-      : "Create webapp/.env.local or .env.local (copy from webapp/.env.local.example)."
+      ? "Create web/.env.production or .env.production with Supabase credentials."
+      : "Create web/.env.local or .env.local (copy from web/.env.local.example)."
   );
   process.exit(1);
 }

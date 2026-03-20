@@ -5,20 +5,20 @@ import path from "path";
 export default defineConfig({
   plugins: [react()],
   test: {
-    // Include both core tests and webapp tests
+    // Include both core tests and web package tests
     include: [
       "tests/**/*.test.ts",
-      "webapp/__tests__/**/*.test.{ts,tsx}",
+      "web/__tests__/**/*.test.{ts,tsx}",
     ],
     exclude: ["**/node_modules/**"],
     environment: "happy-dom",
     globals: true,
-    setupFiles: ["./webapp/vitest.setup.ts"],
+    setupFiles: ["./web/vitest.setup.ts"],
   },
   resolve: {
     alias: {
-      // Webapp path aliases
-      "@": path.resolve(__dirname, "webapp"),
+      "@": path.resolve(__dirname, "web"),
+      "server-only": path.resolve(__dirname, "web/vitest-server-only-stub.ts"),
     },
   },
 });

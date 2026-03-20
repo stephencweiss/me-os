@@ -10,7 +10,7 @@
     "db:push:prod": "NODE_ENV=production node scripts/db-push.mjs",
     "db:status": "node scripts/db-push.mjs --status",
     "db:types": "node scripts/db-gen-types.mjs",
-    "db:types:check": "node -e \"const fs=require('fs');const p='webapp/lib/database.types.ts';process.exit(fs.readFileSync(p,'utf8').includes('export type Database')?0:1)\"",
+    "db:types:check": "node -e \"const fs=require('fs');const p='web/lib/database.types.ts';process.exit(fs.readFileSync(p,'utf8').includes('export type Database')?0:1)\"",
     "test": "vitest run",
     "test:watch": "vitest",
     "validate:dependencies": "node --loader ts-node/esm scripts/validate-dependencies.ts",

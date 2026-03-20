@@ -1,8 +1,16 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
 
-// Mock the db module
-vi.mock("@/lib/db", () => ({
+vi.mock("@/lib/auth-helpers", () => ({
+  requireAuthUnlessLocal: vi.fn().mockResolvedValue({
+    authorized: true,
+    userId: "test-user",
+    email: "test@example.com",
+  }),
+}));
+
+// Mock the db module used by the route
+vi.mock("@/lib/db-unified", () => ({
   updateEventColor: vi.fn(),
   getEventById: vi.fn(),
   COLOR_DEFINITIONS: {
@@ -19,7 +27,7 @@ vi.mock("@/lib/google-calendar-client", () => ({
 }));
 
 import { POST } from "@/app/api/events/bulk-color/route";
-import { updateEventColor, getEventById } from "@/lib/db";
+import { updateEventColor, getEventById } from "@/lib/db-unified";
 import {
   updateGoogleEventColor,
   isGoogleSyncConfigured,
@@ -104,7 +112,7 @@ describe("POST /api/events/bulk-color", () => {
       expect(response.status).toBe(200);
       expect(data.success).toBe(true);
       expect(data.updated).toBe(1);
-      expect(updateEventColor).toHaveBeenCalledWith("event-1", "4");
+      expect(updateEventColor).toHaveBeenCalledWith("test-user", "event-1", "4");
     });
 
     it("returns error for invalid colorId", async () => {
@@ -312,11 +320,11 @@ describe("POST /api/events/bulk-color", () => {
         { id: "event-3", google_event_id: "g3", account: "personal", summary: "Meeting 3" },
       ];
 
-      vi.mocked(getEventById).mockImplementation(async (id) =>
-        mockEvents.find((e) => e.id === id) as any
+      vi.mocked(getEventById).mockImplementation(async (_userId, eventId) =>
+        mockEvents.find((e) => e.id === eventId) as any
       );
-      vi.mocked(updateEventColor).mockImplementation(async (id, colorId) => {
-        const event = mockEvents.find((e) => e.id === id);
+      vi.mocked(updateEventColor).mockImplementation(async (_userId, eventId, colorId) => {
+        const event = mockEvents.find((e) => e.id === eventId);
         return { ...event, color_id: colorId } as any;
       });
       vi.mocked(isGoogleSyncConfigured).mockReturnValue(true);
@@ -349,11 +357,12 @@ describe("POST /api/events/bulk-color", () => {
         { id: "event-3", google_event_id: "g3", account: "personal", summary: "Meeting 3" },
       ];
 
-      vi.mocked(getEventById).mockImplementation(async (id) =>
-        mockEvents.find((e) => e.id === id) as any ?? null
-      );
-      vi.mocked(updateEventColor).mockImplementation(async (id, colorId) => {
-        const event = mockEvents.find((e) => e.id === id);
+      vi.mocked(getEventById).mockImplementation(async (_userId, eventId) => {
+        const found = mockEvents.find((e) => e.id === eventId);
+        return (found ?? null) as any;
+      });
+      vi.mocked(updateEventColor).mockImplementation(async (_userId, eventId, colorId) => {
+        const event = mockEvents.find((e) => e.id === eventId);
         return event ? ({ ...event, color_id: colorId } as any) : null;
       });
       vi.mocked(isGoogleSyncConfigured).mockReturnValue(false);
