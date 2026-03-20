@@ -5,6 +5,8 @@
  * progress calculation, and integration helpers.
  */
 
+import * as fs from "fs";
+import * as path from "path";
 import {
   getGoalsForWeek,
   getGoalById,
@@ -15,6 +17,7 @@ import {
   recordGoalProgress,
   calculateGoalTotalMinutes,
   getNonGoalsForWeek,
+  createNonGoal,
   createNonGoalAlert,
   getUnacknowledgedAlerts,
   getEventsForDateRange,
@@ -437,10 +440,6 @@ export async function getGoalsForOptimizer(weekId: string): Promise<OptimizerGoa
 // ============================================================================
 // Default Non-Goals Configuration
 // ============================================================================
-
-import * as fs from "fs";
-import * as path from "path";
-import { createNonGoal, type StoredNonGoal } from "./calendar-db.js";
 
 const CONFIG_DIR = path.join(process.cwd(), "config");
 const NON_GOALS_CONFIG_PATH = path.join(CONFIG_DIR, "non-goals.json");
