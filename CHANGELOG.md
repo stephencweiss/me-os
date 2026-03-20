@@ -8,6 +8,10 @@ where versioning applies.
 
 ## [Unreleased]
 
+### Changed
+
+- **Package manager:** repo standardizes on **pnpm** only; removed `package-lock.json` files, ignore future lockfile churn, added `packageManager` to root and `webapp/package.json`, refreshed docs and scripts to use `pnpm` / `pnpm exec` / `pnpm dlx` instead of npm/npx.
+
 ### Added
 
 - **`supabase/migrations/00000_next_auth_schema.sql`** — Official Auth.js / NextAuth `next_auth` schema (replaces manual adapter SQL before `db:push`).

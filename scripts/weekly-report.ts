@@ -6,10 +6,10 @@
  * Can be run without the LLM for automation or cron jobs.
  *
  * Usage:
- *   npx ts-node scripts/weekly-report.ts                    # Current week
- *   npx ts-node scripts/weekly-report.ts --week 2024-01-15  # Specific week
- *   npx ts-node scripts/weekly-report.ts --yesterday        # Yesterday only
- *   npx ts-node scripts/weekly-report.ts --json             # Output as JSON
+ *   pnpm run report --                                      # Current week
+ *   pnpm run report -- --week 2024-01-15                    # Specific week
+ *   pnpm run report -- --yesterday                          # Yesterday only
+ *   pnpm run report -- --json                               # Output as JSON
  */
 
 import {
@@ -63,7 +63,7 @@ async function main() {
 Weekly Report Generator
 
 Usage:
-  npx ts-node scripts/weekly-report.ts [options]
+  pnpm run report -- [options]
 
 Options:
   --week <date>    Generate report for week containing <date> (YYYY-MM-DD)
@@ -74,10 +74,10 @@ Options:
   --help, -h       Show this help message
 
 Examples:
-  npx ts-node scripts/weekly-report.ts                    # Current week
-  npx ts-node scripts/weekly-report.ts --week 2024-01-15  # Week of Jan 15, 2024
-  npx ts-node scripts/weekly-report.ts --yesterday        # Yesterday only
-  npx ts-node scripts/weekly-report.ts --json             # JSON output
+  pnpm run report --                                      # Current week
+  pnpm run report -- --week 2024-01-15                    # Week of Jan 15, 2024
+  pnpm run report -- --yesterday                          # Yesterday only
+  pnpm run report -- --json                               # JSON output
       `);
       process.exit(0);
     }

@@ -72,10 +72,8 @@ At minimum for **signed-in browser testing**, `webapp/.env.local` should match y
 
 ### Database migration (Supabase)
 
-There is **no `pnpm db:push`** (or similar) wired up on this branch—migrations are **manual**.
-
-1. Supabase Dashboard → your project → **SQL Editor** → **New query**.
-2. Paste the full contents of **`supabase/migrations/00003_alignment_mobile.sql`** from this repo and **Run** (or run **`pnpm db:push`** from the repo root).
+Prefer **`pnpm db:push`** from the **repo root** (see `scripts/migrations/README.md`).  
+Fallback: Supabase Dashboard → **SQL Editor** → paste **`supabase/migrations/00003_alignment_mobile.sql`** and **Run**.
 
 Details, `psql` option, Turso notes, and ordering: **`scripts/migrations/README.md`**.
 

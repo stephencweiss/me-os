@@ -448,7 +448,7 @@ export async function getEvents(startDate: string, endDate: string) {
 ### Generate TypeScript Types
 
 ```bash
-npx supabase gen types typescript --project-id YOUR_PROJECT_ID > webapp/lib/database.types.ts
+pnpm db:types
 ```
 
 ---
@@ -705,7 +705,7 @@ ANTHROPIC_API_KEY=sk-ant-...
 
 ```json
 {
-  "buildCommand": "cd webapp && npm run build",
+  "buildCommand": "cd webapp && pnpm run build",
   "outputDirectory": "webapp/.next"
 }
 ```

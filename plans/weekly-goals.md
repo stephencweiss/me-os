@@ -304,7 +304,7 @@ Files changed:
 - [ ] `lib/calendar-db.ts` - Add 4 tables + indexes
 
 Verification:
-- [ ] Run `npm run db:migrate` (if applicable)
+- [ ] Run DB migrations if applicable (`pnpm db:push` or project-specific)
 - [ ] Verify tables created with `turso db shell`
 - [ ] Unit tests pass
 
@@ -350,7 +350,7 @@ Verification:
 - [ ] API endpoints return correct data
 - [ ] Goals component renders in dashboard
 - [ ] Non-goal alerts display correctly
-- [ ] `npm run build` succeeds
+- [ ] `pnpm run build` succeeds (root and/or `cd webapp && pnpm build` as applicable)
 
 ### PR 5: Tests & Documentation (`sw-weekly-goals-tests`)
 **Commit**: `test: add weekly goals e2e tests`

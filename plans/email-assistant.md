@@ -42,7 +42,7 @@ data/newsletters/index.json       # Subscription decisions (runtime)
 - `lib/google-auth.ts` - Add Gmail scopes and `getGmailClient()`
 - `mcp/gmail/index.ts` - New MCP server with core tools
 - `lib/gmail.ts` - Header parsing utilities
-- `package.json` - Add `npm run auth:gmail` script
+- `package.json` - Add `auth:gmail` script (run as `pnpm run auth:gmail`)
 
 **MCP Tools (Phase 1):**
 | Tool | Description |
@@ -164,7 +164,7 @@ https://www.googleapis.com/auth/gmail.modify
 ### Manual Verification
 
 1. **Auth Flow**
-   - `npm run auth:gmail personal` prompts for Gmail permissions
+   - `pnpm run auth:gmail personal` prompts for Gmail permissions
    - Token saved with gmail scopes
    - Calendar auth still works
 

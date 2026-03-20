@@ -32,8 +32,8 @@ This creates a dedicated worktree for the feature branch.
 ### Step 2: Implement Changes (see below)
 
 ### Step 3: Testing
-- Run existing tests: `npm test`
-- Run type check: `npx tsc --noEmit`
+- Run existing tests: `pnpm test`
+- Run type check: `pnpm exec tsc --noEmit`
 - Manual testing with real calendar events on secondary calendars
 
 ### Step 4: Commit Changes
@@ -261,8 +261,8 @@ Events on secondary calendars (e.g., "Weiss-McGee Calendar") couldn't be updated
 - `tests/mcp-google-calendar.test.ts` - test coverage
 
 ## Test Plan
-- [x] Existing tests pass (`npm test`)
-- [x] TypeScript compiles (`npx tsc --noEmit`)
+- [x] Existing tests pass (`pnpm test`)
+- [x] TypeScript compiles (`pnpm exec tsc --noEmit`)
 - [x] Manual test: Update event on secondary calendar without explicit calendarId
 - [x] Manual test: Update event on primary calendar still works
 

@@ -287,8 +287,8 @@ These should work fine since they read from the database, not Things 3 directly.
 2. Remove any remaining references in comments/docs
 3. Update `.claude/settings.local.json` if MCP server is registered there
 4. Verify `.mcp.json` doesn't reference Things 3 (confirmed: it doesn't)
-5. Run full test suite: `npm run test`
-6. Verify webapp builds: `cd webapp && npm run build`
+5. Run full test suite: `pnpm test`
+6. Verify webapp builds: `cd webapp && pnpm run build`
 
 ---
 

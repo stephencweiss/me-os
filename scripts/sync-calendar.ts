@@ -6,10 +6,10 @@
  * Detects additions, modifications, and removals.
  *
  * Usage:
- *   npx ts-node scripts/sync-calendar.ts                    # Last 30 days
- *   npx ts-node scripts/sync-calendar.ts --days 7           # Last 7 days
- *   npx ts-node scripts/sync-calendar.ts --from 2024-01-01 --to 2024-01-31
- *   npx ts-node scripts/sync-calendar.ts --verbose          # Show each change
+ *   pnpm run sync --                                        # Last 30 days
+ *   pnpm run sync -- --days 7                               # Last 7 days
+ *   pnpm run sync -- --from 2024-01-01 --to 2024-01-31
+ *   pnpm run sync -- --verbose                              # Show each change
  */
 
 import { syncCalendar, previewSync, type SyncOptions } from "../lib/calendar-sync.js";
@@ -23,7 +23,7 @@ Syncs Google Calendar events to the local SQLite database for historical
 tracking and visualization. Detects additions, modifications, and removals.
 
 Usage:
-  npx ts-node scripts/sync-calendar.ts [options]
+  pnpm run sync -- [options]
 
 Options:
   --days <N>              Sync last N days (default: 30)
@@ -34,18 +34,18 @@ Options:
   --help, -h              Show this help message
 
 Examples:
-  npx ts-node scripts/sync-calendar.ts                    # Last 30 days
-  npx ts-node scripts/sync-calendar.ts --days 7           # Last week
-  npx ts-node scripts/sync-calendar.ts --days 90          # Last 90 days
-  npx ts-node scripts/sync-calendar.ts --from 2024-01-01 --to 2024-01-31
-  npx ts-node scripts/sync-calendar.ts --preview          # Preview changes
-  npx ts-node scripts/sync-calendar.ts -v                 # Verbose output
+  pnpm run sync --                                        # Last 30 days
+  pnpm run sync -- --days 7                               # Last week
+  pnpm run sync -- --days 90                              # Last 90 days
+  pnpm run sync -- --from 2024-01-01 --to 2024-01-31
+  pnpm run sync -- --preview                              # Preview changes
+  pnpm run sync -- -v                                     # Verbose output
 
 Database Location:
   data/calendar.db
 
 After syncing, generate a dashboard with:
-  npx ts-node scripts/generate-dashboard.ts
+  pnpm run dashboard
   `);
 }
 

@@ -57,7 +57,7 @@ Nice-to-have features for later consideration.
 - [x] SQLite database with events, daily_summaries, event_changes tables
 - [x] Calendar sync with change detection (added/modified/removed)
 - [x] Static HTML dashboard with Chart.js
-- [x] CLI scripts: `npm run sync`, `npm run dashboard`
+- [x] CLI scripts: `pnpm run sync`, `pnpm run dashboard`
 - [x] Multi-account support (personal, personal2, work)
 
 ---

@@ -340,7 +340,7 @@ jj bookmark create sw-filter-bar
 
 ```bash
 # Start dev server
-cd webapp && npm run dev
+cd webapp && pnpm dev
 ```
 
 **Task 1 Tests** (Date Range):

@@ -24,7 +24,7 @@ pnpm db:status       # pending vs applied
 pnpm db:push         # apply pending migrations (dev: loads webapp/.env.local)
 pnpm db:push -- --dry-run
 pnpm db:push:prod    # uses webapp/.env.production or .env.production
-pnpm db:types        # regenerate webapp/lib/database.types.ts (runs `npx supabase`; network on first use)
+pnpm db:types        # regenerate webapp/lib/database.types.ts (runs `pnpm dlx supabase`; network on first use)
 pnpm db:types:check  # CI: ensure database.types.ts looks generated
 ```
 

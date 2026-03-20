@@ -2,8 +2,8 @@
 /**
  * Regenerate webapp/lib/database.types.ts from the linked Supabase project.
  *
- * Uses `npx supabase` (pinned major) so the CLI works without relying on
- * postinstall scripts (pnpm may ignore those for the supabase npm package).
+ * Uses `pnpm dlx supabase` (pinned version) so the CLI works without relying on
+ * postinstall scripts (pnpm may ignore those for the `supabase` package).
  */
 
 import { spawnSync } from "child_process";
@@ -34,7 +34,7 @@ if (!ref) {
 
 const outFile = join(projectRoot, "webapp", "lib", "database.types.ts");
 const args = [
-  "-y",
+  "dlx",
   "supabase@2.83.0",
   "gen",
   "types",
@@ -47,7 +47,7 @@ const args = [
   "next_auth",
 ];
 
-const result = spawnSync("npx", args, {
+const result = spawnSync("pnpm", args, {
   encoding: "utf-8",
   maxBuffer: 50 * 1024 * 1024,
   cwd: projectRoot,

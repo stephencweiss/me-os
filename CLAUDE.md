@@ -218,7 +218,7 @@ pnpm dev
 1. Set up Google Calendar API credentials
 2. Configure JIRA MCP server connection
 3. (Optional) Set up Lattice API access
-4. Install dependencies: `pnpm install` (repo root). If Corepack/registry 401: `export COREPACK_NPM_REGISTRY=https://registry.npmjs.org` (see README).
+4. Install dependencies: **`pnpm` only** — `pnpm install` at repo root and `cd webapp && pnpm install`. If Corepack/registry 401: `export COREPACK_NPM_REGISTRY=https://registry.npmjs.org` (see README).
 
 ## Commands
 

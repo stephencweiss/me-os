@@ -1,4 +1,4 @@
-#!/usr/bin/env npx tsx
+#!/usr/bin/env -S pnpm exec tsx
 
 /**
  * Sync Goals Script
@@ -6,7 +6,7 @@
  * CLI tool for syncing weekly goals from Things 3 to the local database.
  *
  * Usage:
- *   npx tsx scripts/sync-goals.ts [options]
+ *   pnpm exec tsx scripts/sync-goals.ts [options]
  *
  * Options:
  *   --week <YYYY-WNN>  Target week (default: current week)
@@ -18,7 +18,7 @@
  *
  * Example:
  *   # Pipe todos from Things 3 MCP
- *   echo '[{"id":"1","title":"Test goal","tags":["w10-2026"]}]' | npx tsx scripts/sync-goals.ts
+ *   echo '[{"id":"1","title":"Test goal","tags":["w10-2026"]}]' | pnpm exec tsx scripts/sync-goals.ts
  */
 
 import {
@@ -82,7 +82,7 @@ function showHelp(): void {
 Sync Goals - Sync weekly goals from Things 3 to local database
 
 Usage:
-  npx tsx scripts/sync-goals.ts [options]
+  pnpm exec tsx scripts/sync-goals.ts [options]
 
 Options:
   --week <YYYY-WNN>  Target week ID (default: current week)
@@ -92,13 +92,13 @@ Options:
 
 Examples:
   # Sync current week (reads from stdin)
-  echo '[...]' | npx tsx scripts/sync-goals.ts
+  echo '[...]' | pnpm exec tsx scripts/sync-goals.ts
 
   # Sync specific week
-  echo '[...]' | npx tsx scripts/sync-goals.ts --week 2026-W14
+  echo '[...]' | pnpm exec tsx scripts/sync-goals.ts --week 2026-W14
 
   # Preview changes
-  echo '[...]' | npx tsx scripts/sync-goals.ts --dry-run
+  echo '[...]' | pnpm exec tsx scripts/sync-goals.ts --dry-run
 
 Input Format (JSON on stdin):
   [
@@ -151,7 +151,7 @@ async function main(): Promise<void> {
       if (goals.length === 0) {
         console.log("No goals found for this week.\n");
         console.log("Tip: Pipe Things 3 todos as JSON to sync goals:");
-        console.log('  echo \'[{"id":"1","title":"Goal","tags":["w10-2026"]}]\' | npx tsx scripts/sync-goals.ts\n');
+        console.log('  echo \'[{"id":"1","title":"Goal","tags":["w10-2026"]}]\' | pnpm exec tsx scripts/sync-goals.ts\n');
       } else {
         displayGoals(goals);
       }
