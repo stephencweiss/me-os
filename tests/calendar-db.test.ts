@@ -28,6 +28,11 @@ import {
 } from "../lib/calendar-db.js";
 import type { CalendarEvent, DailySummary, ColorSummary } from "../lib/time-analysis.js";
 
+/** Local calendar date — `new Date("YYYY-MM-DD")` is UTC midnight, which disagrees with `formatDateKey` (local) in non-UTC zones. */
+function localYmd(year: number, month1: number, day: number): Date {
+  return new Date(year, month1 - 1, day);
+}
+
 // Test fixtures
 function createTestEvent(overrides: Partial<CalendarEvent> = {}): CalendarEvent {
   const start = new Date("2026-02-26T10:00:00");
@@ -53,7 +58,7 @@ function createTestEvent(overrides: Partial<CalendarEvent> = {}): CalendarEvent 
 }
 
 function createTestDailySummary(overrides: Partial<DailySummary> = {}): DailySummary {
-  const date = new Date("2026-02-26");
+  const date = localYmd(2026, 2, 26);
   return {
     date,
     dateString: "2026-02-26",
@@ -176,7 +181,7 @@ describe("Calendar Database", () => {
       });
       await upsertEvent(event, { autoCategorized: true });
 
-      const stored = await getEventsForDate(new Date("2026-02-26"));
+      const stored = await getEventsForDate(localYmd(2026, 2, 26));
       const found = stored.find((e) => e.google_event_id === "auto-cat-event");
       expect(found?.auto_categorized).toBe(1);
     });
@@ -204,7 +209,7 @@ describe("Calendar Database", () => {
       expect(result.action).toBe("unchanged");
 
       // Verify the stored color is still the auto-categorized one
-      const stored = await getEventsForDate(new Date("2026-02-26"));
+      const stored = await getEventsForDate(localYmd(2026, 2, 26));
       const found = stored.find((e) => e.google_event_id === "preserve-color-event");
       expect(found?.color_id).toBe("4");
       expect(found?.color_name).toBe("Flamingo");
@@ -235,7 +240,7 @@ describe("Calendar Database", () => {
       expect(result.changes).toContain("color_id");
 
       // Verify the stored color is the new Google color
-      const stored = await getEventsForDate(new Date("2026-02-26"));
+      const stored = await getEventsForDate(localYmd(2026, 2, 26));
       const found = stored.find((e) => e.google_event_id === "overwrite-color-event");
       expect(found?.color_id).toBe("9");
       expect(found?.color_name).toBe("Blueberry");
@@ -254,8 +259,8 @@ describe("Calendar Database", () => {
       await upsertEvent(event3);
 
       const results = await getEventsForDateRange(
-        new Date("2026-02-25"),
-        new Date("2026-02-26")
+        localYmd(2026, 2, 25),
+        localYmd(2026, 2, 26)
       );
 
       expect(results.length).toBe(2);
@@ -268,8 +273,8 @@ describe("Calendar Database", () => {
       await upsertEvent(event);
 
       const results = await getEventsForDateRange(
-        new Date("2026-03-01"),
-        new Date("2026-03-05")
+        localYmd(2026, 3, 1),
+        localYmd(2026, 3, 5)
       );
 
       expect(results.length).toBe(0);
@@ -284,7 +289,7 @@ describe("Calendar Database", () => {
       await upsertEvent(event1);
       await upsertEvent(event2);
 
-      const results = await getEventsForDate(new Date("2026-02-26"));
+      const results = await getEventsForDate(localYmd(2026, 2, 26));
 
       expect(results.length).toBe(1);
       expect(results[0].google_event_id).toBe("event-1");
@@ -299,8 +304,8 @@ describe("Calendar Database", () => {
       await expect(upsertDailySummary(summary)).resolves.not.toThrow();
 
       const results = await getDailySummaries(
-        new Date("2026-02-26"),
-        new Date("2026-02-26")
+        localYmd(2026, 2, 26),
+        localYmd(2026, 2, 26)
       );
 
       expect(results.length).toBe(1);
@@ -315,8 +320,8 @@ describe("Calendar Database", () => {
       await upsertDailySummary(summary2);
 
       const results = await getDailySummaries(
-        new Date("2026-02-26"),
-        new Date("2026-02-26")
+        localYmd(2026, 2, 26),
+        localYmd(2026, 2, 26)
       );
 
       expect(results.length).toBe(1);
@@ -328,8 +333,8 @@ describe("Calendar Database", () => {
       await upsertDailySummary(summary);
 
       const results = await getDailySummaries(
-        new Date("2026-02-26"),
-        new Date("2026-02-26")
+        localYmd(2026, 2, 26),
+        localYmd(2026, 2, 26)
       );
 
       const categories = JSON.parse(results[0].categories_json) as ColorSummary[];
@@ -463,8 +468,8 @@ describe("Calendar Database", () => {
       await upsertEvent(event2);
 
       const ids = await getStoredEventIds(
-        new Date("2026-02-26"),
-        new Date("2026-02-26")
+        localYmd(2026, 2, 26),
+        localYmd(2026, 2, 26)
       );
 
       expect(ids.size).toBe(1);
@@ -481,7 +486,7 @@ describe("Calendar Database", () => {
       await markEventRemoved(eventId);
 
       // Event should be deleted
-      const events = await getEventsForDate(new Date("2026-02-26"));
+      const events = await getEventsForDate(localYmd(2026, 2, 26));
       expect(events.length).toBe(0);
 
       // Change should be logged
@@ -494,12 +499,12 @@ describe("Calendar Database", () => {
   describe("getAggregateStats", () => {
     it("aggregates stats across multiple days", async () => {
       const summary1 = createTestDailySummary({
-        date: new Date("2026-02-25"),
+        date: localYmd(2026, 2, 25),
         totalScheduledMinutes: 480,
         totalGapMinutes: 60,
       });
       const summary2 = createTestDailySummary({
-        date: new Date("2026-02-26"),
+        date: localYmd(2026, 2, 26),
         totalScheduledMinutes: 420,
         totalGapMinutes: 120,
       });
@@ -508,8 +513,8 @@ describe("Calendar Database", () => {
       await upsertDailySummary(summary2);
 
       const stats = await getAggregateStats(
-        new Date("2026-02-25"),
-        new Date("2026-02-26")
+        localYmd(2026, 2, 25),
+        localYmd(2026, 2, 26)
       );
 
       expect(stats.totalDays).toBe(2);
@@ -519,13 +524,13 @@ describe("Calendar Database", () => {
 
     it("aggregates categories across days", async () => {
       const summary1 = createTestDailySummary({
-        date: new Date("2026-02-25"),
+        date: localYmd(2026, 2, 25),
         byColor: [
           { colorId: "3", colorName: "Grape", colorMeaning: "Project Work", totalMinutes: 120, eventCount: 1, events: [] },
         ],
       });
       const summary2 = createTestDailySummary({
-        date: new Date("2026-02-26"),
+        date: localYmd(2026, 2, 26),
         byColor: [
           { colorId: "3", colorName: "Grape", colorMeaning: "Project Work", totalMinutes: 180, eventCount: 2, events: [] },
         ],
@@ -535,8 +540,8 @@ describe("Calendar Database", () => {
       await upsertDailySummary(summary2);
 
       const stats = await getAggregateStats(
-        new Date("2026-02-25"),
-        new Date("2026-02-26")
+        localYmd(2026, 2, 25),
+        localYmd(2026, 2, 26)
       );
 
       expect(stats.byCategory.get("3")?.minutes).toBe(300);
@@ -594,7 +599,7 @@ describe("Calendar Database", () => {
       const original = createTestEvent();
       await upsertEvent(original);
 
-      const stored = (await getEventsForDate(new Date("2026-02-26")))[0];
+      const stored = (await getEventsForDate(localYmd(2026, 2, 26)))[0];
       const converted = storedEventToCalendar(stored);
 
       expect(converted.id).toBe(original.id);

@@ -33,7 +33,7 @@ See **`docs/testing/week-alignment-local.md`** (where to `cd`, `pnpm` commands, 
 
 ## References
 
-- API: `webapp/app/api/week-alignment/route.ts`, `webapp/app/api/week-alignment/audit/route.ts`
-- DTO builder: `webapp/lib/week-alignment-core.ts`, `webapp/lib/week-alignment.ts`
+- API: `web/app/api/week-alignment/route.ts`, `web/app/api/week-alignment/audit/route.ts`
+- DTO builder: `web/lib/week-alignment-core.ts`, `web/lib/week-alignment.ts`
 - JSON Schema: `schemas/alignment-mobile-v1.json`
 - Slot-first widget spec (Phase 2, separate): `docs/designs/slot-finder-widget.md`

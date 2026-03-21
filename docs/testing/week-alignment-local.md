@@ -18,12 +18,12 @@ Use **either**:
   (or your own path to the `mobile-alignment-mvp` workspace)
 
 - **Any clone** once the bookmark/branch is merged or checked out:  
-  `cd /path/to/me-os` then `cd webapp`
+  `cd /path/to/me-os` then `cd web`
 
-All **install, dev server, and tests** below assume **`webapp`** as the working directory unless noted.
+All **install, dev server, and tests** below assume **`web/`** as the working directory unless noted.
 
 ```bash
-cd webapp
+cd web
 ```
 
 ---
@@ -53,7 +53,7 @@ gh pr create --repo stephencweiss/me-os --base main --head mobile-alignment-mvp 
 ## 1. Dependencies
 
 ```bash
-cd webapp
+cd web
 pnpm install
 ```
 
@@ -65,17 +65,15 @@ Copy secrets from your main machine if this is a fresh worktree:
 
 ```bash
 # from repo root, if needed
-cp /path/to/main/me-os/webapp/.env.local ./webapp/
+cp /path/to/main/me-os/web/.env.local ./web/
 ```
 
-At minimum for **signed-in browser testing**, `webapp/.env.local` should match your usual Next app (see `webapp/.env.local.example`): **NextAuth**, **Google OAuth**, **Supabase** service URL + keys as you already use for `/api/goals`.
+At minimum for **signed-in browser testing**, `web/.env.local` should match your usual Next app (see `web/.env.local.example`): **NextAuth**, **Google OAuth**, **Supabase** service URL + keys as you already use for `/api/goals`.
 
 ### Database migration (Supabase)
 
-There is **no `pnpm db:push`** (or similar) wired up on this branch—migrations are **manual**.
-
-1. Supabase Dashboard → your project → **SQL Editor** → **New query**.
-2. Paste the full contents of **`supabase/migrations/00003_alignment_mobile.sql`** from this repo and **Run** (or run **`pnpm db:push`** from the repo root).
+Prefer **`pnpm db:push`** from the **repo root** (see `scripts/migrations/README.md`).  
+Fallback: Supabase Dashboard → **SQL Editor** → paste **`supabase/migrations/00003_alignment_mobile.sql`** and **Run**.
 
 Details, `psql` option, Turso notes, and ordering: **`scripts/migrations/README.md`**.
 
@@ -91,7 +89,7 @@ For that you also need **`TURSO_DATABASE_URL`** (and token if required) in `.env
 
 ## 3. Automated tests (no server)
 
-From **`webapp`**:
+From **`web/`**:
 
 ```bash
 pnpm exec vitest run lib/week-alignment.test.ts
@@ -104,7 +102,7 @@ These cover DTO construction, **syncHint**, audit eligibility, and **goal constr
 ## 4. Dev server
 
 ```bash
-cd webapp
+cd web
 pnpm dev
 ```
 

@@ -167,9 +167,9 @@ CREATE TABLE IF NOT EXISTS non_goal_alerts (
 | `lib/things3-sync.ts` | Things 3 MCP sync logic |
 | `lib/goal-matcher.ts` | Event-to-goal matching heuristics |
 | `.claude/skills/weekly-goals/SKILL.md` | Skill definition |
-| `webapp/app/api/goals/route.ts` | Goals API endpoint |
-| `webapp/app/api/non-goals/route.ts` | Non-goals API endpoint |
-| `webapp/app/components/WeeklyGoals.tsx` | Dashboard component |
+| `web/app/api/goals/route.ts` | Goals API endpoint |
+| `web/app/api/non-goals/route.ts` | Non-goals API endpoint |
+| `web/app/components/WeeklyGoals.tsx` | Dashboard component |
 | `config/non-goals.json` | Default anti-patterns |
 | `scripts/sync-goals.ts` | CLI sync script |
 
@@ -304,7 +304,7 @@ Files changed:
 - [ ] `lib/calendar-db.ts` - Add 4 tables + indexes
 
 Verification:
-- [ ] Run `npm run db:migrate` (if applicable)
+- [ ] Run DB migrations if applicable (`pnpm db:push` or project-specific)
 - [ ] Verify tables created with `turso db shell`
 - [ ] Unit tests pass
 
@@ -341,16 +341,16 @@ Verification:
 **Commit**: `feat(webapp): add goals dashboard component`
 
 Files changed:
-- [ ] `webapp/app/api/goals/route.ts` - Goals CRUD API
-- [ ] `webapp/app/api/non-goals/route.ts` - Non-goals API
-- [ ] `webapp/app/components/WeeklyGoals.tsx` - Dashboard component
-- [ ] `webapp/app/components/Dashboard.tsx` - Integrate WeeklyGoals
+- [ ] `web/app/api/goals/route.ts` - Goals CRUD API
+- [ ] `web/app/api/non-goals/route.ts` - Non-goals API
+- [ ] `web/app/components/WeeklyGoals.tsx` - Dashboard component
+- [ ] `web/app/components/Dashboard.tsx` - Integrate WeeklyGoals
 
 Verification:
 - [ ] API endpoints return correct data
 - [ ] Goals component renders in dashboard
 - [ ] Non-goal alerts display correctly
-- [ ] `npm run build` succeeds
+- [ ] `pnpm run build` succeeds (root and/or `cd web && pnpm build` as applicable)
 
 ### PR 5: Tests & Documentation (`sw-weekly-goals-tests`)
 **Commit**: `test: add weekly goals e2e tests`
@@ -390,7 +390,7 @@ Verification:
 
 1. `lib/calendar-db.ts` - Add 4 new tables
 2. `lib/calendar-optimizer.ts` - Add weekly goals loader
-3. `webapp/app/components/Dashboard.tsx` - Add WeeklyGoals section
+3. `web/app/components/Dashboard.tsx` - Add WeeklyGoals section
 4. `.claude/skills/calendar-optimizer/SKILL.md` - Document integration
 5. `CLAUDE.md` - Add weekly-goals to skill registry
 

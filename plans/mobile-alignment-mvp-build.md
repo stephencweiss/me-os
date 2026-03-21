@@ -60,10 +60,10 @@ Full write-up: **`docs/designs/mobile-goal-alignment.md`**.
 | 0 | **Branch base** | **Done:** `mobile-alignment-mvp` rebased on `main@origin` (PR #91). Re-run `jj git fetch` + rebase if `origin/main` advances. |
 | 1 | **`schemas/alignment-mobile-v1.json`** | **Done** — repo root `schemas/alignment-mobile-v1.json`. |
 | 2 | **Migrations** | **Done (SQL artifact)** — `supabase/migrations/00003_alignment_mobile.sql` (+ SQLite snippet in comments). Apply via `pnpm db:push` or SQL Editor; Turso auto-creates audit table on first use in local mode. |
-| 3 | **`webapp/lib/goal-constraints.ts`** | **Done** — `parseGoalConstraints` (shared with Phase 2). |
-| 4 | **`webapp/lib/week-alignment-core.ts` + `week-alignment.ts`** | **Done** — pure DTO builder + `loadWeekAlignmentMobileV1`; `getWeekDateRange` via `db-unified`; batch progress `getGoalProgressMinutesBatch`. |
+| 3 | **`web/lib/goal-constraints.ts`** | **Done** — `parseGoalConstraints` (shared with Phase 2). |
+| 4 | **`web/lib/week-alignment-core.ts` + `week-alignment.ts`** | **Done** — pure DTO builder + `loadWeekAlignmentMobileV1`; `getWeekDateRange` via `db-unified`; batch progress `getGoalProgressMinutesBatch`. |
 | 5 | **Route** | **Done** — `GET /api/week-alignment`, `POST /api/week-alignment/audit` (`dismiss` \| `snooze` \| `seen`). |
-| 6 | **Tests** | **Partial** — `webapp/lib/week-alignment.test.ts` (core + audit + constraints). Add route integration tests when harness exists. |
+| 6 | **Tests** | **Partial** — `web/lib/week-alignment.test.ts` (core + audit + constraints). Add route integration tests when harness exists. |
 | 7 | **iOS client MVP** | **SwiftUI** app: week alignment from `AlignmentMobileV1`, audit flow (dismiss / snooze / seen), honest sync/empty states; wire to APIs above. |
 | 8 | **Design** | **`docs/designs/mobile-goal-alignment.md`** (client strategy + references). Add wireframes/IA when ready; optional `/plan-design-review`. |
 
@@ -81,7 +81,7 @@ MAIN_REPO="/Users/sweiss/code/me-os"   # or your canonical clone
 cp "$MAIN_REPO/config/turso.json" ./config/ 2>/dev/null || true
 cp "$MAIN_REPO/config/calendars.json" ./config/ 2>/dev/null || true
 cp -r "$MAIN_REPO/config/sensitive" ./config/ 2>/dev/null || true
-cp "$MAIN_REPO/webapp/.env.local" ./webapp/ 2>/dev/null || true
+cp "$MAIN_REPO/web/.env.local" ./web/ 2>/dev/null || true
 ```
 
 ---

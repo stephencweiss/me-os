@@ -6,7 +6,7 @@
 
 **Architecture:** SQL migrations fix **`user_id`** FKs to **`next_auth.users`** and add **`events.removed_at`**. Server-only **AES-GCM** encrypts tokens in **`linked_google_accounts`**. NextAuth **`signIn`** upserts linked rows when Google returns tokens. A **`runCalendarSync`** engine (Google Calendar API → normalized rows → upsert → summaries) is invoked from **`POST /api/calendar/sync`** behind an **in-process sync lock** per user. UI: Settings (and optional dashboard empty-state) triggers sync and shows result.
 
-**Tech stack:** Next.js 16 (App Router), NextAuth v5, `@supabase/supabase-js`, `googleapis`, existing `webapp/lib/db-supabase.ts`, Vitest.
+**Tech stack:** Next.js 16 (App Router), NextAuth v5, `@supabase/supabase-js`, `googleapis`, existing `web/lib/db-supabase.ts`, Vitest.
 
 **Spec:** `docs/superpowers/specs/2026-03-19-web-calendar-sync-design.md`
 
@@ -17,16 +17,16 @@
 | Area | Create / modify |
 |------|------------------|
 | Migrations | `scripts/migrations/003_next_auth_fk_and_events_removed_at.sql` (name may split into two files if cleaner) |
-| Types | `webapp/lib/database.types.ts` (regen `pnpm run db:types`) |
-| Crypto | `webapp/lib/token-crypto.ts` |
-| Linked accounts | `webapp/lib/linked-google-accounts.ts` |
-| Sync engine | `webapp/lib/calendar-sync-supabase.ts` (or `webapp/lib/sync/` split if large) |
-| Auth | `webapp/lib/auth.ts` (scopes + `events.signIn`) |
-| API | `webapp/app/api/calendar/sync/route.ts` |
-| DB reads | `webapp/lib/db-supabase.ts` (`getEvents`, `getCalendars`, summaries paths — filter `removed_at IS NULL`) |
-| UI | `webapp/app/settings/accounts/page.tsx`, optional `webapp/app/components/Dashboard.tsx` empty CTA |
+| Types | `web/lib/database.types.ts` (regen `pnpm run db:types`) |
+| Crypto | `web/lib/token-crypto.ts` |
+| Linked accounts | `web/lib/linked-google-accounts.ts` |
+| Sync engine | `web/lib/calendar-sync-supabase.ts` (or `web/lib/sync/` split if large) |
+| Auth | `web/lib/auth.ts` (scopes + `events.signIn`) |
+| API | `web/app/api/calendar/sync/route.ts` |
+| DB reads | `web/lib/db-supabase.ts` (`getEvents`, `getCalendars`, summaries paths — filter `removed_at IS NULL`) |
+| UI | `web/app/settings/accounts/page.tsx`, optional `web/app/components/Dashboard.tsx` empty CTA |
 | Docs | `.env.example` (scope / TOKEN note if needed) |
-| Tests | `webapp/__tests__/` or `tests/` — `token-crypto`, sync engine (mocked Google), API route (mocked engine) |
+| Tests | `web/__tests__/` or `tests/` — `token-crypto`, sync engine (mocked Google), API route (mocked engine) |
 
 ---
 
@@ -59,7 +59,7 @@
 ### Task 3: Read path — hide removed events
 
 **Files:**
-- Modify: `webapp/lib/db-supabase.ts` (`getEvents`, any raw `events` selects used by summaries/calendars)
+- Modify: `web/lib/db-supabase.ts` (`getEvents`, any raw `events` selects used by summaries/calendars)
 
 - [ ] **Step 1:** Ensure all event reads default to **`removed_at IS NULL`** (unless a future debug flag exists).
 - [ ] **Step 2:** `computeSummariesFromEvents` / `getDailySummaries` consumers remain consistent.
@@ -71,8 +71,8 @@
 ### Task 4: Token encryption helper
 
 **Files:**
-- Create: `webapp/lib/token-crypto.ts`
-- Test: `webapp/__tests__/lib/token-crypto.test.ts` (or `tests/`)
+- Create: `web/lib/token-crypto.ts`
+- Test: `web/__tests__/lib/token-crypto.test.ts` (or `tests/`)
 
 - [ ] **Step 1:** Implement **encrypt** / **decrypt** using **`TOKEN_ENCRYPTION_KEY`** (AES-256-GCM), IV + auth tag prefix pattern documented in code.
 - [ ] **Step 2:** Fail fast in dev if key missing when encrypt/decrypt called.
@@ -84,8 +84,8 @@
 ### Task 5: `linked_google_accounts` CRUD
 
 **Files:**
-- Create: `webapp/lib/linked-google-accounts.ts`
-- Uses: `webapp/lib/supabase-server.ts`, `token-crypto.ts`, `database.types.ts`
+- Create: `web/lib/linked-google-accounts.ts`
+- Uses: `web/lib/supabase-server.ts`, `token-crypto.ts`, `database.types.ts`
 
 - [ ] **Step 1:** `upsertLinkedAccountFromOAuth({ userId, account, profile })` — map NextAuth Google `account` + profile email; encrypt `access_token` / `refresh_token`; set `scopes`, `token_expiry` from `expires_at`.
 - [ ] **Step 2:** `getLinkedAccountsForUser(userId)`, `getLinkedAccountById(userId, id)`.
@@ -97,7 +97,7 @@
 ### Task 6: NextAuth — Calendar scopes + `signIn` upsert
 
 **Files:**
-- Modify: `webapp/lib/auth.ts`
+- Modify: `web/lib/auth.ts`
 
 - [ ] **Step 1:** Set `authorization.params.scope` to include **`openid email profile`** plus **`https://www.googleapis.com/auth/calendar.readonly`** **or** **`.../auth/calendar`** if existing color/write APIs require write scope (audit `webapp` Google usage and choose one; document in comment).
 - [ ] **Step 2:** Add **`events.signIn`**: if provider is Google and `account` has tokens, call `upsertLinkedAccountFromOAuth` (catch/log errors; do not block sign-in on DB failure—optional: queue retry).
@@ -109,7 +109,7 @@
 ### Task 7: Sync engine core (`runCalendarSync`)
 
 **Files:**
-- Create: `webapp/lib/calendar-sync-supabase.ts`
+- Create: `web/lib/calendar-sync-supabase.ts`
 - Reference: `lib/time-analysis.ts`, `lib/calendar-sync.ts`, `lib/calendar-manager.ts` (port **suggestCategory** / color mapping; same recurring rules as documented in those modules)
 
 - [ ] **Step 1:** Define **stable `events.id`** format in a single exported function + JSDoc (Supabase-first; document only, no Turso coupling).
@@ -127,8 +127,8 @@
 ### Task 8: API — `POST /api/calendar/sync`
 
 **Files:**
-- Create: `webapp/app/api/calendar/sync/route.ts`
-- Optional: `webapp/lib/sync-lock.ts` (Map + TTL) or inline mutex
+- Create: `web/app/api/calendar/sync/route.ts`
+- Optional: `web/lib/sync-lock.ts` (Map + TTL) or inline mutex
 
 - [ ] **Step 1:** `requireAuth()`; parse optional body `{ start?, end?, linkedAccountId? }`; default **today−30 .. today+30** in UTC date math.
 - [ ] **Step 2:** **Per-user lock** (e.g. `syncLocks.get(userId)` promise chain or `AsyncMutex`) — reject or **202** with message if sync already running.
@@ -142,8 +142,8 @@
 ### Task 9: UI — Sync button + feedback
 
 **Files:**
-- Modify: `webapp/app/settings/accounts/page.tsx`
-- Optional: `webapp/app/components/Dashboard.tsx` (empty state)
+- Modify: `web/app/settings/accounts/page.tsx`
+- Optional: `web/app/components/Dashboard.tsx` (empty state)
 
 - [ ] **Step 1:** Replace disabled “Coming Soon” with **Sync calendar** button; `POST /api/calendar/sync`; loading state; show stats + per-calendar errors.
 - [ ] **Step 2:** If no linked account, show copy: re-auth / check Google permissions.
@@ -155,7 +155,7 @@
 ### Task 10: Docs + cleanup
 
 **Files:**
-- Modify: `.env.example`, optionally `webapp/README.md`
+- Modify: `.env.example`, optionally `web/README.md`
 
 - [ ] **Step 1:** Document **`TOKEN_ENCRYPTION_KEY`**, Calendar scope re-consent note, **`docs/superpowers/plans/`** pointer if helpful.
 - [ ] **Step 2:** Run `pnpm run test:run` (root + webapp as applicable).

@@ -63,4 +63,4 @@ Accounts: personal, work
 ## Prerequisites
 
 - Google Calendar MCP server must be configured and authenticated
-- Run `npm run auth` first if you haven't authenticated yet
+- Run `pnpm run auth` first if you haven't authenticated yet

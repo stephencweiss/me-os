@@ -89,7 +89,7 @@ CREATE POLICY "Users can delete own events"
 ### Defense in Depth
 
 Even with RLS, maintain good practices:
-1. **Centralized query functions** - `webapp/lib/db.ts`
+1. **Centralized query functions** - `web/lib/db.ts`
 2. **Type safety** - TypeScript interfaces for all tables
 3. **Integration tests** - Verify cross-user access is blocked
 
@@ -113,7 +113,7 @@ Supabase Auth handles these automatically:
 ### 1.3 NextAuth + Supabase Adapter
 
 ```typescript
-// webapp/lib/auth.ts
+// web/lib/auth.ts
 import NextAuth from "next-auth";
 import Google from "next-auth/providers/google";
 import { SupabaseAdapter } from "@auth/supabase-adapter";
@@ -142,24 +142,24 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
 | File | Purpose |
 |------|---------|
-| `webapp/lib/auth.ts` | NextAuth config with Supabase adapter |
-| `webapp/lib/supabase.ts` | Supabase client (server & client) |
-| `webapp/app/api/auth/[...nextauth]/route.ts` | NextAuth API handler |
-| `webapp/middleware.ts` | Route protection |
-| `webapp/app/login/page.tsx` | Login page with Google OAuth |
-| `webapp/lib/auth-helpers.ts` | `requireAuth()` helper |
+| `web/lib/auth.ts` | NextAuth config with Supabase adapter |
+| `web/lib/supabase.ts` | Supabase client (server & client) |
+| `web/app/api/auth/[...nextauth]/route.ts` | NextAuth API handler |
+| `web/middleware.ts` | Route protection |
+| `web/app/login/page.tsx` | Login page with Google OAuth |
+| `web/lib/auth-helpers.ts` | `requireAuth()` helper |
 
 ### Files to Modify
 
 | File | Changes |
 |------|---------|
-| `webapp/app/layout.tsx` | Wrap with SessionProvider |
-| `webapp/package.json` | Add `next-auth`, `@auth/supabase-adapter`, `@supabase/supabase-js` |
+| `web/app/layout.tsx` | Wrap with SessionProvider |
+| `web/package.json` | Add `next-auth`, `@auth/supabase-adapter`, `@supabase/supabase-js` |
 
 ### Supabase Client Setup
 
 ```typescript
-// webapp/lib/supabase.ts
+// web/lib/supabase.ts
 import { createClient } from "@supabase/supabase-js";
 
 // Server-side client (with service role for admin operations)
@@ -178,7 +178,7 @@ export const supabase = createClient(
 ### Auth Helper
 
 ```typescript
-// webapp/lib/auth-helpers.ts
+// web/lib/auth-helpers.ts
 import { auth } from "./auth";
 import { NextResponse } from "next/server";
 
@@ -381,7 +381,7 @@ Create `scripts/migrate-turso-to-supabase.ts`:
 With RLS, queries are simpler - no manual user_id filtering needed:
 
 ```typescript
-// webapp/lib/db.ts
+// web/lib/db.ts
 import { supabase } from "./supabase";
 
 // BEFORE (Turso - manual filtering)
@@ -415,7 +415,7 @@ export async function getEvents(startDate: string, endDate: string) {
 | `db.execute()` | `supabase.from().select()` |
 | Custom types | Generated types via `supabase gen types` |
 
-### Functions to Rewrite in `webapp/lib/db.ts`
+### Functions to Rewrite in `web/lib/db.ts`
 
 **Events:**
 - `getEvents(startDate, endDate, options?)` - Use Supabase query builder
@@ -448,7 +448,7 @@ export async function getEvents(startDate: string, endDate: string) {
 ### Generate TypeScript Types
 
 ```bash
-npx supabase gen types typescript --project-id YOUR_PROJECT_ID > webapp/lib/database.types.ts
+pnpm db:types
 ```
 
 ---
@@ -489,7 +489,7 @@ export async function GET(request: NextRequest) {
 ### Server-Side Supabase Client
 
 ```typescript
-// webapp/lib/supabase-server.ts
+// web/lib/supabase-server.ts
 import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
 
@@ -502,15 +502,15 @@ export function createServerClient() {
 
 | Route | File |
 |-------|------|
-| `/api/events` | `webapp/app/api/events/route.ts` |
-| `/api/events/color` | `webapp/app/api/events/color/route.ts` |
-| `/api/events/bulk-color` | `webapp/app/api/events/bulk-color/route.ts` |
-| `/api/events/suggest` | `webapp/app/api/events/suggest/route.ts` |
-| `/api/summaries` | `webapp/app/api/summaries/route.ts` |
-| `/api/calendars` | `webapp/app/api/calendars/route.ts` |
-| `/api/preferences` | `webapp/app/api/preferences/route.ts` |
-| `/api/goals` | `webapp/app/api/goals/route.ts` |
-| `/api/non-goals` | `webapp/app/api/non-goals/route.ts` |
+| `/api/events` | `web/app/api/events/route.ts` |
+| `/api/events/color` | `web/app/api/events/color/route.ts` |
+| `/api/events/bulk-color` | `web/app/api/events/bulk-color/route.ts` |
+| `/api/events/suggest` | `web/app/api/events/suggest/route.ts` |
+| `/api/summaries` | `web/app/api/summaries/route.ts` |
+| `/api/calendars` | `web/app/api/calendars/route.ts` |
+| `/api/preferences` | `web/app/api/preferences/route.ts` |
+| `/api/goals` | `web/app/api/goals/route.ts` |
+| `/api/non-goals` | `web/app/api/non-goals/route.ts` |
 | `/api/health` | Skip auth (health check) |
 
 ---
@@ -545,16 +545,16 @@ CREATE INDEX idx_linked_google_user ON linked_google_accounts(user_id);
 
 | File | Purpose |
 |------|---------|
-| `webapp/lib/encryption.ts` | AES-256-GCM encrypt/decrypt for tokens |
-| `webapp/app/api/google/link/route.ts` | Start OAuth flow for calendar linking |
-| `webapp/app/api/google/callback/route.ts` | OAuth callback, store tokens |
-| `webapp/app/api/google/accounts/route.ts` | List/unlink accounts |
-| `webapp/app/settings/accounts/page.tsx` | UI for managing linked accounts |
+| `web/lib/encryption.ts` | AES-256-GCM encrypt/decrypt for tokens |
+| `web/app/api/google/link/route.ts` | Start OAuth flow for calendar linking |
+| `web/app/api/google/callback/route.ts` | OAuth callback, store tokens |
+| `web/app/api/google/accounts/route.ts` | List/unlink accounts |
+| `web/app/settings/accounts/page.tsx` | UI for managing linked accounts |
 
 ### Token Encryption
 
 ```typescript
-// webapp/lib/encryption.ts
+// web/lib/encryption.ts
 import crypto from "crypto";
 
 const ENCRYPTION_KEY = process.env.TOKEN_ENCRYPTION_KEY!; // 32-byte hex
@@ -586,7 +586,7 @@ export function decrypt(encrypted: string): string {
 
 | File | Changes |
 |------|---------|
-| `webapp/lib/google-calendar-client.ts` | Load tokens from DB instead of filesystem |
+| `web/lib/google-calendar-client.ts` | Load tokens from DB instead of filesystem |
 
 ---
 
@@ -596,15 +596,15 @@ export function decrypt(encrypted: string): string {
 
 | File | Purpose |
 |------|---------|
-| `webapp/lib/anthropic.ts` | Anthropic SDK wrapper |
-| `webapp/app/api/ai/analyze-week/route.ts` | Weekly insights |
-| `webapp/app/api/ai/suggest-goals/route.ts` | Goal suggestions |
-| `webapp/app/api/ai/categorize-events/route.ts` | Event categorization |
+| `web/lib/anthropic.ts` | Anthropic SDK wrapper |
+| `web/app/api/ai/analyze-week/route.ts` | Weekly insights |
+| `web/app/api/ai/suggest-goals/route.ts` | Goal suggestions |
+| `web/app/api/ai/categorize-events/route.ts` | Event categorization |
 
 ### Implementation
 
 ```typescript
-// webapp/lib/anthropic.ts
+// web/lib/anthropic.ts
 import Anthropic from "@anthropic-ai/sdk";
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
@@ -668,14 +668,14 @@ Create `scripts/migrate-local-to-web.ts`:
 
 | File | Changes |
 |------|---------|
-| `webapp/app/layout.tsx` | Add SessionProvider wrapper |
+| `web/app/layout.tsx` | Add SessionProvider wrapper |
 
 ### Files to Create
 
 | File | Purpose |
 |------|---------|
-| `webapp/app/components/UserMenu.tsx` | User avatar, settings link, sign out |
-| `webapp/app/settings/accounts/page.tsx` | Manage linked Google accounts |
+| `web/app/components/UserMenu.tsx` | User avatar, settings link, sign out |
+| `web/app/settings/accounts/page.tsx` | Manage linked Google accounts |
 
 ---
 
@@ -705,8 +705,8 @@ ANTHROPIC_API_KEY=sk-ant-...
 
 ```json
 {
-  "buildCommand": "cd webapp && npm run build",
-  "outputDirectory": "webapp/.next"
+  "buildCommand": "cd web && pnpm run build",
+  "outputDirectory": "web/.next"
 }
 ```
 
@@ -773,24 +773,24 @@ describe("Multi-tenant data isolation", () => {
 ## Critical Files Summary
 
 ### Must Create
-- `webapp/lib/auth.ts` - NextAuth configuration with Supabase adapter
-- `webapp/lib/supabase.ts` - Supabase client (server & browser)
-- `webapp/lib/supabase-server.ts` - Server-side Supabase client
-- `webapp/lib/database.types.ts` - Generated TypeScript types
-- `webapp/app/api/auth/[...nextauth]/route.ts` - Auth API
-- `webapp/middleware.ts` - Route protection
-- `webapp/lib/auth-helpers.ts` - Auth utilities (`requireAuth`)
-- `webapp/app/login/page.tsx` - Login page
-- `webapp/app/settings/accounts/page.tsx` - Account management
-- `webapp/lib/anthropic.ts` - LLM client
+- `web/lib/auth.ts` - NextAuth configuration with Supabase adapter
+- `web/lib/supabase.ts` - Supabase client (server & browser)
+- `web/lib/supabase-server.ts` - Server-side Supabase client
+- `web/lib/database.types.ts` - Generated TypeScript types
+- `web/app/api/auth/[...nextauth]/route.ts` - Auth API
+- `web/middleware.ts` - Route protection
+- `web/lib/auth-helpers.ts` - Auth utilities (`requireAuth`)
+- `web/app/login/page.tsx` - Login page
+- `web/app/settings/accounts/page.tsx` - Account management
+- `web/lib/anthropic.ts` - LLM client
 - `scripts/migrate-turso-to-supabase.ts` - Data migration
 
 ### Must Modify Heavily
-- `webapp/lib/db.ts` - Rewrite with Supabase client (no manual user_id filtering)
-- `webapp/app/api/*/route.ts` - Add auth to all 13 routes
-- `webapp/lib/google-calendar-client.ts` - DB-based token loading
-- `webapp/app/layout.tsx` - Add SessionProvider
-- `webapp/package.json` - Add `@supabase/supabase-js`, `@auth/supabase-adapter`, `next-auth`
+- `web/lib/db.ts` - Rewrite with Supabase client (no manual user_id filtering)
+- `web/app/api/*/route.ts` - Add auth to all 13 routes
+- `web/lib/google-calendar-client.ts` - DB-based token loading
+- `web/app/layout.tsx` - Add SessionProvider
+- `web/package.json` - Add `@supabase/supabase-js`, `@auth/supabase-adapter`, `next-auth`
 
 ### Keep for Local Mode
 - `lib/google-auth.ts` - File-based tokens for CLI

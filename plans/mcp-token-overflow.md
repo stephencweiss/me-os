@@ -162,7 +162,7 @@ Add cursor-based pagination to `get_events` and `get_week_view`:
 
 4. **Regression test:**
    - Verify calendar-manager opt-out detection still works with `compact: false`
-   - Run existing tests: `npm test`
+   - Run existing tests: `pnpm test`
 
 ## Rollback Plan
 

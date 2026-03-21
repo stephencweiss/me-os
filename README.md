@@ -118,13 +118,15 @@ The schedule defines your waking hours and work hours by day of week, used for g
 
 ### Installation
 
+Use **[pnpm](https://pnpm.io/)** (not npm). Corepack: `corepack enable pnpm`.
+
 ```bash
 # Clone the repository
 git clone <repo-url>
 cd me-os
 
 # Install dependencies
-npm install
+pnpm install
 
 # Copy config templates
 cp -r config.example/* config/
@@ -134,7 +136,7 @@ mkdir -p config/sensitive
 # Then add credentials-{account}.json from Google Cloud Console
 
 # Build TypeScript
-npm run build
+pnpm run build
 ```
 
 ### Google Calendar Setup
@@ -181,10 +183,10 @@ MeOS uses OAuth2 to access Google Calendar. You need to create credentials in th
 
 ```bash
 # Authenticate personal account
-GOOGLE_ACCOUNT=personal npm run auth
+GOOGLE_ACCOUNT=personal pnpm run auth
 
 # Authenticate work account (if you have multiple credentials files)
-GOOGLE_ACCOUNT=work npm run auth
+GOOGLE_ACCOUNT=work pnpm run auth
 ```
 
    On first run, a browser window opens; sign in with the Google account and approve Calendar access. Tokens are saved to `config/sensitive/tokens-{account}.json` automatically.
@@ -221,7 +223,7 @@ Rule fields:
 Validate your config against live authenticated accounts/calendars:
 
 ```bash
-npm run validate:dependencies
+pnpm run validate:dependencies
 ```
 
 This validation fails fast with explicit errors if any source/search/target account/calendar references are invalid.
@@ -272,19 +274,19 @@ Supported file types:
 ### Running Tests
 
 ```bash
-npm test
+pnpm test
 ```
 
 ### Validate Dependency Config
 
 ```bash
-npm run validate:dependencies
+pnpm run validate:dependencies
 ```
 
 ### Type Checking
 
 ```bash
-npx tsc --noEmit
+pnpm exec tsc --noEmit
 ```
 
 ### Adding a New Skill

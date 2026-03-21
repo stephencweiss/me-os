@@ -1,4 +1,4 @@
-#!/usr/bin/env npx tsx
+#!/usr/bin/env -S pnpm exec tsx
 /**
  * Migration Script: Turso → Supabase
  *
@@ -9,7 +9,7 @@
  *   1. Set up Supabase project and run `pnpm db:push` (includes 00000 next_auth + MeOS migrations)
  *   2. Create a user account in the web app (sign in with Google)
  *   3. Get your Supabase user ID from the auth.users table
- *   4. Run: npx tsx scripts/migrate-turso-to-supabase.ts --user-id <your-user-id>
+ *   4. Run: pnpm exec tsx scripts/migrate-turso-to-supabase.ts --user-id <your-user-id>
  *
  * Options:
  *   --user-id <id>     Required. Your Supabase user ID (UUID)
@@ -477,16 +477,16 @@ async function main() {
     console.error("Error: --user-id is required for migration");
     console.log("\nUsage:");
     console.log(
-      "  npx tsx scripts/migrate-turso-to-supabase.ts --user-id <your-user-id>"
+      "  pnpm exec tsx scripts/migrate-turso-to-supabase.ts --user-id <your-user-id>"
     );
     console.log(
-      "  npx tsx scripts/migrate-turso-to-supabase.ts --export-only"
+      "  pnpm exec tsx scripts/migrate-turso-to-supabase.ts --export-only"
     );
     console.log(
-      "  npx tsx scripts/migrate-turso-to-supabase.ts --import-only --user-id <your-user-id>"
+      "  pnpm exec tsx scripts/migrate-turso-to-supabase.ts --import-only --user-id <your-user-id>"
     );
     console.log(
-      "  npx tsx scripts/migrate-turso-to-supabase.ts --dry-run --user-id <your-user-id>"
+      "  pnpm exec tsx scripts/migrate-turso-to-supabase.ts --dry-run --user-id <your-user-id>"
     );
     process.exit(1);
   }

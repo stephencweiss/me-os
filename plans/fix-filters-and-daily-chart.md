@@ -52,7 +52,7 @@ When filters are applied, compute aggregates from filtered events on-the-fly ins
 ### PR 1: Pass filters to event drilldown calls
 **Branch**: `sw-filters-event-drilldown`
 
-**File**: `webapp/app/components/Dashboard.tsx`
+**File**: `web/app/components/Dashboard.tsx`
 
 **Changes**:
 - Update `fetchEvents()` to accept and use `selectedAccounts` and `selectedCalendars`
@@ -69,8 +69,8 @@ When filters are applied, compute aggregates from filtered events on-the-fly ins
 **Branch**: `sw-filters-summaries` (stacked on PR 1)
 
 **Files**:
-- `webapp/lib/db.ts`
-- `webapp/app/api/summaries/route.ts`
+- `web/lib/db.ts`
+- `web/app/api/summaries/route.ts`
 
 **Changes in db.ts**:
 - Add `getFilteredDailySummaries(startDate, endDate, options)` function
@@ -91,7 +91,7 @@ When filters are applied, compute aggregates from filtered events on-the-fly ins
 ### PR 3: Add view mode toggle (trailing vs forward)
 **Branch**: `sw-chart-view-mode` (stacked on PR 2)
 
-**File**: `webapp/app/components/Dashboard.tsx`
+**File**: `web/app/components/Dashboard.tsx`
 
 **Changes**:
 
@@ -156,9 +156,9 @@ if (viewMode === 'forward') {
 
 | PR | Files |
 |----|-------|
-| PR 1 | `webapp/app/components/Dashboard.tsx` |
-| PR 2 | `webapp/lib/db.ts`, `webapp/app/api/summaries/route.ts` |
-| PR 3 | `webapp/app/components/Dashboard.tsx` |
+| PR 1 | `web/app/components/Dashboard.tsx` |
+| PR 2 | `web/lib/db.ts`, `web/app/api/summaries/route.ts` |
+| PR 3 | `web/app/components/Dashboard.tsx` |
 
 ---
 

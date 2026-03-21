@@ -8,11 +8,16 @@ where versioning applies.
 
 ## [Unreleased]
 
+### Changed
+
+- **Workspace layout:** Next.js app directory and pnpm package renamed from **`webapp`** to **`web`** (`pnpm-workspace.yaml`, lockfile importers, docs, and scripts).
+- **Package manager:** repo standardizes on **pnpm** only; removed `package-lock.json` files, ignore future lockfile churn, added `packageManager` to root and `web/package.json`, refreshed docs and scripts to use `pnpm` / `pnpm exec` / `pnpm dlx` instead of npm/npx.
+
 ### Added
 
 - **`supabase/migrations/00000_next_auth_schema.sql`** — Official Auth.js / NextAuth `next_auth` schema (replaces manual adapter SQL before `db:push`).
 - **`pnpm db:push` / `db:status` / `db:push:prod`** — Supabase migrations via Management API (`scripts/db-push.mjs`, adapted from animus-training training-app).
-- **`pnpm db:types` / `db:types:check`** — Regenerate `webapp/lib/database.types.ts` (`scripts/db-gen-types.mjs`).
+- **`pnpm db:types` / `db:types:check`** — Regenerate `web/lib/database.types.ts` (`scripts/db-gen-types.mjs`).
 - **`supabase/migrations/`** — Canonical ordered DDL (`00000` Auth.js `next_auth`, then `00001`–`00005`); see `scripts/migrations/README.md`.
 
 ### Changed
@@ -28,8 +33,8 @@ Mobile **goal alignment** Phase 1 (backend + docs): week snapshot API, weekly au
 - `GET /api/week-alignment?week=YYYY-Www` — returns `AlignmentMobileV1` JSON (`schemaVersion`, goals, `syncHint`, audit block).
 - `POST /api/week-alignment/audit` — body `{ week, action: dismiss | snooze | seen, snoozedUntil? }` for weekly audit state (E3).
 - `schemas/alignment-mobile-v1.json` — JSON Schema for the mobile alignment DTO.
-- `webapp/lib/week-alignment-core.ts` and `webapp/lib/week-alignment.ts` — pure DTO builder + loader (batch goal progress, calendar freshness hint).
-- `webapp/lib/goal-constraints.ts` — parse `constraints_json` for per-goal windows (E4, shared with future slot work).
+- `web/lib/week-alignment-core.ts` and `web/lib/week-alignment.ts` — pure DTO builder + loader (batch goal progress, calendar freshness hint).
+- `web/lib/goal-constraints.ts` — parse `constraints_json` for per-goal windows (E4, shared with future slot work).
 - `scripts/migrations/003_alignment_mobile.sql` — `weekly_audit_state`, `weekly_goals.constraints_json`.
 - `scripts/migrations/004_repoint_user_fk_to_next_auth.sql` — repoint `user_id` FKs from `auth.users` to **`next_auth.users`** (matches NextAuth + `@auth/supabase-adapter`).
 - `scripts/migrations/README.md` — how to apply migrations without `db:push`.

@@ -10,8 +10,8 @@ Manual and spot-check guide for **Google Calendar → Supabase** sync in the Nex
 
 | Requirement | Notes |
 |-------------|--------|
-| Local webapp | From repo root: `pnpm install`, then `cd webapp && pnpm dev` (see `CLAUDE.md`). |
-| Env | `webapp/.env.local` with Supabase, NextAuth, and **`TOKEN_ENCRYPTION_KEY`** (32-byte key, base64 or hex per app docs / `.env.example`). Missing key → encrypt/decrypt failures when persisting or using tokens. |
+| Local webapp | From repo root: `pnpm install`, then `cd web && pnpm dev` (see `CLAUDE.md`). |
+| Env | `web/.env.local` with Supabase, NextAuth, and **`TOKEN_ENCRYPTION_KEY`** (32-byte key, base64 or hex per app docs / `.env.example`). Missing key → encrypt/decrypt failures when persisting or using tokens. |
 | DB | Migrations applied (`pnpm db:push` from repo root — see `scripts/migrations/README.md`); `user_id` FKs and `events.removed_at` present. |
 | Google account | Sign in with **Google**; consent must include **Calendar** scope (re-consent after scope changes). |
 | Optional | Supabase Table Editor (or SQL) to inspect `linked_google_accounts`, `events`, `daily_summaries`. |
@@ -25,7 +25,7 @@ Manual and spot-check guide for **Google Calendar → Supabase** sync in the Nex
 pnpm test
 
 # Webapp unit tests only
-pnpm --filter webapp test:run
+pnpm --filter web test:run
 ```
 
 Relevant automated coverage today includes token crypto and calendar event id helpers; extend this list as route/sync-engine tests land.
@@ -152,6 +152,6 @@ After a successful sync, spot-check:
 - [ ] M6 409 under concurrent sync (single instance)
 - [ ] M7 auth / ownership
 - [ ] M8 custom range (API)
-- [ ] `pnpm test` and `pnpm --filter webapp test:run` green
+- [ ] `pnpm test` and `pnpm --filter web test:run` green
 
 Record **environment** (branch, commit, local vs deployed), **Google account type** (workspace vs consumer), and **screenshots** of Settings sync result + any `errors[]` payloads for defects.

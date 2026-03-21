@@ -689,6 +689,40 @@ export type CompositeTypes<
     ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
     : never
 
+/** Shorthand row/insert/update types for `public` tables (used by db-supabase, sync, linked accounts). */
+type PublicRow<T extends keyof Database["public"]["Tables"]> = Database["public"]["Tables"][T]["Row"];
+type PublicInsert<T extends keyof Database["public"]["Tables"]> =
+  Database["public"]["Tables"][T]["Insert"];
+type PublicUpdate<T extends keyof Database["public"]["Tables"]> =
+  Database["public"]["Tables"][T]["Update"];
+
+export type Event = PublicRow<"events">;
+export type EventInsert = PublicInsert<"events">;
+export type EventUpdate = PublicUpdate<"events">;
+
+export type DailySummary = PublicRow<"daily_summaries">;
+export type DailySummaryInsert = PublicInsert<"daily_summaries">;
+
+export type WeeklyGoal = PublicRow<"weekly_goals">;
+export type WeeklyGoalInsert = PublicInsert<"weekly_goals">;
+export type WeeklyGoalUpdate = PublicUpdate<"weekly_goals">;
+
+export type WeeklyAuditState = PublicRow<"weekly_audit_state">;
+
+export type NonGoal = PublicRow<"non_goals">;
+export type NonGoalInsert = PublicInsert<"non_goals">;
+
+export type GoalProgress = PublicRow<"goal_progress">;
+export type GoalProgressInsert = PublicInsert<"goal_progress">;
+
+export type NonGoalAlert = PublicRow<"non_goal_alerts">;
+export type NonGoalAlertUpdate = PublicUpdate<"non_goal_alerts">;
+
+export type UserPreferenceInsert = PublicInsert<"user_preferences">;
+
+export type LinkedGoogleAccount = PublicRow<"linked_google_accounts">;
+export type LinkedGoogleAccountInsert = PublicInsert<"linked_google_accounts">;
+
 export const Constants = {
   next_auth: {
     Enums: {},

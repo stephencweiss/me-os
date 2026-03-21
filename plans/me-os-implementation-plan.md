@@ -37,7 +37,7 @@ Build a personal productivity system as Claude Code skills with MCP integration.
 ## Phase 1: Foundation & Google Calendar Integration
 
 ### 1.1 Project Setup
-- Initialize npm project with TypeScript
+- Initialize Node/TypeScript project (pnpm)
 - Set up directory structure: `skills/`, `mcp/`, `scripts/`, `lib/`, `config/`
 - Configure TypeScript, ESLint, gitignore (credentials)
 - Add base dependencies: `@modelcontextprotocol/sdk`, `googleapis`
@@ -128,9 +128,9 @@ Changes needed:
 
 | Test | Command/Action | Expected Result |
 |------|----------------|-----------------|
-| Auth flow | `npx ts-node lib/google-auth.ts` | Browser opens, consent granted, tokens saved to `config/tokens.json` |
+| Auth flow | `pnpm run auth` | Browser opens, consent granted, tokens saved under `config/sensitive/` |
 | Token refresh | Delete `tokens.json`, re-run auth | New tokens generated without re-consent (if refresh token valid) |
-| MCP server startup | `npx ts-node mcp/google-calendar/index.ts` | Server starts, no errors, logs "MCP server ready" |
+| MCP server startup | `pnpm run mcp:calendar` | Server starts, no errors, logs "MCP server ready" |
 | List calendars | Call `list_calendars` via Claude | Returns array of calendars matching Google Calendar UI |
 | Get events | Call `get_events` for today | Returns events matching today's schedule in Google Calendar |
 | Week view | `/calendar` skill | Displays current week with events, colors shown |
@@ -189,7 +189,7 @@ Interactive features:
 
 CLI script that generates weekly report without LLM:
 ```bash
-npx ts-node scripts/weekly-report.ts [--week 2024-01-15]
+pnpm run report -- [--week 2024-01-15]
 ```
 Outputs markdown summary, can be invoked by skill.
 
@@ -209,7 +209,7 @@ Outputs markdown summary, can be invoked by skill.
 | Color grouping | Week with mixed color events | Totals per color match manual count |
 | Daily summary | `/time-report yesterday` | Hours per category + gap time = 24h (or work day) |
 | Weekly report | `/time-report` | Shows all 7 days, totals match sum of dailies |
-| Script parity | `npx ts-node scripts/weekly-report.ts` | Output matches `/time-report` for same week |
+| Script parity | `pnpm run report --` | Output matches `/time-report` for same week |
 | Edge case: no events | Query empty day | Reports 100% unstructured time |
 | Edge case: overlapping | Two events at same time | Handles gracefully (no double-counting) |
 
@@ -579,7 +579,7 @@ Leverage existing JIRA MCP from work environment.
 ---
 
 ## Immediate Next Steps
-1. Initialize the project (`npm init`, tsconfig, dependencies)
+1. Initialize the project (`pnpm init`, tsconfig, dependencies)
 2. Set up Google Cloud project and Calendar API credentials
 3. Build the Google Calendar MCP server
 4. Create the `/calendar` skill
@@ -605,7 +605,7 @@ Leverage existing JIRA MCP from work environment.
 | 2026-02-20 | Phase 1.3: Google auth helper | Complete | lib/google-auth.ts - OAuth2 flow for Google Calendar |
 | 2026-02-20 | Phase 1.4: Calendar MCP server | Complete | mcp/google-calendar/index.ts - 7 tools, 2 resources |
 | 2026-02-20 | Phase 1.5: Calendar skill | Complete | skills/calendar/skill.md - /calendar command |
-| 2026-02-20 | Phase 1.6: Build verification | Complete | npm install + tsc compile successful |
+| 2026-02-20 | Phase 1.6: Build verification | Complete | pnpm install + tsc compile successful |
 | 2026-02-21 | Multi-account support | Complete | credentials-{account}.json pattern, GOOGLE_ACCOUNT env var |
 | 2026-02-21 | Personal account auth | Complete | OAuth flow working, tokens saved |
 | 2026-02-21 | Calendar API test | Complete | scripts/test-calendar.ts verified API access |

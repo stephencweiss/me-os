@@ -2,7 +2,7 @@
 
 ## Design system
 
-- [ ] Add **`DESIGN.md`** at repo root as the design source of truth (typography scale, spacing/radius tokens, color roles beyond Tailwind defaults, motion if any, dark-mode rules, component primitives map to `webapp/app/components/`).
+- [ ] Add **`DESIGN.md`** at repo root as the design source of truth (typography scale, spacing/radius tokens, color roles beyond Tailwind defaults, motion if any, dark-mode rules, component primitives map to `web/app/components/`).
   - Why: No single doc today; plan-design-review capped “design system alignment” at 7/10 until this exists.
   - How: `/design-consultation` or hand-author after the **mobile alignment MVP** — pick one when you start implementation.
 

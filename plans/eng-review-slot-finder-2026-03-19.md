@@ -18,8 +18,8 @@
 |------------|----------|---------------------|
 | Gap / flex slot math | `calculateFlexSlots()` in `lib/calendar-manager.ts` | Turn synced events → candidate gaps inside waking hours |
 | Slot allocation for a structured time goal | `findSlotsForGoal()`, `filterSlotsBySchedule()` in `lib/calendar-optimizer.ts` | Deterministic placement; same algorithms as `/calendar-optimizer` skill |
-| Weekly goal records | `StoredWeeklyGoal` in `lib/calendar-db.ts`, CRUD via `webapp/lib/db-unified.ts` | Source of duration, type, color, progress |
-| Events for a range | `getEvents()` in `webapp/lib/db-unified.ts` | Single fetch per slot-finder request |
+| Weekly goal records | `StoredWeeklyGoal` in `lib/calendar-db.ts`, CRUD via `web/lib/db-unified.ts` | Source of duration, type, color, progress |
+| Events for a range | `getEvents()` in `web/lib/db-unified.ts` | Single fetch per slot-finder request |
 | Auth on API routes | `requireAuthUnlessLocal()` | All new routes stay tenant-scoped |
 | Optimizer-shaped goal view | `getGoalsForOptimizer()` in `lib/weekly-goals.ts` | Pattern for mapping DB goal → `TimeGoal`-like input |
 

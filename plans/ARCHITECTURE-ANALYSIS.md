@@ -51,7 +51,7 @@ me-os/ (10,015 LOC total)
 │   └── ... (8 more files)
 ├── mcp/google-calendar/        # MCP server (1,802 LOC)
 │   └── index.ts                # Google Calendar MCP implementation
-├── webapp/                     # Next.js dashboard
+├── web/                     # Next.js dashboard
 │   ├── lib/db.ts               #   516 LOC - Duplicate DB layer
 │   └── app/api/                # API routes
 └── config/                     # Configuration files
@@ -60,7 +60,7 @@ me-os/ (10,015 LOC total)
 ### Key Components
 
 1. **MCP Server** (`mcp/google-calendar/index.ts`): 1,802 LOC monolithic file providing Google Calendar access
-2. **Database Layer**: Split between `lib/calendar-db.ts` and `webapp/lib/db.ts`
+2. **Database Layer**: Split between `lib/calendar-db.ts` and `web/lib/db.ts`
 3. **Time Analysis**: Core analytics in `lib/time-analysis.ts`
 4. **Sync Pipeline**: `lib/calendar-sync.ts` bridges Google API to database
 
@@ -109,7 +109,7 @@ MCP Server Flow:
 
 Webapp Flow:
   Google Calendar API → lib/time-analysis.ts → lib/calendar-sync.ts
-    → lib/calendar-db.ts → Turso DB → webapp/lib/db.ts → API routes
+    → lib/calendar-db.ts → Turso DB → web/lib/db.ts → API routes
   (Synced data, persisted)
 ```
 
@@ -138,14 +138,14 @@ This creates **no single source of truth**. The MCP server never uses the databa
 | Calendar colors | `config/colors.json` | MCP server, time-analysis |
 | Calendar types | `config/calendars.json` | calendar-filter.ts |
 | Turso connection | `config/turso.json` | calendar-db.ts |
-| Turso connection | `TURSO_DATABASE_URL` env var | webapp/lib/db.ts |
+| Turso connection | `TURSO_DATABASE_URL` env var | web/lib/db.ts |
 | Schedule | `config/schedule.json` | schedule.ts |
 | Google OAuth | `config/sensitive/credentials-*.json` | google-auth.ts |
 | Google tokens | `config/sensitive/tokens-*.json` | google-auth.ts |
 
 **Analysis:** Database configuration is particularly problematic:
 - `lib/calendar-db.ts` reads from `config/turso.json`
-- `webapp/lib/db.ts` reads from environment variables
+- `web/lib/db.ts` reads from environment variables
 
 **Finding: CONFIRMED** - Configuration is fragmented with inconsistent patterns.
 
@@ -188,7 +188,7 @@ This creates **no single source of truth**. The MCP server never uses the databa
 
 4. **Duplicate Type Definitions**:
    - `StoredEvent` in `lib/calendar-db.ts:52-73` (21 fields)
-   - `DbEvent` in `webapp/lib/db.ts:36-57` (21 fields - identical!)
+   - `DbEvent` in `web/lib/db.ts:36-57` (21 fields - identical!)
 
 **Analysis:** The schema prioritizes simple writes over efficient queries. The JSON blob pattern is particularly problematic for the dashboard which needs to aggregate by category.
 
@@ -283,7 +283,7 @@ This makes potentially 15+ API calls just to find one event.
 | **mcp/google-calendar/index.ts** | **NONE** | **Not tested** |
 | **calendar-sync.ts** | **NONE** | **Not tested** |
 | **google-auth.ts** | **NONE** | **Not tested** |
-| **webapp/lib/db.ts** | **NONE** | **Not tested** |
+| **web/lib/db.ts** | **NONE** | **Not tested** |
 
 **Analysis:** The MCP server (1,802 LOC) has no tests. This is the primary interface to the system.
 
@@ -361,7 +361,7 @@ mcp/google-calendar/
 
 **Category:** Redundancy
 **Severity:** High
-**Location:** `lib/calendar-db.ts` and `webapp/lib/db.ts`
+**Location:** `lib/calendar-db.ts` and `web/lib/db.ts`
 
 **Evidence:**
 ```typescript
@@ -369,7 +369,7 @@ mcp/google-calendar/
 import { createClient, Client } from "@libsql/client";
 let client: Client | null = null;
 
-// webapp/lib/db.ts
+// web/lib/db.ts
 import { createClient, type Client } from "@libsql/client";
 let client: Client | null = null;
 ```
@@ -410,14 +410,14 @@ packages/
 |------|-----------|--------|
 | time-analysis.ts | `CalendarEvent` | 16 fields |
 | calendar-db.ts | `StoredEvent` | 19 fields |
-| webapp/lib/db.ts | `DbEvent` | 19 fields |
+| web/lib/db.ts | `DbEvent` | 19 fields |
 | calendar-optimizer.ts | `ProposedEvent` | 12 fields |
 | calendar-filter.ts | `EventWithAttendees` | 2 fields |
 
 **Impact:**
 - Requires manual type mapping between layers
 - Easy to miss fields when converting
-- `as unknown as` casts in webapp/lib/db.ts (lines 119, 140, etc.)
+- `as unknown as` casts in web/lib/db.ts (lines 119, 140, etc.)
 
 **Recommendation:**
 Define a canonical event type with transformers:
@@ -562,7 +562,7 @@ export const getColorName = (id: string) => GOOGLE_CALENDAR_COLORS[id] || id;
 1. Extract types to packages/db/types.ts
 2. Unify client initialization (support both env vars and JSON config)
 3. Migrate lib/calendar-db.ts functions
-4. Update webapp/lib/db.ts to re-export from shared package
+4. Update web/lib/db.ts to re-export from shared package
 5. Update imports in all consumers
 ```
 
@@ -656,7 +656,7 @@ time-analysis.ts ←→ calendar-filter.ts
     ↓
 calendar-sync.ts
     ↓
-calendar-db.ts ←--→ webapp/lib/db.ts (DUPLICATED)
+calendar-db.ts ←--→ web/lib/db.ts (DUPLICATED)
 ```
 
 ### C. Database Tables

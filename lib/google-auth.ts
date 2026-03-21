@@ -235,8 +235,8 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   }
 
   console.log(`Starting Google Calendar authentication for account: ${account}\n`);
-  console.log("Usage: npm run auth [account-name]");
-  console.log("       npm run auth --list\n");
+  console.log("Usage: pnpm run auth [account-name]");
+  console.log("       pnpm run auth:list\n");
 
   getAuthenticatedClient(account)
     .then((client) => {

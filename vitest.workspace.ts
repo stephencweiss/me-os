@@ -9,6 +9,6 @@ export default defineWorkspace([
       exclude: ["**/node_modules/**"],
     },
   },
-  // Webapp tests with React and path aliases
-  "webapp/vitest.config.ts",
+  // Web package tests with React and path aliases
+  "web/vitest.config.ts",
 ]);

@@ -11,7 +11,7 @@
 There is **no repo `DESIGN.md`**. This plan **aligns with existing webapp patterns**:
 
 - **Tailwind** utility styling, **`dark:`** variants where the rest of the app uses them.
-- **`Button`** (`webapp/app/components/Button.tsx`): variants `primary` | `secondary` | `ghost` | `danger`; sizes `sm` | `md` | `lg`.
+- **`Button`** (`web/app/components/Button.tsx`): variants `primary` | `secondary` | `ghost` | `danger`; sizes `sm` | `md` | `lg`.
 - **Typography:** match weekly goals / calendar views — no new font stack unless you add `DESIGN.md` later.
 
 ---
@@ -97,7 +97,7 @@ There is **no repo `DESIGN.md`**. This plan **aligns with existing webapp patter
 ## Pass 5 — Design system alignment (target: 7/10 until DESIGN.md exists)
 
 - Reuse **Button**, existing **form patterns** from `GoalForm` / `WeeklyGoals`.
-- **New components** only if needed: `SlotCard`, `DayRow`, `ConstraintAccordion` — keep in `webapp/app/components/`.
+- **New components** only if needed: `SlotCard`, `DayRow`, `ConstraintAccordion` — keep in `web/app/components/`.
 
 **Gap:** Add **`DESIGN.md`** when you want tokens (radius, spacing scale) documented; optional `/design-consultation` later.
 

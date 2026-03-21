@@ -6,9 +6,9 @@
  * Includes visualizations for time by category, trends, and changes.
  *
  * Usage:
- *   npx ts-node scripts/generate-dashboard.ts                # Last 30 days
- *   npx ts-node scripts/generate-dashboard.ts --days 7       # Last 7 days
- *   npx ts-node scripts/generate-dashboard.ts --open         # Open in browser
+ *   pnpm run dashboard --                                     # Last 30 days
+ *   pnpm run dashboard -- --days 7                            # Last 7 days
+ *   pnpm run dashboard -- --open                              # Open in browser
  */
 
 import { generateDashboard, type DashboardOptions } from "../lib/dashboard-generator.js";
@@ -23,7 +23,7 @@ Generates an HTML dashboard with visualizations from your synced calendar data.
 Charts include time by category, daily trends, and recent changes.
 
 Usage:
-  npx ts-node scripts/generate-dashboard.ts [options]
+  pnpm run dashboard -- [options]
 
 Options:
   --days <N>              Include last N days (default: 30)
@@ -34,14 +34,14 @@ Options:
   --help, -h              Show this help message
 
 Examples:
-  npx ts-node scripts/generate-dashboard.ts                # Last 30 days
-  npx ts-node scripts/generate-dashboard.ts --days 7       # Last week
-  npx ts-node scripts/generate-dashboard.ts --days 90      # Last quarter
-  npx ts-node scripts/generate-dashboard.ts --open         # Open in browser
+  pnpm run dashboard --                                     # Last 30 days
+  pnpm run dashboard -- --days 7                           # Last week
+  pnpm run dashboard -- --days 90                          # Last quarter
+  pnpm run dashboard -- --open                             # Open in browser
 
 Prerequisites:
   Sync your calendar first:
-    npx ts-node scripts/sync-calendar.ts
+    pnpm run sync --
   `);
 }
 
