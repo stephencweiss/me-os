@@ -1,9 +1,7 @@
 -- MeOS Initial Schema for Supabase/Postgres
 -- This schema uses Row Level Security (RLS) for multi-tenant data isolation
 --
--- Prerequisite: Create the **next_auth** schema and tables for Auth.js / NextAuth
--- (@auth/supabase-adapter) so **next_auth.users** exists before running this file.
--- See: https://authjs.dev/getting-started/adapters/supabase
+-- Prerequisite: **00000_next_auth_schema.sql** (Auth.js adapter) must run first — applied by `pnpm db:push`.
 --
 -- All `user_id` columns reference **next_auth.users(id)**, not **auth.users** — the webapp
 -- signs in with Google via NextAuth; those user rows live in next_auth, not Supabase Auth.

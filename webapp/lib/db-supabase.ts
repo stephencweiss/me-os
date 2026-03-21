@@ -26,6 +26,7 @@ import type {
   NonGoalAlert,
   NonGoalAlertUpdate,
   UserPreferenceInsert,
+  DailySummaryInsert,
   Json,
 } from "./database.types";
 
@@ -105,6 +106,7 @@ export async function getEvents(
   let query = (supabase.from("events") as any)
     .select("*")
     .eq("user_id", userId)
+    .is("removed_at", null)
     .gte("date", startDate)
     .lte("date", endDate);
 
@@ -144,6 +146,7 @@ export async function getEventById(userId: string, eventId: string): Promise<Eve
     .select("*")
     .eq("user_id", userId)
     .eq("id", eventId)
+    .is("removed_at", null)
     .single();
 
   if (error && error.code !== "PGRST116") {
@@ -173,7 +176,8 @@ export async function updateAttendance(
   const { error } = await (supabase.from("events") as any)
     .update(updateData)
     .eq("user_id", userId)
-    .eq("id", eventId);
+    .eq("id", eventId)
+    .is("removed_at", null);
 
   if (error) {
     throw new Error(`Failed to update attendance: ${error.message}`);
@@ -206,7 +210,8 @@ export async function updateEventColor(
   const { error } = await (supabase.from("events") as any)
     .update(updateData)
     .eq("user_id", userId)
-    .eq("id", eventId);
+    .eq("id", eventId)
+    .is("removed_at", null);
 
   if (error) {
     throw new Error(`Failed to update event color: ${error.message}`);
@@ -230,7 +235,8 @@ export async function getCalendars(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data, error } = await (supabase.from("events") as any)
     .select("calendar_name, account")
-    .eq("user_id", userId);
+    .eq("user_id", userId)
+    .is("removed_at", null);
 
   if (error) {
     throw new Error(`Failed to get calendars: ${error.message}`);
@@ -262,7 +268,8 @@ export async function getAccounts(userId: string): Promise<string[]> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data, error } = await (supabase.from("events") as any)
     .select("account")
-    .eq("user_id", userId);
+    .eq("user_id", userId)
+    .is("removed_at", null);
 
   if (error) {
     throw new Error(`Failed to get accounts: ${error.message}`);
@@ -375,6 +382,102 @@ export async function computeSummariesFromEvents(
 
   summaries.sort((a, b) => b.date.localeCompare(a.date));
   return { summaries };
+}
+
+/** Every calendar day in [startDate, endDate] inclusive (UTC date arithmetic). */
+export function eachIsoDateInclusive(startDate: string, endDate: string): string[] {
+  const out: string[] = [];
+  const [sy, sm, sd] = startDate.split("-").map(Number);
+  const [ey, em, ed] = endDate.split("-").map(Number);
+  const cur = new Date(Date.UTC(sy, sm - 1, sd));
+  const end = new Date(Date.UTC(ey, em - 1, ed));
+  while (cur <= end) {
+    out.push(cur.toISOString().slice(0, 10));
+    cur.setUTCDate(cur.getUTCDate() + 1);
+  }
+  return out;
+}
+
+/**
+ * Recompute daily_summaries for each day in the range from active (non-removed) events.
+ * Removes summary rows for days that have no events left.
+ */
+export async function reconcileDailySummariesForDateRange(
+  userId: string,
+  startDate: string,
+  endDate: string,
+  options?: { accounts?: string[]; calendars?: string[] }
+): Promise<void> {
+  const supabase = createServerClient();
+  const now = new Date().toISOString();
+
+  for (const date of eachIsoDateInclusive(startDate, endDate)) {
+    const dayEvents = await getEvents(userId, date, date, options);
+
+    if (dayEvents.length === 0) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error } = await (supabase.from("daily_summaries") as any)
+        .delete()
+        .eq("user_id", userId)
+        .eq("date", date);
+      if (error) {
+        throw new Error(`Failed to clear summary for ${date}: ${error.message}`);
+      }
+      continue;
+    }
+
+    const totalScheduledMinutes = dayEvents.reduce((sum, e) => sum + e.duration_minutes, 0);
+    const colorGroups = new Map<
+      string,
+      { minutes: number; count: number; name: string; meaning: string; eventIds: string[] }
+    >();
+
+    for (const event of dayEvents) {
+      const existing = colorGroups.get(event.color_id) || {
+        minutes: 0,
+        count: 0,
+        name: event.color_name,
+        meaning: event.color_meaning,
+        eventIds: [],
+      };
+      existing.minutes += event.duration_minutes;
+      existing.count += 1;
+      existing.eventIds.push(event.id);
+      colorGroups.set(event.color_id, existing);
+    }
+
+    const categories = Array.from(colorGroups.entries()).map(([colorId, data]) => ({
+      colorId,
+      colorName: data.name,
+      colorMeaning: data.meaning,
+      totalMinutes: data.minutes,
+      eventCount: data.count,
+      events: data.eventIds,
+    }));
+
+    const dayOfWeek = new Date(`${date}T12:00:00.000Z`).getUTCDay();
+    const isWorkDay = dayOfWeek >= 1 && dayOfWeek <= 5;
+
+    const row: DailySummaryInsert = {
+      user_id: userId,
+      date,
+      total_scheduled_minutes: totalScheduledMinutes,
+      total_gap_minutes: 0,
+      categories_json: categories as unknown as Json,
+      is_work_day: isWorkDay,
+      analysis_hours_start: 9,
+      analysis_hours_end: 17,
+      snapshot_time: now,
+    };
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (supabase.from("daily_summaries") as any).upsert(row, {
+      onConflict: "user_id,date",
+    });
+    if (error) {
+      throw new Error(`Failed to upsert summary for ${date}: ${error.message}`);
+    }
+  }
 }
 
 // ============================================================================
@@ -948,7 +1051,7 @@ function isMissingWeeklyAuditTableError(err: { message?: string; code?: string }
 }
 
 export const WEEKLY_AUDIT_MIGRATION_HINT =
-  "Apply scripts/migrations/003_alignment_mobile.sql in the Supabase SQL Editor (see scripts/migrations/README.md).";
+  "Apply supabase/migrations/00003_alignment_mobile.sql (or run pnpm db:push). See scripts/migrations/README.md.";
 
 /**
  * Weekly alignment audit row (E3), or null if never written.

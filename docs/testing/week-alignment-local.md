@@ -75,9 +75,9 @@ At minimum for **signed-in browser testing**, `webapp/.env.local` should match y
 There is **no `pnpm db:push`** (or similar) wired up on this branch—migrations are **manual**.
 
 1. Supabase Dashboard → your project → **SQL Editor** → **New query**.
-2. Paste the full contents of **`scripts/migrations/003_alignment_mobile.sql`** from this repo and **Run**.
+2. Paste the full contents of **`supabase/migrations/00003_alignment_mobile.sql`** from this repo and **Run** (or run **`pnpm db:push`** from the repo root).
 
-Details, `psql` option, Turso notes, and ordering with `001_…`: **`scripts/migrations/README.md`**.
+Details, `psql` option, Turso notes, and ordering: **`scripts/migrations/README.md`**.
 
 Without this on Supabase, **`POST /api/week-alignment/audit`** fails with a clear error pointing at the migration. **`GET /api/week-alignment`** still returns **200** (goals + `syncHint`); **`audit`** reflects “no row yet” until the table exists and you persist dismiss/snooze/seen.
 

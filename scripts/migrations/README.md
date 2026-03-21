@@ -1,49 +1,63 @@
-# SQL migrations (manual apply)
+# Database migrations (Supabase / Postgres)
 
-MeOS does **not** ship a `db:push` / `supabase db push` script on every branch. These files are **source-of-truth DDL** you run against the database that backs the webapp.
+Canonical SQL lives in **`supabase/migrations/`** at the repo root (versioned `00000_…`, `00001_…`, …).
 
-## Prerequisites (Supabase + NextAuth)
+## Apply migrations (recommended): `pnpm db:push`
 
-The webapp uses **NextAuth** with **`@auth/supabase-adapter`**. User rows live in **`next_auth.users`**, not **`auth.users`** (Supabase Auth).
+Same pattern as **animus-training/training-app** (`scripts/db-push.mjs`): migrations run through the **Supabase Management API** (HTTPS), so you do not need a direct Postgres connection from your laptop.
 
-1. Apply the **Auth.js / Supabase adapter** schema first so **`next_auth.users`** exists:  
-   https://authjs.dev/getting-started/adapters/supabase  
-2. Then run **`001_initial_schema.sql`** (it references **`next_auth.users`** for every `user_id` FK).
+### One-time setup
 
-If you applied an **older** `001` that referenced **`auth.users`**, goal/event inserts can fail with:
+1. **Access token** — In [Supabase Account → Access Tokens](https://supabase.com/dashboard/account/tokens), create a token.
 
-`violates foreign key constraint "weekly_goals_user_id_fkey"`
+2. **Env** — In **`webapp/.env.local`** (or repo-root `.env.local`), set:
 
-→ Run **`004_repoint_user_fk_to_next_auth.sql`** once to fix existing databases.
+   | Variable | Purpose |
+   |----------|---------|
+   | `SUPABASE_ACCESS_TOKEN` | Management API (for `db:push` only; not used by the Next.js app) |
+   | `NEXT_PUBLIC_SUPABASE_URL` or `SUPABASE_PROJECT_REF` | Identifies the project |
 
-## Supabase (production / web mode)
-
-1. Open [Supabase Dashboard](https://supabase.com/dashboard) → your **me-os** project.
-2. Go to **SQL Editor** → **New query**.
-3. Paste the migration file contents and **Run**.
-
-Suggested order for a **new** project:
-
-| File | Purpose |
-|------|---------|
-| Auth.js adapter SQL | Creates **`next_auth`** schema + tables |
-| **`001_initial_schema.sql`** | Events, goals, summaries, … |
-| **`003_alignment_mobile.sql`** | `weekly_audit_state`, `constraints_json` |
-| **`004_repoint_user_fk_to_next_auth.sql`** | Only if you previously ran 001/003 with **`auth.users`** FKs |
-
-**Re-running:** Some statements are idempotent (`IF NOT EXISTS`, `DROP CONSTRAINT IF EXISTS`). **`CREATE POLICY`** in `001` / `003` may error if policies already exist—that is OK if the first run succeeded.
-
-**CLI (optional):**
+### Commands (from repo root)
 
 ```bash
-psql "$DATABASE_URL" -f scripts/migrations/004_repoint_user_fk_to_next_auth.sql
+pnpm db:status       # pending vs applied
+pnpm db:push         # apply pending migrations (dev: loads webapp/.env.local)
+pnpm db:push -- --dry-run
+pnpm db:push:prod    # uses webapp/.env.production or .env.production
+pnpm db:types        # regenerate webapp/lib/database.types.ts (runs `npx supabase`; network on first use)
+pnpm db:types:check  # CI: ensure database.types.ts looks generated
 ```
 
-(Run from repo root; adjust path and file name.)
+### Existing database (you already ran SQL by hand)
 
-## Local Turso / SQLite (MEOS_MODE=local)
+If tables exist but **`supabase_migrations.schema_migrations`** is empty or behind, `db:push` may try to re-apply old steps. Either:
 
-The **Postgres** files do not run on Turso. For local SQLite:
+- **Preferred:** Insert rows for migrations you have already applied (version = numeric prefix of the file, e.g. `00000` for `00000_next_auth_schema.sql`), then run `pnpm db:status` / `pnpm db:push`, or  
+- Continue using **SQL Editor** for one-off fixes only, and still use `db:push` for **new** migrations going forward.
 
-- Either run only the **commented SQLite section** at the bottom of `003_alignment_mobile.sql`, **or**
-- Rely on the webapp: the Turso path **auto-creates** `weekly_audit_state` and attempts `ALTER TABLE weekly_goals ADD COLUMN constraints_json` on first use (see `webapp/lib/db.ts`).
+## Manual apply (fallback)
+
+Supabase Dashboard → **SQL Editor** → paste the contents of a file under **`supabase/migrations/`** → Run. Prefer order `00000` → `00005` unless you know your DB state.
+
+### `psql` (optional)
+
+```bash
+psql "$DATABASE_URL" -f supabase/migrations/00005_repoint_user_fk_to_next_auth.sql
+```
+
+## Local Turso / SQLite (`MEOS_MODE=local`)
+
+Postgres migrations do not run on Turso. For alignment features, use the SQLite section in **`supabase/migrations/00003_alignment_mobile.sql`** comments, or rely on the webapp Turso bootstrap in `webapp/lib/db.ts`.
+
+## File order (new Supabase project)
+
+| Order | File | Purpose |
+|-------|------|---------|
+| 0 | `00000_next_auth_schema.sql` | **Auth.js / NextAuth** — `next_auth` schema, `uid()`, sessions, accounts, verification_tokens ([upstream](https://authjs.dev/getting-started/adapters/supabase)) |
+| 1 | `00001_initial_schema.sql` | Core MeOS tables |
+| 2 | `00002_user_fk_next_auth.sql` | `user_id` → `next_auth.users` |
+| 3 | `00003_alignment_mobile.sql` | `weekly_audit_state`, `constraints_json` |
+| 4 | `00004_events_removed_at.sql` | `events.removed_at` + index |
+| 5 | `00005_repoint_user_fk_to_next_auth.sql` | Full FK repoint + `weekly_audit_state` (for DBs that ever pointed at `auth.users`) |
+
+**Re-running:** Most statements are idempotent. **`CREATE POLICY`** may error if policies already exist—that is OK if the first run succeeded.

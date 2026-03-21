@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import {
   PieChart,
   Pie,
@@ -302,37 +303,52 @@ export default function Dashboard() {
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-6">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
-        <div className="flex justify-between items-center mb-8">
-          <div className="flex items-center gap-6">
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-              Dashboard
-            </h1>
-            {/* Tab Navigation */}
-            <div className="flex gap-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
-              <button
-                onClick={() => setActiveTab("calendar")}
-                className={`px-4 py-2 rounded-md font-medium transition-colors ${
-                  activeTab === "calendar"
-                    ? "bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm"
-                    : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
-                }`}
+        <div className="mb-8 space-y-4">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex flex-wrap items-center gap-4">
+              <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
+                Dashboard
+              </h1>
+              <div className="flex gap-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
+                <button
+                  onClick={() => setActiveTab("calendar")}
+                  className={`px-4 py-2 rounded-md font-medium transition-colors ${
+                    activeTab === "calendar"
+                      ? "bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm"
+                      : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
+                  }`}
+                >
+                  Calendar
+                </button>
+                <button
+                  onClick={() => setActiveTab("goals")}
+                  className={`px-4 py-2 rounded-md font-medium transition-colors ${
+                    activeTab === "goals"
+                      ? "bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm"
+                      : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
+                  }`}
+                >
+                  Goals
+                </button>
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Link
+                href="/settings/accounts#calendar-sync"
+                className="inline-flex items-center justify-center px-4 py-2 rounded-lg font-medium bg-blue-600 text-white hover:bg-blue-700 transition-colors"
               >
-                Calendar
-              </button>
-              <button
-                onClick={() => setActiveTab("goals")}
-                className={`px-4 py-2 rounded-md font-medium transition-colors ${
-                  activeTab === "goals"
-                    ? "bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm"
-                    : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
-                }`}
+                Sync calendar
+              </Link>
+              <Link
+                href="/settings"
+                className="inline-flex items-center justify-center px-4 py-2 rounded-lg font-medium bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
               >
-                Goals
-              </button>
+                Settings
+              </Link>
             </div>
           </div>
           {activeTab === "calendar" && (
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               {[7, 14, 30, 90].map((d) => (
                 <button
                   key={d}

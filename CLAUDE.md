@@ -68,7 +68,8 @@ me-os/
 │   ├── plans/          # Implementation plans (canonical for new work)
 │   └── specs/          # Design specs (brainstorming output)
 ├── plans/              # Legacy / ad-hoc plans (prefer docs/superpowers/plans/ for new features)
-├── scripts/            # Standalone scripts (callable by skills)
+├── supabase/migrations/# Postgres DDL for webapp (apply: pnpm db:push from root)
+├── scripts/            # Standalone scripts (callable by skills); see scripts/migrations/README.md
 ├── lib/                # Shared utilities
 └── config/             # Configuration and credentials
 ```
@@ -205,6 +206,12 @@ cd webapp
 pnpm dev
 # Default http://localhost:3000 (or next free port)
 ```
+
+### Supabase schema (webapp)
+
+- **DDL:** `supabase/migrations/` (`00000_…` = Auth.js `next_auth`, then `00001_…`–`00005_…` MeOS).
+- **Apply from repo root:** `pnpm db:push` (needs `SUPABASE_ACCESS_TOKEN` + project ref in `webapp/.env.local`; see `scripts/migrations/README.md`).
+- **Regenerate TS types:** `pnpm db:types`.
 
 ## Getting Started
 

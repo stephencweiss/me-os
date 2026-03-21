@@ -171,6 +171,7 @@
 | Crypto | Vitest round-trip |
 | Sync engine | Mock Google client; assert upsert + `removed_at` + partial errors |
 | API | Vitest route tests with mocked engine + session |
+| Manual QA | **`docs/superpowers/qa/web-calendar-sync.md`** — checklist, API matrix, Supabase spot-checks |
 | E2E | Manual: sign in → sync → dashboard shows data |
 
 ---
