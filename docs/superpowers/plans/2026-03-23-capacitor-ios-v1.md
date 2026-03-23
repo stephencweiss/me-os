@@ -12,6 +12,8 @@
 
 **Related:** `plans/ios-migration-*.md` on branch `sw-ios-migration-plans` (RFC comparing stacks). **Decision:** v1 = **Capacitor**; native Swift + WidgetKit = **later**.
 
+**Tracking:** https://github.com/stephencweiss/me-os/issues/98
+
 ---
 
 ## Constraints (do not skip)
