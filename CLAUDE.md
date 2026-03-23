@@ -159,13 +159,24 @@ When creating a new UI element:
 
 ## Worktree Development
 
-Use git worktrees for isolated feature development:
+Use **git worktrees** or **jj workspaces** for isolated feature development (same path pattern: `../worktrees/me-os/<name>`).
 
-### Creating a Worktree
+### Creating a Git Worktree
 ```bash
 ./scripts/worktree-start.sh <feature-name>
 cd ../worktrees/me-os/<feature-name>
 ```
+
+### Creating a Jujutsu (jj) Workspace
+
+Requires `jj git init --colocate` at repo root (already done for this repo). Creates a sibling workspace, copies config/env, and runs `pnpm install`:
+
+```bash
+./scripts/jj-workspace-start.sh <workspace-name>
+cd ../worktrees/me-os/<workspace-name>
+```
+
+When finished: `./scripts/jj-workspace-done.sh <workspace-name>`
 
 ### Setting Up Local Testing
 
