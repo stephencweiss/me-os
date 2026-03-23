@@ -1,5 +1,7 @@
 # Capacitor iOS v1 — implementation plan
 
+**Plan date:** 2026-03-23
+
 > **For agentic workers:** Use **subagent-driven-development** or **executing-plans** to implement task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Ship a **reliable MeOS mobile client** on iOS via **Capacitor**, wrapping the existing **Next.js (`webapp`)** UI, with a path to **TestFlight** and **App Store** review. **Widgets** (time split + quick categorization) are **explicitly out of scope for v1**; they remain a **phase 2** native follow-on (see RFC PR [#83](https://github.com/stephencweiss/me-os/pull/83)).
