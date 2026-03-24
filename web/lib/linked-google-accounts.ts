@@ -2,7 +2,7 @@
  * CRUD for linked_google_accounts with encrypted tokens.
  *
  * Rows are populated by mirroring OAuth tokens from `next_auth.accounts` (Auth.js adapter).
- * We avoid a NextAuth `signIn` callback so `lib/auth.ts` stays Edge-safe for middleware (no token-crypto in the bundle).
+ * We avoid a NextAuth `signIn` callback so `lib/auth.ts` stays safe for proxy (no token-crypto in that bundle).
  */
 
 import "server-only";

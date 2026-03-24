@@ -1,5 +1,5 @@
 /**
- * NextAuth options shared by the app and Edge middleware.
+ * NextAuth options shared by the app and Next.js proxy (formerly middleware).
  * Keep this file free of Node-only imports (no token-crypto / linked-google-accounts).
  */
 
@@ -10,7 +10,7 @@ import { SupabaseAdapter } from "@auth/supabase-adapter";
 const supabaseUrl =
   process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-/** Database sessions require URL + service role (middleware runs on Edge — keep both in `.env.local`). */
+/** Database sessions require URL + service role (proxy runs before routes — keep both in `.env.local`). */
 export const isSupabaseConfigured = !!(supabaseUrl && supabaseServiceKey);
 
 export const authConfig: NextAuthConfig = {
