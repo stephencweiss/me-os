@@ -178,6 +178,23 @@ cd ../worktrees/me-os/<workspace-name>
 
 When finished: `./scripts/jj-workspace-done.sh <workspace-name>`
 
+### Publishing a jj workspace to GitHub (bookmark → PR)
+
+For work you do mainly in a **jj workspace**, use a **jj bookmark** as the Git branch name: push the bookmark to `origin`, then open a PR with `gh` or the GitHub UI (`--head` matches the bookmark name).
+
+| Step | Command |
+|------|---------|
+| Enter workspace | `cd ../worktrees/me-os/<workspace-name>` |
+| Inspect | `jj status`, `jj log -r 'main@origin::<bookmark>'` (or another base revision as needed) |
+| Record work | `jj commit`, `jj describe`, `jj squash`, `jj rebase`, etc. |
+| Sync remotes | `jj git fetch --remote origin` |
+| Publish | `jj git push --remote origin --bookmark <bookmark>` |
+| Open PR | `gh pr create --base main --head <bookmark>` (after a successful push) |
+
+If `jj git push` refuses, fetch and fix bookmark conflicts per [jj bookmark push safety](https://docs.jj-vcs.dev/latest/bookmarks/#pushing-bookmarks-safety-checks). After a rebase or history rewrite, the push may **move** the remote bookmark sideways (jj uses checks similar to `--force-with-lease`).
+
+*Example:* workspace `capacitor-ios` with bookmark `sw-capacitor-ios-phase1` for the native shell line—same pattern applies to any feature bookmark.
+
 ### Setting Up Local Testing
 
 Worktrees share git history but **not** gitignored files. Before running the app locally, copy sensitive configs from the main repo:
