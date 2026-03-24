@@ -1,10 +1,15 @@
+import { GoogleSignInShell } from "@/app/components/google-sign-in-shell";
 import { auth, signIn } from "@/lib/auth";
 import { redirect } from "next/navigation";
 
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ callbackUrl?: string; error?: string }>;
+  searchParams: Promise<{
+    callbackUrl?: string;
+    error?: string;
+    reason?: string;
+  }>;
 }) {
   const session = await auth();
   const params = await searchParams;
@@ -34,29 +39,37 @@ export default async function LoginPage({
             <p className="text-sm text-red-700 dark:text-red-400">
               {params.error === "OAuthAccountNotLinked"
                 ? "This email is already associated with another account."
-                : "An error occurred during sign in. Please try again."}
+                : params.error === "mobile_oauth"
+                  ? params.reason
+                    ? `Mobile sign-in: ${decodeURIComponent(params.reason)}`
+                    : "Mobile sign-in failed. Try again."
+                  : "An error occurred during sign in. Please try again."}
             </p>
           </div>
         )}
 
-        <form
-          action={async () => {
-            "use server";
-            await signIn("google", {
-              redirectTo: params.callbackUrl ?? "/",
-            });
-          }}
+        <GoogleSignInShell
+          callbackUrl={params.callbackUrl ?? "/"}
         >
-          <button
-            type="submit"
-            className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+          <form
+            action={async () => {
+              "use server";
+              await signIn("google", {
+                redirectTo: params.callbackUrl ?? "/",
+              });
+            }}
           >
-            <span className="absolute left-0 inset-y-0 flex items-center pl-3">
-              <GoogleIcon className="h-5 w-5" />
-            </span>
-            Sign in with Google
-          </button>
-        </form>
+            <button
+              type="submit"
+              className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+            >
+              <span className="absolute left-0 inset-y-0 flex items-center pl-3">
+                <GoogleIcon className="h-5 w-5" />
+              </span>
+              Sign in with Google
+            </button>
+          </form>
+        </GoogleSignInShell>
 
         <p className="mt-4 text-center text-xs text-gray-500 dark:text-gray-400">
           By signing in, you agree to connect your Google Calendar for time

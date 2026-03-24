@@ -16,6 +16,9 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.78.0",
     "@auth/supabase-adapter": "^1.11.1",
+    "@capacitor/app": "^8.0.1",
+    "@capacitor/browser": "^8.0.2",
+    "@capacitor/core": "^8.2.0",
     "@libsql/client": "^0.17.0",
     "@supabase/supabase-js": "^2.98.0",
     "google-auth-library": "^10.6.1",

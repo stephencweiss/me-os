@@ -370,6 +370,51 @@ export type Database = {
         }
         Relationships: []
       }
+      mobile_oauth_challenges: {
+        Row: {
+          code_verifier: string
+          expires_at: string
+          redirect_to: string | null
+          state: string
+        }
+        Insert: {
+          code_verifier: string
+          expires_at: string
+          redirect_to?: string | null
+          state: string
+        }
+        Update: {
+          code_verifier?: string
+          expires_at?: string
+          redirect_to?: string | null
+          state?: string
+        }
+        Relationships: []
+      }
+      mobile_oauth_pending: {
+        Row: {
+          expires_at: string
+          id: string
+          redirect_to: string | null
+          session_expires_at: string
+          session_token: string
+        }
+        Insert: {
+          expires_at: string
+          id?: string
+          redirect_to?: string | null
+          session_expires_at: string
+          session_token: string
+        }
+        Update: {
+          expires_at?: string
+          id?: string
+          redirect_to?: string | null
+          session_expires_at?: string
+          session_token?: string
+        }
+        Relationships: []
+      }
       non_goal_alerts: {
         Row: {
           acknowledged: boolean

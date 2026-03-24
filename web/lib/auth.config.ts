@@ -19,16 +19,10 @@ export const authConfig: NextAuthConfig = {
       clientId: process.env.GOOGLE_CLIENT_ID ?? "",
       clientSecret: process.env.GOOGLE_CLIENT_SECRET ?? "",
       /**
-       * Auth.js OAuth checks (`pkce`, `state`) stash secrets in cookies before redirecting to
-       * Google. Capacitor’s WKWebView often does not send those cookies back on the callback
-       * (same issue as Safari ITP / embedded browsers), which breaks both PKCE and `state`.
-       *
-       * We use a confidential Google client (`clientSecret`), so the code exchange does not
-       * require PKCE. Disabling cookie-based checks (`none`) accepts the CSRF tradeoff for this
-       * in-app WebView flow; prefer `@capacitor/browser` / ASWebAuthenticationSession for stricter
-       * production OAuth if needed.
+       * Web sign-in uses Auth.js cookie-backed OAuth (PKCE + state). Capacitor uses
+       * `/api/auth/mobile/google/*` + system browser instead (server-stored PKCE/state).
        */
-      checks: ["none"],
+      checks: ["pkce", "state"],
       authorization: {
         params: {
           prompt: "consent",
