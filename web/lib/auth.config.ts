@@ -19,12 +19,16 @@ export const authConfig: NextAuthConfig = {
       clientId: process.env.GOOGLE_CLIENT_ID ?? "",
       clientSecret: process.env.GOOGLE_CLIENT_SECRET ?? "",
       /**
-       * Default Auth.js OAuth checks include PKCE, which stores `pkceCodeVerifier` in a cookie.
-       * iOS WKWebView (Capacitor) often drops that cookie on the redirect back from Google,
-       * causing InvalidCheck / pkceCodeVerifier parse errors. We use a confidential client
-       * (client secret) so PKCE is optional; `state` still protects the CSRF surface.
+       * Auth.js OAuth checks (`pkce`, `state`) stash secrets in cookies before redirecting to
+       * Google. Capacitor’s WKWebView often does not send those cookies back on the callback
+       * (same issue as Safari ITP / embedded browsers), which breaks both PKCE and `state`.
+       *
+       * We use a confidential Google client (`clientSecret`), so the code exchange does not
+       * require PKCE. Disabling cookie-based checks (`none`) accepts the CSRF tradeoff for this
+       * in-app WebView flow; prefer `@capacitor/browser` / ASWebAuthenticationSession for stricter
+       * production OAuth if needed.
        */
-      checks: ["state"],
+      checks: ["none"],
       authorization: {
         params: {
           prompt: "consent",
