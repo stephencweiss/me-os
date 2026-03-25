@@ -36,7 +36,10 @@ export default auth((req) => {
   // Redirect to login if not authenticated
   if (!isLoggedIn) {
     const loginUrl = new URL("/login", nextUrl.origin);
-    loginUrl.searchParams.set("callbackUrl", nextUrl.pathname);
+    const path =
+      nextUrl.pathname === "/" ? "/today" : nextUrl.pathname;
+    const callbackUrl = nextUrl.search ? `${path}${nextUrl.search}` : path;
+    loginUrl.searchParams.set("callbackUrl", callbackUrl);
     return NextResponse.redirect(loginUrl);
   }
 

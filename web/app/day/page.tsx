@@ -1,5 +1,5 @@
-import DayView from "../components/DayView";
+import { permanentRedirect } from "next/navigation";
 
-export default function DayPage() {
-  return <DayView />;
+export default function LegacyDayPage() {
+  permanentRedirect("/today");
 }

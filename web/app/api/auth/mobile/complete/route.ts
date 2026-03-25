@@ -35,7 +35,7 @@ export async function POST(req: Request) {
     expires
   );
 
-  const callbackPath = safeRelativeRedirectPath(row.redirect_to, "/");
+  const callbackPath = safeRelativeRedirectPath(row.redirect_to, "/today");
 
   return NextResponse.json(
     { ok: true, callbackUrl: callbackPath },

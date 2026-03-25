@@ -370,12 +370,12 @@ export default function DayView() {
   const remainingMins = totalMinutes % 60;
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      <div className="max-w-4xl mx-auto px-4 py-8">
+    <div className="w-full">
+      <div className="max-w-4xl mx-auto py-4 md:py-6">
         {/* Header */}
         <div className="mb-4">
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-4">
-            Day View
+            Today
           </h1>
           <DateNavigation
             selectedDate={selectedDate}

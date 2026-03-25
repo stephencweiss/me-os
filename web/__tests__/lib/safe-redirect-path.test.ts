@@ -3,7 +3,7 @@ import { safeRelativeRedirectPath } from "@/lib/safe-redirect-path";
 
 describe("safeRelativeRedirectPath", () => {
   it("allows simple paths", () => {
-    expect(safeRelativeRedirectPath("/day", "/")).toBe("/day");
+    expect(safeRelativeRedirectPath("/today", "/")).toBe("/today");
   });
 
   it("rejects open redirects", () => {

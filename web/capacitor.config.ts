@@ -1,4 +1,16 @@
-import type { CapacitorConfig } from "@capacitor/cli";
+/**
+ * Local shape only — avoids importing `@capacitor/cli` types (not available to Next.js `tsc`).
+ * `cap sync` reads this file at runtime; extend fields here if the CLI config grows.
+ */
+interface CapacitorConfig {
+  appId: string;
+  appName: string;
+  webDir: string;
+  server?: {
+    url?: string;
+    cleartext?: boolean;
+  };
+}
 
 /**
  * Hosted Next.js: the native shell loads this URL (dev server or deployed site).

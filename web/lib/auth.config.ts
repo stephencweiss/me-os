@@ -42,9 +42,14 @@ export const authConfig: NextAuthConfig = {
       return session;
     },
     async redirect({ url, baseUrl }) {
-      if (url.startsWith("/")) return `${baseUrl}${url}`;
-      if (new URL(url).origin === baseUrl) return url;
-      return baseUrl;
+      const base = baseUrl.replace(/\/$/, "");
+      if (url.startsWith("/")) return `${base}${url}`;
+      try {
+        if (new URL(url).origin === base) return url;
+      } catch {
+        return base;
+      }
+      return base;
     },
   },
   pages: {
