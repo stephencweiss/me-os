@@ -8,6 +8,7 @@ import AccountFilter from "./AccountFilter";
 import DateNavigation from "./DateNavigation";
 import BulkActionBar from "./BulkActionBar";
 import { formatTime, formatDuration, formatDate } from "@/lib/format";
+import { withBasePath } from "@/lib/base-path";
 
 interface Event {
   id: string;
@@ -98,7 +99,7 @@ export default function DayView() {
   useEffect(() => {
     async function fetchAccounts() {
       try {
-        const response = await fetch("/api/calendars");
+        const response = await fetch(withBasePath("/api/calendars"));
         if (response.ok) {
           const data = await response.json();
           setAccounts(data.accounts || []);
@@ -135,7 +136,9 @@ export default function DayView() {
         params.set("uncategorized", "true");
       }
 
-      const response = await fetch(`/api/events?${params.toString()}`);
+      const response = await fetch(
+        withBasePath(`/api/events?${params.toString()}`)
+      );
 
       if (!response.ok) {
         throw new Error("Failed to fetch events");
@@ -179,7 +182,7 @@ export default function DayView() {
     });
 
     try {
-      const response = await fetch("/api/events", {
+      const response = await fetch(withBasePath("/api/events"), {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ eventId, attended }),
@@ -233,7 +236,7 @@ export default function DayView() {
     );
 
     try {
-      const response = await fetch("/api/events/color", {
+      const response = await fetch(withBasePath("/api/events/color"), {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ eventId, colorId }),
@@ -285,7 +288,7 @@ export default function DayView() {
     );
 
     try {
-      const response = await fetch("/api/events/bulk-color", {
+      const response = await fetch(withBasePath("/api/events/bulk-color"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -327,7 +330,7 @@ export default function DayView() {
     );
 
     try {
-      const response = await fetch("/api/events/bulk-color", {
+      const response = await fetch(withBasePath("/api/events/bulk-color"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

@@ -4,6 +4,7 @@ import { useSession } from "next-auth/react";
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import Button from "@/app/components/Button";
+import { withBasePath } from "@/lib/base-path";
 
 interface Account {
   account: string;
@@ -29,8 +30,8 @@ export default function AccountsPage() {
 
   const refreshData = useCallback(async () => {
     const [calRes, linkedRes] = await Promise.all([
-      fetch("/api/calendars"),
-      fetch("/api/calendar/linked"),
+      fetch(withBasePath("/api/calendars")),
+      fetch(withBasePath("/api/calendar/linked")),
     ]);
     if (!calRes.ok) {
       throw new Error("Failed to fetch accounts");
@@ -87,7 +88,10 @@ export default function AccountsPage() {
     setSyncDetail(null);
     setError(null);
     try {
-      const res = await fetch("/api/calendar/sync", { method: "POST", body: "{}" });
+      const res = await fetch(withBasePath("/api/calendar/sync"), {
+        method: "POST",
+        body: "{}",
+      });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         setSyncMessage(data.error || `Sync failed (${res.status})`);

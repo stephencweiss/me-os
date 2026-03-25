@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
-import { getClientAppOrigin } from "@/lib/app-origin-client";
+import { clientAbsoluteAppUrl } from "@/lib/app-origin-client";
 import { normalizeMobileOAuthScheme } from "@/lib/mobile-oauth-deep-link";
 
 function clientScheme(): string {
@@ -63,8 +63,7 @@ export function CapacitorAuthBridge() {
             /* optional */
           }
 
-          const origin = getClientAppOrigin();
-          const res = await fetch(`${origin}/api/auth/mobile/complete`, {
+          const res = await fetch(clientAbsoluteAppUrl("/api/auth/mobile/complete"), {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ id }),

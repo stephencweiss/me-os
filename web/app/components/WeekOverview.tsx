@@ -17,6 +17,7 @@ import {
 } from "recharts";
 import EventList from "./EventList";
 import FilterBar from "./FilterBar";
+import { withBasePath } from "@/lib/base-path";
 import {
   ALLOWED_WEEK_RANGE_DAYS,
   type WeekRangeDays,
@@ -145,8 +146,8 @@ export default function WeekOverview({ days }: { days: WeekRangeDays }) {
 
       try {
         const [summariesRes, calendarsRes] = await Promise.all([
-          fetch(`/api/summaries?${params.toString()}`),
-          fetch("/api/calendars"),
+          fetch(withBasePath(`/api/summaries?${params.toString()}`)),
+          fetch(withBasePath("/api/calendars")),
         ]);
 
         if (!summariesRes.ok || !calendarsRes.ok) {
@@ -176,7 +177,9 @@ export default function WeekOverview({ days }: { days: WeekRangeDays }) {
     setShowEventList(true);
 
     try {
-      const res = await fetch(`/api/events?start=${start}&end=${end}`);
+      const res = await fetch(
+        withBasePath(`/api/events?start=${start}&end=${end}`)
+      );
       if (!res.ok) throw new Error("Failed to fetch events");
       const data = await res.json();
       setEvents(data.events);
@@ -209,7 +212,9 @@ export default function WeekOverview({ days }: { days: WeekRangeDays }) {
 
     try {
       const res = await fetch(
-        `/api/events?start=${summaries.dateRange.start}&end=${summaries.dateRange.end}`
+        withBasePath(
+          `/api/events?start=${summaries.dateRange.start}&end=${summaries.dateRange.end}`
+        )
       );
       if (!res.ok) throw new Error("Failed to fetch events");
       const data = await res.json();
@@ -225,7 +230,7 @@ export default function WeekOverview({ days }: { days: WeekRangeDays }) {
 
   async function handleAttendanceChange(eventId: string, attended: string) {
     try {
-      const res = await fetch("/api/events", {
+      const res = await fetch(withBasePath("/api/events"), {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ eventId, attended }),

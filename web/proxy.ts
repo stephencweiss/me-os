@@ -1,4 +1,5 @@
 import { auth } from "@/lib/auth";
+import { getBasePath } from "@/lib/base-path";
 import { NextResponse } from "next/server";
 
 // Must use the same `auth` as API routes (`lib/auth.ts`). A second `NextAuth(authConfig)` in
@@ -35,7 +36,9 @@ export default auth((req) => {
 
   // Redirect to login if not authenticated
   if (!isLoggedIn) {
-    const loginUrl = new URL("/login", nextUrl.origin);
+    const bp = getBasePath();
+    const loginPath = bp ? `${bp}/login` : "/login";
+    const loginUrl = new URL(loginPath, nextUrl.origin);
     const path =
       nextUrl.pathname === "/" ? "/today" : nextUrl.pathname;
     const callbackUrl = nextUrl.search ? `${path}${nextUrl.search}` : path;

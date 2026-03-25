@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
-import { getClientAppOrigin } from "@/lib/app-origin-client";
+import { clientAbsoluteAppUrl } from "@/lib/app-origin-client";
 
 function GoogleIcon({ className }: { className?: string }) {
   return (
@@ -22,8 +22,7 @@ function NativeGoogleSignIn({ callbackUrl }: { callbackUrl: string }) {
     setErr(null);
     setBusy(true);
     try {
-      const origin = getClientAppOrigin();
-      const res = await fetch(`${origin}/api/auth/mobile/google/start`, {
+      const res = await fetch(clientAbsoluteAppUrl("/api/auth/mobile/google/start"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ callbackUrl }),

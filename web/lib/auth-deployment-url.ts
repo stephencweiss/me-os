@@ -25,10 +25,11 @@ export function getAuthDeploymentUrl(): string {
   return path ? `${parsed.origin}${path}` : parsed.origin;
 }
 
+/**
+ * OAuth redirect_uri must stay under the app's public path. Using `new URL("/api/...", base)`
+ * strips a path prefix from `AUTH_URL` (e.g. `/app/me-os`), so join explicitly.
+ */
 export function getMobileGoogleOAuthCallbackUrl(): string {
-  const base = getAuthDeploymentUrl();
-  return new URL(
-    "/api/auth/mobile/google/callback",
-    `${base}/`
-  ).toString();
+  const base = getAuthDeploymentUrl().replace(/\/+$/, "");
+  return `${base}/api/auth/mobile/google/callback`;
 }

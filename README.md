@@ -108,9 +108,29 @@ pnpm --filter web run dev
 
 Create `web/.env.local` with at least `AUTH_URL` / `NEXTAUTH_URL`, Google OAuth IDs, and Supabase variables as required by your setup. Apply DB migrations from the repo root: `pnpm db:push` (see `scripts/migrations/README.md`).
 
+### Web app: subpath behind another site (e.g. Hugo on Vercel)
+
+**Canonical public path for this app:** **`/app/me-os`** (full URL shape `https://your.domain/app/me-os/...`). Do not confuse that with a bare **`/app`** prefix—`/app` alone is a different mount point and needs `NEXT_PUBLIC_BASE_PATH=/app` plus matching rewrites and `AUTH_URL`.
+
+If the public URL is **not** the Vercel project root (for example the app appears at `https://your.domain/app/me-os` while the Next project is `https://your-app.vercel.app`):
+
+1. Set **`NEXT_PUBLIC_BASE_PATH`** in the **MeOS Vercel project** to **`/app/me-os`** (no trailing slash). This must match `next.config`’s `basePath` (derived from the same env at build time).
+2. Set **`AUTH_URL`** / **`NEXTAUTH_URL`** to the **full public base** users see, including the path: e.g. `https://your.domain/app/me-os`. Google OAuth **Authorized redirect URIs** must include  
+   `https://your.domain/app/me-os/api/auth/mobile/google/callback`.
+3. On the **proxy site** (Hugo), Vercel rewrites must forward the **same path** to the Next deployment, not strip it. For example:
+
+```json
+{
+  "source": "/app/me-os/:path*",
+  "destination": "https://your-app.vercel.app/app/me-os/:path*"
+}
+```
+
+**Common mistake:** rewriting to `https://your-app.vercel.app/:path*` (dropping `/app/me-os` on the destination). The browser still loads HTML from `/app/me-os/...`, but relative API calls and assets expect the deployment to be mounted at **`/app/me-os`** on that host. The destination must preserve that prefix, as in the example above. If you intentionally host MeOS at **`https://your.domain/app`** only (no `/me-os`), use `NEXT_PUBLIC_BASE_PATH=/app` and align `AUTH_URL` and rewrites for **`/app`** end-to-end instead—see your site’s `hugo-deploy-plans.md` if you use that shorter pattern.
+
 ### Capacitor / iOS simulator (OAuth)
 
-- **`AUTH_URL` / `NEXTAUTH_URL`** must be the exact origin registered as an authorized redirect URI for Google (**`{origin}/api/auth/mobile/google/callback`**). Use `http://localhost:3000` for local simulator when the app loads that origin.
+- **`AUTH_URL` / `NEXTAUTH_URL`** must match the **public base URL** of the app (origin **and** path if you use `NEXT_PUBLIC_BASE_PATH`). Google’s redirect URI is **`{AUTH_URL}/api/auth/mobile/google/callback`**. For local dev at the site root, use `http://localhost:3000` when the WebView loads that origin.
 - If the WebView origin is not your API host (e.g. packaged `capacitor://` assets), set **`NEXT_PUBLIC_APP_ORIGIN`** to the same base you use for `AUTH_URL` (e.g. `http://localhost:3000` or your LAN URL) so native sign-in can reach `/api/auth/mobile/*`. **When to set it** is explained in `web/.env.local.example` (most local simulator flows can omit it).
 - **`MOBILE_OAUTH_REDIRECT_SCHEME`** (server) and **`NEXT_PUBLIC_MOBILE_OAUTH_REDIRECT_SCHEME`** (client) should be the bare scheme name (e.g. `meos`), not `meos://`.
 - **Custom URL scheme on iOS:** After Google OAuth, the server redirects to **`meos://auth/complete?...`**. The native app must declare the **`meos`** scheme in **`ios/App/App/Info.plist`** (`CFBundleURLTypes`). Without it, Safari shows an invalid/malformed address. Rebuild the iOS app in Xcode after changing the plist.
