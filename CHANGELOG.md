@@ -8,6 +8,10 @@ where versioning applies.
 
 ## [Unreleased]
 
+## [0.0.2] - 2026-03-25
+
+Subpath deployment, mobile safe areas, and tooling/docs churn since **0.0.1**.
+
 ### Changed
 
 - **Workspace layout:** Next.js app directory and pnpm package renamed from **`webapp`** to **`web`** (`pnpm-workspace.yaml`, lockfile importers, docs, and scripts).
@@ -48,9 +52,11 @@ where versioning applies.
 
 - **Capacitor / iOS** — Top app chrome (Sync, Settings, page titles) no longer sits under the **status bar / Dynamic Island** when **`safe-area-inset-top`** is missing or zero in the WebView (header **`pt-safe-header`** floor).
 
-## [0.2.0] - 2026-03-20
+## [0.0.1] - 2026-03-20
 
 Mobile **goal alignment** Phase 1 (backend + docs): week snapshot API, weekly audit persistence, SQL migrations, and NextAuth/Supabase schema fixes.
+
+_(Previously documented as **0.2.0** in this file and as **0.1.0** in `package.json`; both refer to this release, now **0.0.1** under **0.0.x** versioning.)_
 
 ### Added
 
