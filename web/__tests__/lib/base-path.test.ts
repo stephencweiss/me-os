@@ -20,3 +20,31 @@ describe("withBasePath", () => {
     expect(withBasePath("/api/foo")).toBe("/app/me-os/api/foo");
   });
 });
+
+describe("pathnameWithinBasePath", () => {
+  beforeEach(() => {
+    vi.resetModules();
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("returns pathname unchanged when base unset", async () => {
+    vi.unstubAllEnvs();
+    const { pathnameWithinBasePath } = await import("@/lib/base-path");
+    expect(pathnameWithinBasePath("/login")).toBe("/login");
+  });
+
+  it("strips base prefix for middleware-style paths", async () => {
+    vi.stubEnv("NEXT_PUBLIC_BASE_PATH", "/app/me-os");
+    const { pathnameWithinBasePath } = await import("@/lib/base-path");
+    expect(pathnameWithinBasePath("/app/me-os")).toBe("/");
+    expect(pathnameWithinBasePath("/app/me-os/login")).toBe("/login");
+    expect(pathnameWithinBasePath("/app/me-os/api/auth/callback/google")).toBe(
+      "/api/auth/callback/google"
+    );
+    expect(pathnameWithinBasePath("/app/me-os/_next/static/chunk.js")).toBe(
+      "/_next/static/chunk.js"
+    );
+  });
+});

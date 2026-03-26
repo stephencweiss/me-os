@@ -8,6 +8,21 @@ export function getBasePath(): string {
   return raw.replace(/\/$/, "");
 }
 
+/**
+ * Middleware and incoming requests use the full pathname including `basePath`
+ * (e.g. `/app/me-os/login`). App routes and `next/navigation` redirects expect
+ * paths relative to `basePath` (e.g. `/login`).
+ */
+export function pathnameWithinBasePath(pathname: string): string {
+  const base = getBasePath();
+  if (!base) return pathname;
+  if (pathname === base) return "/";
+  if (pathname.startsWith(`${base}/`)) {
+    return pathname.slice(base.length);
+  }
+  return pathname;
+}
+
 /** Prefix an app-internal path for fetch() / href when basePath is not handled by Next.js. */
 export function withBasePath(path: string): string {
   const base = getBasePath();
