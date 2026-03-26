@@ -27,6 +27,7 @@
     "@capacitor/ios": "^8.2.0",
     "@capacitor/splash-screen": "^8.0.1",
     "@capacitor/status-bar": "^8.0.1",
+    "@clerk/nextjs": "^7.0.7",
     "@libsql/client": "^0.17.0",
     "@supabase/supabase-js": "^2.98.0",
     "google-auth-library": "^10.6.1",

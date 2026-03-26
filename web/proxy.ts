@@ -13,6 +13,9 @@ const publicRoutes = [
   "/terms",
   "/api/auth",
   "/api/health",
+  // Clerk (NextAuth proxy does not see Clerk session; handlers enforce Clerk auth / Svix)
+  "/api/webhooks/clerk",
+  "/api/meos/ensure-user",
 ];
 
 // Check if a path matches any public route (pathname includes `basePath` when set)

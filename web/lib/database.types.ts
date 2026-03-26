@@ -517,6 +517,33 @@ export type Database = {
         }
         Relationships: []
       }
+      users: {
+        Row: {
+          clerk_user_id: string
+          created_at: string
+          display_name: string | null
+          email: string | null
+          id: string
+          updated_at: string
+        }
+        Insert: {
+          clerk_user_id: string
+          created_at?: string
+          display_name?: string | null
+          email?: string | null
+          id?: string
+          updated_at?: string
+        }
+        Update: {
+          clerk_user_id?: string
+          created_at?: string
+          display_name?: string | null
+          email?: string | null
+          id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       weekly_audit_state: {
         Row: {
           dismissed_at: string | null
@@ -751,6 +778,10 @@ export type DailySummaryInsert = PublicInsert<"daily_summaries">;
 export type WeeklyGoal = PublicRow<"weekly_goals">;
 export type WeeklyGoalInsert = PublicInsert<"weekly_goals">;
 export type WeeklyGoalUpdate = PublicUpdate<"weekly_goals">;
+
+export type AppUser = PublicRow<"users">;
+export type AppUserInsert = PublicInsert<"users">;
+export type AppUserUpdate = PublicUpdate<"users">;
 
 export type WeeklyAuditState = PublicRow<"weekly_audit_state">;
 
