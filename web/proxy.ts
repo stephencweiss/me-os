@@ -7,7 +7,13 @@ import { NextResponse } from "next/server";
 // which breaks session cookies with JWTSessionError / Invalid Compact JWE.
 
 // Routes that don't require authentication
-const publicRoutes = ["/login", "/api/auth", "/api/health"];
+const publicRoutes = [
+  "/login",
+  "/privacy",
+  "/terms",
+  "/api/auth",
+  "/api/health",
+];
 
 // Check if a path matches any public route (pathname includes `basePath` when set)
 function isPublicRoute(pathname: string): boolean {
