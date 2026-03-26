@@ -24,3 +24,29 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* iOS safe areas (used with viewport-fit=cover on the document) */
+@layer utilities {
+  .pt-safe {
+    padding-top: max(0.75rem, constant(safe-area-inset-top));
+    padding-top: max(0.75rem, env(safe-area-inset-top, 0px));
+  }
+  /**
+   * Top inset for chrome under the status bar / Dynamic Island.
+   * WKWebView sometimes reports 0 for env() until viewport-fit=cover applies — use a tall floor on narrow viewports.
+   */
+  .pt-safe-header {
+    padding-top: max(4rem, constant(safe-area-inset-top));
+    padding-top: max(4rem, env(safe-area-inset-top, 0px));
+  }
+  .pb-safe {
+    padding-bottom: max(0.5rem, constant(safe-area-inset-bottom));
+    padding-bottom: max(0.5rem, env(safe-area-inset-bottom, 0px));
+  }
+  .px-safe {
+    padding-left: max(1rem, constant(safe-area-inset-left));
+    padding-right: max(1rem, constant(safe-area-inset-right));
+    padding-left: max(1rem, env(safe-area-inset-left, 0px));
+    padding-right: max(1rem, env(safe-area-inset-right, 0px));
+  }
+}

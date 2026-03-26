@@ -8,6 +8,10 @@ where versioning applies.
 
 ## [Unreleased]
 
+## [0.0.2] - 2026-03-25
+
+Subpath deployment, mobile safe areas, and tooling/docs churn since **0.0.1**.
+
 ### Changed
 
 - **Workspace layout:** Next.js app directory and pnpm package renamed from **`webapp`** to **`web`** (`pnpm-workspace.yaml`, lockfile importers, docs, and scripts).
@@ -24,9 +28,35 @@ where versioning applies.
 
 - Postgres migration **`.sql` files** moved from `scripts/migrations/` to **`supabase/migrations/`** (same content, versioned names for `db:push`).
 
-## [0.2.0] - 2026-03-20
+### Added
+
+- **`web/lib/base-path.ts`** — `getBasePath()` / `withBasePath()` so client `fetch` and URLs respect **`NEXT_PUBLIC_BASE_PATH`** when the Next app is mounted under a prefix (e.g. reverse proxy / Hugo).
+- **`web/__tests__/lib/base-path.test.ts`** — Vitest coverage for base-path helpers.
+- **Safe-area CSS utilities** in `web/app/globals.css` — `pt-safe`, **`pt-safe-header`** (tall floor for notched iPhones when `env(safe-area-inset-top)` is `0`), `pb-safe`, `px-safe`, with legacy **`constant(safe-area-inset-*)`** fallbacks for older WebKit.
+- **Root `viewport` export** in `web/app/layout.tsx` — `viewportFit: "cover"` so `env(safe-area-inset-*)` can resolve in Safari / **WKWebView** (Capacitor).
+
+### Changed
+
+- **`web/next.config.ts`** — `basePath` driven by `NEXT_PUBLIC_BASE_PATH`; `turbopack.root` set to the monorepo parent for stable dev in the pnpm workspace.
+- **Client API calls** — `fetch("/api/…")` wrapped with `withBasePath` in `DayView`, `WeekOverview`, `WeeklyGoals`, `BulkActionBar`, and **`settings/accounts`** so JSON and actions hit the prefixed app path when deployed under a subpath.
+- **Auth / deployment URLs** — `web/lib/auth-deployment-url.ts`, `web/lib/app-origin-client.ts` (`clientAbsoluteAppUrl`), `capacitor-auth-bridge`, and `google-sign-in-shell` aligned so mobile OAuth and absolute API bases include the configured base path when needed.
+- **`web/proxy.ts`** — Sign-in redirect uses `{basePath}/login` when `NEXT_PUBLIC_BASE_PATH` is set.
+- **`UserMenu`** — Settings control uses Next **`Link`** so navigation respects `basePath`.
+- **`MainAppShell`** — Mobile header uses **`pt-safe-header`**; horizontal **`px-safe`** on narrow viewports; main **`padding-bottom`** includes tab bar height plus **`env(safe-area-inset-bottom)`**; compact Sync/Settings sizing on small screens.
+- **`BottomTabNav`** — Smaller **20×20** outline icons (calendar, bars, checklist + checks), thinner stroke, **`pb-safe`**, ~**44px** min touch height.
+- **`README.md`** — Subpath deployment docs: canonical public prefix **`/app/me-os`**, distinction from bare **`/app`**, and rewrite **destination** must keep the same path prefix as the Next deployment.
+- **`web/.env.local.example`** — `NEXT_PUBLIC_BASE_PATH` and example `AUTH_URL` including `/app/me-os`.
+- **`web/__tests__/lib/auth-deployment-url.test.ts`** — Coverage updates for callback URL construction with base path.
+
+### Fixed
+
+- **Capacitor / iOS** — Top app chrome (Sync, Settings, page titles) no longer sits under the **status bar / Dynamic Island** when **`safe-area-inset-top`** is missing or zero in the WebView (header **`pt-safe-header`** floor).
+
+## [0.0.1] - 2026-03-20
 
 Mobile **goal alignment** Phase 1 (backend + docs): week snapshot API, weekly audit persistence, SQL migrations, and NextAuth/Supabase schema fixes.
+
+_(Previously documented as **0.2.0** in this file and as **0.1.0** in `package.json`; both refer to this release, now **0.0.1** under **0.0.x** versioning.)_
 
 ### Added
 

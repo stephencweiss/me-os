@@ -8,6 +8,7 @@ import AccountFilter from "./AccountFilter";
 import DateNavigation from "./DateNavigation";
 import BulkActionBar from "./BulkActionBar";
 import { formatTime, formatDuration, formatDate } from "@/lib/format";
+import { withBasePath } from "@/lib/base-path";
 
 interface Event {
   id: string;
@@ -98,7 +99,7 @@ export default function DayView() {
   useEffect(() => {
     async function fetchAccounts() {
       try {
-        const response = await fetch("/api/calendars");
+        const response = await fetch(withBasePath("/api/calendars"));
         if (response.ok) {
           const data = await response.json();
           setAccounts(data.accounts || []);
@@ -135,7 +136,9 @@ export default function DayView() {
         params.set("uncategorized", "true");
       }
 
-      const response = await fetch(`/api/events?${params.toString()}`);
+      const response = await fetch(
+        withBasePath(`/api/events?${params.toString()}`)
+      );
 
       if (!response.ok) {
         throw new Error("Failed to fetch events");
@@ -179,7 +182,7 @@ export default function DayView() {
     });
 
     try {
-      const response = await fetch("/api/events", {
+      const response = await fetch(withBasePath("/api/events"), {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ eventId, attended }),
@@ -233,7 +236,7 @@ export default function DayView() {
     );
 
     try {
-      const response = await fetch("/api/events/color", {
+      const response = await fetch(withBasePath("/api/events/color"), {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ eventId, colorId }),
@@ -285,7 +288,7 @@ export default function DayView() {
     );
 
     try {
-      const response = await fetch("/api/events/bulk-color", {
+      const response = await fetch(withBasePath("/api/events/bulk-color"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -327,7 +330,7 @@ export default function DayView() {
     );
 
     try {
-      const response = await fetch("/api/events/bulk-color", {
+      const response = await fetch(withBasePath("/api/events/bulk-color"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -370,12 +373,12 @@ export default function DayView() {
   const remainingMins = totalMinutes % 60;
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      <div className="max-w-4xl mx-auto px-4 py-8">
+    <div className="w-full">
+      <div className="max-w-4xl mx-auto py-4 md:py-6">
         {/* Header */}
         <div className="mb-4">
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-4">
-            Day View
+            Today
           </h1>
           <DateNavigation
             selectedDate={selectedDate}

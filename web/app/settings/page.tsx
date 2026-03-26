@@ -48,10 +48,10 @@ export default function SettingsPage() {
       <div className="max-w-2xl mx-auto">
         <div className="mb-8">
           <Link
-            href="/"
+            href="/today"
             className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
           >
-            &larr; Back to Dashboard
+            &larr; Back to Today
           </Link>
         </div>
 

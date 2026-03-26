@@ -1,6 +1,6 @@
 {
   "name": "me-os",
-  "version": "0.1.0",
+  "version": "0.0.2",
   "description": "Personal productivity system with Claude Code skills and MCP integration",
   "type": "module",
   "packageManager": "pnpm@10.32.1",

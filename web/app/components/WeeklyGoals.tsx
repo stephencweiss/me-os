@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { withBasePath } from "@/lib/base-path";
 import GoalForm from "./GoalForm";
 import NonGoalForm from "./NonGoalForm";
 import Button, { PlusIcon } from "./Button";
@@ -192,8 +193,8 @@ export default function WeeklyGoals() {
 
     try {
       const [goalsRes, nonGoalsRes] = await Promise.all([
-        fetch(`/api/goals?week=${weekId}`),
-        fetch(`/api/non-goals?week=${weekId}`),
+        fetch(withBasePath(`/api/goals?week=${weekId}`)),
+        fetch(withBasePath(`/api/non-goals?week=${weekId}`)),
       ]);
 
       if (!goalsRes.ok || !nonGoalsRes.ok) {
@@ -219,7 +220,7 @@ export default function WeeklyGoals() {
 
   async function handleStatusChange(goalId: string, status: "active" | "completed" | "cancelled") {
     try {
-      const res = await fetch("/api/goals", {
+      const res = await fetch(withBasePath("/api/goals"), {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ goalId, status }),
@@ -242,7 +243,7 @@ export default function WeeklyGoals() {
 
   async function handleAcknowledgeAlert(alertId: number) {
     try {
-      const res = await fetch("/api/non-goals", {
+      const res = await fetch(withBasePath("/api/non-goals"), {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ alertId }),
@@ -284,7 +285,7 @@ export default function WeeklyGoals() {
     try {
       if (editingGoal) {
         // Update existing goal
-        const res = await fetch("/api/goals", {
+        const res = await fetch(withBasePath("/api/goals"), {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -311,7 +312,7 @@ export default function WeeklyGoals() {
         );
       } else {
         // Create new goal
-        const res = await fetch("/api/goals", {
+        const res = await fetch(withBasePath("/api/goals"), {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -349,7 +350,7 @@ export default function WeeklyGoals() {
     setIsSubmittingNonGoal(true);
 
     try {
-      const response = await fetch("/api/non-goals", {
+      const response = await fetch(withBasePath("/api/non-goals"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

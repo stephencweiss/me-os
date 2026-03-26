@@ -2,12 +2,13 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
-
-const DEFAULT_SCHEME = "meos";
+import { clientAbsoluteAppUrl } from "@/lib/app-origin-client";
+import { normalizeMobileOAuthScheme } from "@/lib/mobile-oauth-deep-link";
 
 function clientScheme(): string {
-  const s = process.env.NEXT_PUBLIC_MOBILE_OAUTH_REDIRECT_SCHEME ?? DEFAULT_SCHEME;
-  return s.replace(/:$/, "").trim() || DEFAULT_SCHEME;
+  return normalizeMobileOAuthScheme(
+    process.env.NEXT_PUBLIC_MOBILE_OAUTH_REDIRECT_SCHEME
+  );
 }
 
 /**
@@ -62,8 +63,7 @@ export function CapacitorAuthBridge() {
             /* optional */
           }
 
-          const origin = window.location.origin;
-          const res = await fetch(`${origin}/api/auth/mobile/complete`, {
+          const res = await fetch(clientAbsoluteAppUrl("/api/auth/mobile/complete"), {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ id }),
@@ -83,7 +83,7 @@ export function CapacitorAuthBridge() {
           const dest =
             typeof data.callbackUrl === "string" && data.callbackUrl.startsWith("/")
               ? data.callbackUrl
-              : "/";
+              : "/today";
           router.replace(dest);
           router.refresh();
         });

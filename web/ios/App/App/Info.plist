@@ -47,5 +47,17 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
+	<!-- OAuth handoff: server redirects to meos://auth/complete|error — must match MOBILE_OAUTH_REDIRECT_SCHEME -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.stephencweiss.meos.oauth</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>meos</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>

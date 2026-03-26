@@ -16,7 +16,7 @@ export default async function LoginPage({
 
   // If already logged in, redirect to callback URL or home
   if (session?.user) {
-    redirect(params.callbackUrl ?? "/");
+    redirect(params.callbackUrl ?? "/today");
   }
 
   return (
@@ -49,13 +49,13 @@ export default async function LoginPage({
         )}
 
         <GoogleSignInShell
-          callbackUrl={params.callbackUrl ?? "/"}
+          callbackUrl={params.callbackUrl ?? "/today"}
         >
           <form
             action={async () => {
               "use server";
               await signIn("google", {
-                redirectTo: params.callbackUrl ?? "/",
+                redirectTo: params.callbackUrl ?? "/today",
               });
             }}
           >

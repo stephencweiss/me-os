@@ -1,6 +1,7 @@
 "use client";
 
 import { useSession, signOut } from "next-auth/react";
+import Link from "next/link";
 import { useState } from "react";
 
 export function UserMenu() {
@@ -55,20 +56,20 @@ export function UserMenu() {
                   {user.email}
                 </p>
               </div>
-              <a
+              <Link
                 href="/settings"
                 className="block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
                 onClick={() => setIsOpen(false)}
               >
                 Settings
-              </a>
-              <a
+              </Link>
+              <Link
                 href="/settings/accounts"
                 className="block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
                 onClick={() => setIsOpen(false)}
               >
                 Linked Accounts
-              </a>
+              </Link>
               <button
                 onClick={() => signOut({ callbackUrl: "/login" })}
                 className="block w-full text-left px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-700"

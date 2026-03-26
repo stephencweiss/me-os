@@ -39,7 +39,7 @@ export async function POST(req: Request) {
     body = {};
   }
 
-  const redirectTo = safeRelativeRedirectPath(body.callbackUrl, "/");
+  const redirectTo = safeRelativeRedirectPath(body.callbackUrl, "/today");
 
   await purgeExpiredMobileOauthRows().catch(() => {});
 

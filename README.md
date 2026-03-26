@@ -1,199 +1,156 @@
 # MeOS - Personal Operating System
 
-A personal productivity system built as Claude Code skills and MCP integrations. MeOS consolidates calendar management, time tracking, and schedule optimization into a conversational interface.
+A personal productivity system built as Claude Code skills, MCP integrations, and a **Next.js web app** (`web/`). MeOS consolidates calendar management, time tracking, weekly goals, and schedule optimization into a conversational interface and a browser/mobile UI.
+
+**Agent and contributor source of truth:** [`CLAUDE.md`](./CLAUDE.md) (skills registry, structure, commands). This README is the human-oriented overview.
 
 ## Features
 
-### Available Skills
+### Claude Code skills
 
 | Skill | Description | Status |
 |-------|-------------|--------|
-| `/calendar` | Week-at-a-glance view, event colors, RSVP management | Available |
-| `/time-report` | Time analysis, gap detection, category breakdowns | Available |
+| `/calendar` | Week-at-a-glance view, event colors | Available |
+| `/calendar-setup` | Calendar types for tracking and scheduling | Available |
+| `/calendar-manager` | Conflicts, categorization, flex time | Available |
 | `/calendar-optimizer` | Goal-based schedule optimization | Available |
-| `/one-on-one` | 1:1 note processing (voice, image, text) and summaries | Available |
-| `/project-dash` | JIRA/project status dashboard | Planned |
+| `/weekly-goals` | Weekly goals in MeOS (DB / web) | Available |
+| `/time-report` | Time analysis, gaps, category breakdowns | Available |
+| `/one-on-one` | 1:1 notes (voice, image, text) and summaries | Available |
+| `/project-dash` | JIRA / project status dashboard | Planned |
+
+### Web app (`web/`)
+
+- **Routes:** `/today` (agenda), `/week?range=…` (roll-up analytics), `/goals`, `/settings` (and linked accounts). `/` redirects to `/today`; `/day` redirects to `/today`.
+- **Mobile:** Capacitor iOS shell loads the hosted Next app; system-browser Google OAuth for native (see env notes below).
 
 ### Google Calendar MCP Server
 
-11 tools for comprehensive calendar management:
+Calendar tools (list calendars, events, week view, create/update/delete events, colors, RSVP, etc.) live under `mcp/google-calendar/`. Configure via `.mcp.json` as in [Configure Claude Code](#configure-claude-code) below.
 
-- `list_calendars` - List all accessible calendars
-- `get_events` - Get events for a date range
-- `get_week_view` - Week-at-a-glance with colors
-- `get_today` - Today's events
-- `search_events` - Search by title
-- `create_event` - Create new events
-- `update_event_color` - Change event colors
-- `update_event_status` - RSVP (accept/decline/tentative)
-- `update_event_time` - Reschedule events
-- `delete_event` - Remove events
-- `decline_event` - Smart decline with cleanup
-- `get_color_definitions` - Semantic color meanings
+### Multi-account support
 
-### Multi-Account Support
+Multiple Google accounts (e.g. personal + work) with merged, chronological views.
 
-Supports multiple Google accounts (e.g., personal + work) with unified views. Events from all accounts are merged and sorted chronologically.
+## Tech stack
 
-## Tech Stack
+- **Languages:** TypeScript, Node.js
+- **CLI / skills:** Claude Code, MCP servers
+- **Web:** Next.js (App Router) in `web/`, Auth.js, Supabase adapter, Vitest + Testing Library
+- **Calendar:** Google Calendar API (OAuth2)
+- **Tests:** Run `pnpm test` at the repo root for the current count (root + `web/` workspaces).
 
-- **Language**: TypeScript/Node.js
-- **Runtime**: Claude Code skills and MCP servers
-- **Calendar**: Google Calendar API (OAuth2)
-- **Testing**: Vitest (171 tests passing)
-
-## Project Structure
+## Project structure
 
 ```
 me-os/
-├── .claude/
-│   └── skills/           # Claude Code skill definitions
-│       ├── calendar/
-│       ├── time-report/
-│       ├── calendar-optimizer/
-│       └── one-on-one/
-├── mcp/
-│   └── google-calendar/  # MCP server (11 tools, 2 resources)
-├── lib/
-│   ├── google-auth.ts    # OAuth2 multi-account support
-│   ├── time-analysis.ts  # Gap detection, color grouping
-│   ├── calendar-manager.ts # Overlap detection, flex slots
-│   ├── calendar-optimizer.ts # Goal parsing, slot allocation
-│   ├── calendar-filter.ts # Calendar type system
-│   ├── schedule.ts       # Weekly schedule configuration
-│   └── one-on-one.ts     # 1:1 note management
-├── scripts/
-│   └── weekly-report.ts  # Standalone time report CLI
-├── config/               # Configuration files
-│   ├── sensitive/        # Credentials & tokens (gitignored)
-│   │   ├── credentials-*.json
-│   │   └── tokens-*.json
-│   ├── colors.json       # Semantic color definitions
-│   ├── calendars.json    # Calendar type config (gitignored - personal)
-│   ├── schedule.json     # Weekly schedule template
-│   └── optimization-goals.json
-├── config.example/       # Config templates
-├── tests/                # Unit tests (Vitest)
-└── plans/                # Implementation plans
+├── CLAUDE.md              # Canonical agent instructions (skills, commands)
+├── AGENTS.md              # Symlink → CLAUDE.md (Codex)
+├── web/                   # Next.js app (dashboard, goals, settings, Capacitor)
+├── .claude/skills/        # Skill definitions (SKILL.md per skill)
+├── mcp/                   # MCP servers (e.g. google-calendar/)
+├── lib/                   # Shared Node utilities (calendar, auth, reports, …)
+├── scripts/               # CLIs (sync, reports, migrations helpers, …)
+├── supabase/migrations/   # Postgres DDL for the web app (apply: pnpm db:push from root)
+├── docs/                  # Specs, plans, testing notes
+├── config/                # Local config (gitignored secrets under config/sensitive/)
+├── config.example/        # Templates
+├── tests/                 # Root Vitest tests
+└── plans/                 # Legacy / ad-hoc plans
 ```
 
-## Color Schema
+## Color schema
 
-Events are color-coded with semantic meaning. **Source of truth:** `config/colors.json`.
+Events use semantic colors. **Source of truth:** `config/colors.json`.
 
-## Schedule Configuration
+## Schedule configuration
 
-The schedule defines your waking hours and work hours by day of week, used for gap analysis and calendar optimization.
+The schedule defines waking and work hours by weekday (gap analysis and optimization). **Default** lives in `config/schedule.json` (see previous README sections in git history for the full JSON example). **Overrides** and **holidays** are supported there.
 
-**Default schedule** (`config/schedule.json`):
-```json
-{
-  "defaultSchedule": {
-    "weekday": {
-      "awakePeriod": { "start": 6, "end": 22 },
-      "workPeriod": { "start": 9, "end": 17 }
-    },
-    "weekend": {
-      "awakePeriod": { "start": 6, "end": 22 },
-      "workPeriod": null
-    }
-  },
-  "overrides": {},
-  "holidays": []
-}
-```
-
-- **Work days**: Gap analysis uses work hours (9am-5pm by default)
-- **Weekends/holidays**: Gap analysis uses waking hours (6am-10pm)
-- **Overrides**: Customize specific days (e.g., shorter Fridays)
-- **Holidays**: Treated as weekends (no work hours)
-
-## Getting Started
+## Getting started
 
 ### Prerequisites
 
-- Node.js 18+
-- Claude Code CLI
-- Google Cloud project with Calendar API enabled
+- **Node.js** 18+ (LTS recommended)
+- **pnpm** via Corepack: `corepack enable pnpm`
+- Google Cloud project with Calendar API enabled (for calendar features)
+- **Web app:** Supabase project + Google OAuth client for web (see `web/.env.local` patterns in `CLAUDE.md` / deployment docs)
 
-### Installation
+### Installation (monorepo)
 
-Use **[pnpm](https://pnpm.io/)** (not npm). Corepack: `corepack enable pnpm`.
+Use **one** install at the **repository root**; `pnpm-workspace.yaml` includes `web`, so workspace dependencies resolve together.
 
 ```bash
-# Clone the repository
 git clone <repo-url>
 cd me-os
-
-# Install dependencies
 pnpm install
+```
 
+You do **not** need a separate `pnpm install` inside `web/` for normal development. If a stray `web/pnpm-lock.yaml` exists alongside the root lockfile, it can confuse tooling—prefer a **single root** `pnpm-lock.yaml`.
+
+```bash
 # Copy config templates
 cp -r config.example/* config/
 
-# Set up Google OAuth2 credentials (see "Google Calendar Setup" below)
-mkdir -p config/sensitive
-# Then add credentials-{account}.json from Google Cloud Console
-
-# Build TypeScript
+# Root TypeScript build (CLI / lib)
 pnpm run build
+
+# Web production build (from repo root or from web/)
+pnpm --filter web run build
 ```
 
-### Google Calendar Setup
-
-MeOS uses OAuth2 to access Google Calendar. You need to create credentials in the Google Cloud Console and save them to `config/sensitive/credentials-{account}.json` (e.g., `credentials-personal.json`, `credentials-work.json` for multiple accounts).
-
-#### Obtaining OAuth2 Credentials
-
-1. **Create or select a Google Cloud project**
-   - Go to [Google Cloud Console](https://console.cloud.google.com/)
-   - Create a new project (or select an existing one)
-   - Note: For personal use, "MeOS" or similar is fine as the project name
-
-2. **Enable the Google Calendar API**
-   - In the sidebar: **APIs & Services** → **Library**
-   - Search for "Google Calendar API" and enable it
-
-3. **Configure the OAuth consent screen** (required before creating credentials)
-   - **APIs & Services** → **OAuth consent screen**
-   - Choose **External** (unless you use a Google Workspace org)
-   - Fill in app name (e.g., "MeOS"), your email as User support email
-   - Add your Google account email under **Test users** (for "Testing" publishing status)
-   - Save
-
-4. **Create OAuth 2.0 Client ID**
-   - **APIs & Services** → **Credentials** → **Create Credentials** → **OAuth client ID**
-   - Application type: **Desktop app**
-   - Name: e.g., "MeOS Calendar"
-   - Click **Create**
-
-5. **Download the credentials JSON**
-   - On the Credentials page, click the download (↓) icon next to your new OAuth 2.0 Client ID
-   - This downloads a file like `client_secret_XXXXX.json`
-
-6. **Save to the expected location**
-   - Create `config/sensitive/` if it does not exist
-   - Copy the downloaded file to `config/sensitive/credentials-{account}.json`
-   - Example: `config/sensitive/credentials-personal.json`
-   - Optional: Add `"associated_account": "you@gmail.com"` at the top level to document which Google account this is for
-
-   Use `config.example/sensitive/credentials.json` as a format reference. The downloaded JSON has an `installed` (or `web`) block with `client_id`, `client_secret`, `redirect_uris`, etc.—that structure is what the app expects.
-
-7. **Authenticate each account**
+### Web app dev server
 
 ```bash
-# Authenticate personal account
-GOOGLE_ACCOUNT=personal pnpm run auth
-
-# Authenticate work account (if you have multiple credentials files)
-GOOGLE_ACCOUNT=work pnpm run auth
+pnpm --filter web run dev
+# → http://localhost:3000 (default); `/` redirects to `/today`
 ```
 
-   On first run, a browser window opens; sign in with the Google account and approve Calendar access. Tokens are saved to `config/sensitive/tokens-{account}.json` automatically.
+Create `web/.env.local` with at least `AUTH_URL` / `NEXTAUTH_URL`, Google OAuth IDs, and Supabase variables as required by your setup. Apply DB migrations from the repo root: `pnpm db:push` (see `scripts/migrations/README.md`).
+
+### Web app: subpath behind another site (e.g. Hugo on Vercel)
+
+**Canonical public path for this app:** **`/app/me-os`** (full URL shape `https://your.domain/app/me-os/...`). Do not confuse that with a bare **`/app`** prefix—`/app` alone is a different mount point and needs `NEXT_PUBLIC_BASE_PATH=/app` plus matching rewrites and `AUTH_URL`.
+
+If the public URL is **not** the Vercel project root (for example the app appears at `https://your.domain/app/me-os` while the Next project is `https://your-app.vercel.app`):
+
+1. Set **`NEXT_PUBLIC_BASE_PATH`** in the **MeOS Vercel project** to **`/app/me-os`** (no trailing slash). This must match `next.config`’s `basePath` (derived from the same env at build time).
+2. Set **`AUTH_URL`** / **`NEXTAUTH_URL`** to the **full public base** users see, including the path: e.g. `https://your.domain/app/me-os`. Google OAuth **Authorized redirect URIs** must include  
+   `https://your.domain/app/me-os/api/auth/mobile/google/callback`.
+3. On the **proxy site** (Hugo), Vercel rewrites must forward the **same path** to the Next deployment, not strip it. For example:
+
+```json
+{
+  "source": "/app/me-os/:path*",
+  "destination": "https://your-app.vercel.app/app/me-os/:path*"
+}
+```
+
+**Common mistake:** rewriting to `https://your-app.vercel.app/:path*` (dropping `/app/me-os` on the destination). The browser still loads HTML from `/app/me-os/...`, but relative API calls and assets expect the deployment to be mounted at **`/app/me-os`** on that host. The destination must preserve that prefix, as in the example above. If you intentionally host MeOS at **`https://your.domain/app`** only (no `/me-os`), use `NEXT_PUBLIC_BASE_PATH=/app` and align `AUTH_URL` and rewrites for **`/app`** end-to-end instead—see your site’s `hugo-deploy-plans.md` if you use that shorter pattern.
+
+### Capacitor / iOS simulator (OAuth)
+
+- **`AUTH_URL` / `NEXTAUTH_URL`** must match the **public base URL** of the app (origin **and** path if you use `NEXT_PUBLIC_BASE_PATH`). Google’s redirect URI is **`{AUTH_URL}/api/auth/mobile/google/callback`**. For local dev at the site root, use `http://localhost:3000` when the WebView loads that origin.
+- If the WebView origin is not your API host (e.g. packaged `capacitor://` assets), set **`NEXT_PUBLIC_APP_ORIGIN`** to the same base you use for `AUTH_URL` (e.g. `http://localhost:3000` or your LAN URL) so native sign-in can reach `/api/auth/mobile/*`. **When to set it** is explained in `web/.env.local.example` (most local simulator flows can omit it).
+- **`MOBILE_OAUTH_REDIRECT_SCHEME`** (server) and **`NEXT_PUBLIC_MOBILE_OAUTH_REDIRECT_SCHEME`** (client) should be the bare scheme name (e.g. `meos`), not `meos://`.
+- **Custom URL scheme on iOS:** After Google OAuth, the server redirects to **`meos://auth/complete?...`**. The native app must declare the **`meos`** scheme in **`ios/App/App/Info.plist`** (`CFBundleURLTypes`). Without it, Safari shows an invalid/malformed address. Rebuild the iOS app in Xcode after changing the plist.
+
+### Google Calendar Setup (CLI / MCP)
+
+MeOS uses OAuth2 for Google Calendar. Create credentials in Google Cloud Console and save them under `config/sensitive/credentials-{account}.json`. Use `config.example/sensitive/credentials.json` as a shape reference.
+
+Authenticate:
+
+```bash
+GOOGLE_ACCOUNT=personal pnpm run auth
+GOOGLE_ACCOUNT=work pnpm run auth    # optional second account
+```
+
+Tokens are written to `config/sensitive/tokens-{account}.json`.
 
 ### Configure Claude Code
 
-Add to your `.mcp.json`:
+Add to `.mcp.json`:
 
 ```json
 {
@@ -207,30 +164,17 @@ Add to your `.mcp.json`:
 }
 ```
 
-### Dependency Rules Configuration
+### Dependency rules configuration
 
-Dependent coverage rules are configured in `config/dependencies.json`.
-
-- `config.example/dependencies.json` is a template only.
-- Calendar names like `Social`, `Family`, or `Travel` in the example may not exist in your account.
-- You must replace them with your real calendar names in `config/dependencies.json`.
-
-Rule fields:
-- `trigger.sourceCalendars`: calendars scanned for source events that trigger a rule.
-- `requirement.coverageSearchCalendars`: calendars searched for existing coverage.
-- `requirement.createTarget.account` + `requirement.createTarget.calendar`: where missing coverage should be created.
-
-Validate your config against live authenticated accounts/calendars:
+Dependent coverage rules live in `config/dependencies.json` (template: `config.example/dependencies.json`). Validate against live calendars:
 
 ```bash
 pnpm run validate:dependencies
 ```
 
-This validation fails fast with explicit errors if any source/search/target account/calendar references are invalid.
+## Usage (skills)
 
-## Usage
-
-### Time Report
+### Time report
 
 ```
 /time-report              # This week's summary
@@ -238,76 +182,51 @@ This validation fails fast with explicit errors if any source/search/target acco
 /time-report today        # Today's schedule
 ```
 
-### Calendar Optimizer
+### Calendar optimizer
 
 ```
 /calendar-optimizer       # Analyze week with recurring goals
-/calendar-optimizer status # Show goal progress
-/calendar-optimizer goals  # Manage recurring goals
-/calendar-optimizer add-goal # Add a new recurring goal
+/calendar-optimizer status
+/calendar-optimizer goals
+/calendar-optimizer add-goal
 ```
 
-Example goals:
-- "4 hours of writing time (1-2 hour sessions)"
-- "workout 3x this week, 45 min each"
-- "2h focus time in the morning"
-
-### One-on-One Notes
+### One-on-one notes
 
 ```
-/one-on-one <name>              # Start or continue 1:1 with person
-/one-on-one <name> add <file>   # Process voice/image/markdown file
-/one-on-one <name> note         # Add text notes interactively
-/one-on-one <name> summary      # Generate summary from today's notes
-/one-on-one <name> history      # View past 1:1s
-/one-on-one list                # List all direct reports
+/one-on-one <name>
+/one-on-one <name> add <file>
+/one-on-one <name> note
+/one-on-one <name> summary
+/one-on-one <name> history
+/one-on-one list
 ```
 
-Supported file types:
-- **Voice notes**: `.m4a`, `.mp3`, `.wav`, `.ogg` - transcribed using Claude's native audio
-- **Handwritten notes**: `.jpg`, `.jpeg`, `.png`, `.heic` - interpreted using Claude's vision
-- **Markdown files**: `.md`, `.txt` - loaded directly
-
+Supported inputs include voice, images, and markdown/text files (see skill docs).
 
 ## Development
 
-### Running Tests
+| Task | Command |
+|------|---------|
+| All workspace tests | `pnpm test` (repo root) |
+| Web tests only | `pnpm --filter web run test:run` |
+| Root TypeScript check | `pnpm exec tsc --noEmit` |
+| Web lint | `pnpm --filter web run lint` |
 
-```bash
-pnpm test
-```
+### Adding a new skill
 
-### Validate Dependency Config
+1. Add or extend a plan under `docs/plans/` or `docs/superpowers/plans/`.
+2. Prefer TDD where code is involved.
+3. Add `.claude/skills/<name>/SKILL.md`.
+4. Register the skill in **`CLAUDE.md`** (required).
 
-```bash
-pnpm run validate:dependencies
-```
+## Implementation status
 
-### Type Checking
+- **Phases 1–4** (calendar, time reports, calendar manager/optimizer, schedule, one-on-ones): shipped in skills + scripts.
+- **Web app:** Today / week / goals UI, settings, Supabase-backed sessions, Capacitor shell (ongoing).
+- **Phase 5:** Project dashboard — planned.
 
-```bash
-pnpm exec tsc --noEmit
-```
-
-### Adding a New Skill
-
-1. Create a plan in `plans/`
-2. Write tests first (TDD)
-3. Implement the feature
-4. Create skill file in `.claude/skills/{name}/SKILL.md`
-5. Update this README
-
-## Implementation Status
-
-- **Phase 1**: Foundation & Google Calendar - Complete
-- **Phase 2**: Time Reports & Analytics - Complete
-- **Phase 2.5**: Calendar Manager - Complete
-- **Phase 3**: Calendar Optimizer - Complete
-- **Phase 3.5**: Schedule Configuration - Complete
-- **Phase 4**: One-on-One Management - Complete
-- **Phase 5**: Project Dashboard - Planned
-
-See `plans/me-os-implementation-plan.md` for detailed progress.
+See `plans/me-os-implementation-plan.md` for historical detail.
 
 ## License
 

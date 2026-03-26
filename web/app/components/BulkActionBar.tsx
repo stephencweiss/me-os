@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { withBasePath } from "@/lib/base-path";
 
 interface CategorySuggestion {
   eventId: string;
@@ -65,7 +66,7 @@ export default function BulkActionBar({
   const handleGetSuggestions = async () => {
     setLoadingSuggestions(true);
     try {
-      const response = await fetch("/api/events/suggest", {
+      const response = await fetch(withBasePath("/api/events/suggest"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ eventIds: selectedEventIds }),
