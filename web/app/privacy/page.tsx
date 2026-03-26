@@ -30,8 +30,7 @@ export default function PrivacyPage() {
 
       <LegalSection title="How information is stored">
         <p>
-          The operator’s deployment may store account and session data (for
-          example via a database such as Supabase) to keep you signed in and to
+          The operator’s deployment may store account and session data to keep you signed in and to
           persist preferences, goals, and app-generated content. What is stored
           depends on how the operator configured the deployment.
         </p>
