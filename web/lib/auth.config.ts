@@ -6,6 +6,7 @@
 import type { NextAuthConfig } from "next-auth";
 import Google from "next-auth/providers/google";
 import { SupabaseAdapter } from "@auth/supabase-adapter";
+import { getAuthJsBasePath } from "./base-path";
 
 const supabaseUrl =
   process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -22,6 +23,8 @@ const authSecret = process.env.AUTH_SECRET ?? process.env.NEXTAUTH_SECRET;
 
 export const authConfig: NextAuthConfig = {
   ...(authSecret ? { secret: authSecret } : {}),
+  /** Must match real URL shape; do not rely on inferring from `AUTH_URL` pathname alone. */
+  basePath: getAuthJsBasePath(),
   providers: [
     Google({
       clientId: process.env.GOOGLE_CLIENT_ID ?? "",

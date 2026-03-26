@@ -129,8 +129,7 @@ Redeploy after adding or changing secrets.
 If the public URL is **not** the Vercel project root (for example the app appears at `https://your.domain/app/me-os` while the Next project is `https://your-app.vercel.app`):
 
 1. Set **`NEXT_PUBLIC_BASE_PATH`** in the **MeOS Vercel project** to **`/app/me-os`** (no trailing slash). This must match `next.config`’s `basePath` (derived from the same env at build time).
-2. Set **`AUTH_URL`** / **`NEXTAUTH_URL`** to the **full public base** users see, including the path: e.g. `https://your.domain/app/me-os`. Google OAuth **Authorized redirect URIs** must include  
-   `https://your.domain/app/me-os/api/auth/mobile/google/callback`.
+2. Set **`AUTH_URL`** / **`NEXTAUTH_URL`** to the **full public base** users see, including the path: e.g. `https://your.domain/app/me-os`. Google OAuth **Authorized redirect URIs** must include the **web** callback `https://your.domain/app/me-os/api/auth/callback/google` and the **mobile** callback `https://your.domain/app/me-os/api/auth/mobile/google/callback` (Auth.js `basePath` is `{NEXT_PUBLIC_BASE_PATH}/api/auth`, not the app mount alone—so the segment `/api/auth` is required).
 3. On the **proxy site** (Hugo), Vercel rewrites must forward the **same path** to the Next deployment, not strip it. For example:
 
 ```json
