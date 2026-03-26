@@ -1,5 +1,6 @@
 import { GoogleSignInShell } from "@/app/components/google-sign-in-shell";
 import { auth, signIn } from "@/lib/auth";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 
 export default async function LoginPage({
@@ -74,6 +75,23 @@ export default async function LoginPage({
         <p className="mt-4 text-center text-xs text-gray-500 dark:text-gray-400">
           By signing in, you agree to connect your Google Calendar for time
           tracking and scheduling features.
+        </p>
+        <p className="text-center text-xs text-gray-500 dark:text-gray-400">
+          <Link
+            href="/privacy"
+            className="text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 underline-offset-2 hover:underline"
+          >
+            Privacy Policy
+          </Link>
+          <span className="mx-2" aria-hidden>
+            ·
+          </span>
+          <Link
+            href="/terms"
+            className="text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 underline-offset-2 hover:underline"
+          >
+            Terms of Service
+          </Link>
         </p>
       </div>
     </div>
