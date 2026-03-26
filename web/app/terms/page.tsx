@@ -28,10 +28,11 @@ export default function TermsPage() {
 
       <LegalSection title="Your account">
         <p>
-          You may need a Google account to sign in. You are responsible for
-          safeguarding your account and for activity under your session. You
-          must provide accurate information where requested and comply with
-          Google’s terms when using Google sign-in.
+          You may need a third-party account, such as a Google account, to fully 
+          benefit from the service. You are responsible for safeguarding your 
+          account and for activity under your session. You must provide accurate
+          information where requested and comply with Google’s terms when using
+          Google sign-in.
         </p>
       </LegalSection>
 
