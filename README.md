@@ -141,6 +141,8 @@ If the public URL is **not** the Vercel project root (for example the app appear
 
 **Common mistake:** rewriting to `https://your-app.vercel.app/:path*` (dropping `/app/me-os` on the destination). The browser still loads HTML from `/app/me-os/...`, but relative API calls and assets expect the deployment to be mounted at **`/app/me-os`** on that host. The destination must preserve that prefix, as in the example above. If you intentionally host MeOS at **`https://your.domain/app`** only (no `/me-os`), use `NEXT_PUBLIC_BASE_PATH=/app` and align `AUTH_URL` and rewrites for **`/app`** end-to-end instead—see your site’s `hugo-deploy-plans.md` if you use that shorter pattern.
 
+**OAuth callback 400 (“Bad request.”):** Next.js strips `basePath` from `req.url` inside Route Handlers, while Auth.js is configured with `basePath` `{mount}/api/auth`. The `[...nextauth]` route restores the full pathname before calling Auth so the Google callback can be parsed (see `web/lib/auth-request-url.ts`).
+
 ### Capacitor / iOS simulator (OAuth)
 
 - **`AUTH_URL` / `NEXTAUTH_URL`** must match the **public base URL** of the app (origin **and** path if you use `NEXT_PUBLIC_BASE_PATH`). Google’s redirect URI is **`{AUTH_URL}/api/auth/mobile/google/callback`**. For local dev at the site root, use `http://localhost:3000` when the WebView loads that origin.
