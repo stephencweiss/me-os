@@ -13,7 +13,15 @@ const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 /** Database sessions require URL + service role (proxy runs before routes — keep both in `.env.local`). */
 export const isSupabaseConfigured = !!(supabaseUrl && supabaseServiceKey);
 
+/**
+ * Auth.js session signing secret. Required in production (e.g. Vercel); without it you get
+ * `MissingSecret` — https://errors.authjs.dev#missingsecret
+ * Generate: `openssl rand -base64 32`
+ */
+const authSecret = process.env.AUTH_SECRET ?? process.env.NEXTAUTH_SECRET;
+
 export const authConfig: NextAuthConfig = {
+  ...(authSecret ? { secret: authSecret } : {}),
   providers: [
     Google({
       clientId: process.env.GOOGLE_CLIENT_ID ?? "",
