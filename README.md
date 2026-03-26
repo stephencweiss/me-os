@@ -108,6 +108,20 @@ pnpm --filter web run dev
 
 Create `web/.env.local` with at least `AUTH_URL` / `NEXTAUTH_URL`, Google OAuth IDs, and Supabase variables as required by your setup. Apply DB migrations from the repo root: `pnpm db:push` (see `scripts/migrations/README.md`).
 
+### Web app: Vercel / production
+
+In the **Vercel** project for `web/`, set environment variables for **Production** (and Preview if you use auth there). Auth.js will fail at runtime with **`MissingSecret`** if the signing secret is absent — see https://errors.authjs.dev#missingsecret.
+
+| Variable | Notes |
+|----------|--------|
+| **`AUTH_SECRET`** or **`NEXTAUTH_SECRET`** | **Required.** Same value in every environment where users sign in. Generate once: `openssl rand -base64 32`. |
+| **`AUTH_URL`** / **`NEXTAUTH_URL`** | Public origin (and path if using `NEXT_PUBLIC_BASE_PATH`), e.g. `https://your.domain/app/me-os`. |
+| **`GOOGLE_CLIENT_ID`** / **`GOOGLE_CLIENT_SECRET`** | Web OAuth client. |
+| **`SUPABASE_URL`** / **`SUPABASE_SERVICE_ROLE_KEY`** | Needed for database sessions + adapter (match local setup). |
+| **`NEXT_PUBLIC_BASE_PATH`** | If the app is served under a prefix (e.g. `/app/me-os`). |
+
+Redeploy after adding or changing secrets.
+
 ### Web app: subpath behind another site (e.g. Hugo on Vercel)
 
 **Canonical public path for this app:** **`/app/me-os`** (full URL shape `https://your.domain/app/me-os/...`). Do not confuse that with a bare **`/app`** prefix—`/app` alone is a different mount point and needs `NEXT_PUBLIC_BASE_PATH=/app` plus matching rewrites and `AUTH_URL`.
