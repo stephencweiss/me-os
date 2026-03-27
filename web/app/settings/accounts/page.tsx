@@ -1,6 +1,6 @@
 "use client";
 
-import { useSession } from "next-auth/react";
+import { useAuth } from "@clerk/nextjs";
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import Button from "@/app/components/Button";
@@ -19,7 +19,7 @@ interface LinkedMeta {
 }
 
 export default function AccountsPage() {
-  const { status } = useSession();
+  const { isSignedIn, isLoaded } = useAuth();
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [linked, setLinked] = useState<LinkedMeta[]>([]);
   const [loading, setLoading] = useState(true);
@@ -68,12 +68,13 @@ export default function AccountsPage() {
       }
     }
 
-    if (status === "authenticated") {
-      load();
-    } else if (status === "unauthenticated") {
+    if (!isLoaded) return;
+    if (isSignedIn) {
+      void load();
+    } else {
       setLoading(false);
     }
-  }, [status, refreshData]);
+  }, [isLoaded, isSignedIn, refreshData]);
 
   useEffect(() => {
     if (typeof window === "undefined" || loading) return;
@@ -121,7 +122,7 @@ export default function AccountsPage() {
     }
   }
 
-  if (status === "loading" || loading) {
+  if (!isLoaded || loading) {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-8">
         <div className="max-w-2xl mx-auto">
@@ -138,7 +139,7 @@ export default function AccountsPage() {
     );
   }
 
-  if (status === "unauthenticated") {
+  if (!isSignedIn) {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-8">
         <div className="max-w-2xl mx-auto text-center">

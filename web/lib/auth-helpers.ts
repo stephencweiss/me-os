@@ -1,9 +1,20 @@
-import { auth } from "./auth";
+import { auth as clerkAuth, currentUser } from "@clerk/nextjs/server";
+import { auth as nextAuth } from "./auth";
 import { NextResponse } from "next/server";
+
+const APP_USER_META_KEY = "app_user_id";
 
 export type AuthResult =
   | { authorized: true; userId: string; email: string | null }
   | { authorized: false; response: NextResponse };
+
+function appUserIdFromPublicMetadata(
+  meta: Record<string, unknown> | undefined
+): string | null {
+  if (!meta) return null;
+  const v = meta[APP_USER_META_KEY];
+  return typeof v === "string" && v.length > 0 ? v : null;
+}
 
 /**
  * Require authentication for an API route.
@@ -20,8 +31,29 @@ export type AuthResult =
  * ```
  */
 export async function requireAuth(): Promise<AuthResult> {
-  const session = await auth();
+  const clerk = await clerkAuth();
+  if (clerk.userId) {
+    const user = await currentUser();
+    const appUserId = appUserIdFromPublicMetadata(
+      user?.publicMetadata as Record<string, unknown> | undefined
+    );
+    if (!appUserId) {
+      return {
+        authorized: false,
+        response: NextResponse.json(
+          { error: "Unauthorized", code: "CLERK_APP_USER_PENDING" },
+          { status: 401 }
+        ),
+      };
+    }
+    return {
+      authorized: true,
+      userId: appUserId,
+      email: user?.primaryEmailAddress?.emailAddress ?? null,
+    };
+  }
 
+  const session = await nextAuth();
   if (!session?.user?.id) {
     return {
       authorized: false,
@@ -41,8 +73,26 @@ export async function requireAuth(): Promise<AuthResult> {
  * Returns null if not authenticated.
  */
 export async function getOptionalAuth() {
-  const session = await auth();
+  const clerk = await clerkAuth();
+  if (clerk.userId) {
+    const user = await currentUser();
+    const appUserId = appUserIdFromPublicMetadata(
+      user?.publicMetadata as Record<string, unknown> | undefined
+    );
+    if (!appUserId) return null;
+    const name =
+      [user?.firstName, user?.lastName].filter(Boolean).join(" ").trim() ||
+      user?.username ||
+      null;
+    return {
+      userId: appUserId,
+      email: user?.primaryEmailAddress?.emailAddress ?? null,
+      name,
+      image: user?.imageUrl ?? null,
+    };
+  }
 
+  const session = await nextAuth();
   if (!session?.user?.id) {
     return null;
   }

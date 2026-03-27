@@ -1,12 +1,12 @@
 "use client";
 
-import { useSession } from "next-auth/react";
+import { useUser } from "@clerk/nextjs";
 import Link from "next/link";
 
 export default function SettingsPage() {
-  const { data: session, status } = useSession();
+  const { user, isLoaded } = useUser();
 
-  if (status === "loading") {
+  if (!isLoaded) {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-8">
         <div className="max-w-2xl mx-auto">
@@ -22,7 +22,7 @@ export default function SettingsPage() {
     );
   }
 
-  if (status === "unauthenticated") {
+  if (!user) {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-8">
         <div className="max-w-2xl mx-auto text-center">
@@ -42,6 +42,8 @@ export default function SettingsPage() {
       </div>
     );
   }
+
+  const email = user.primaryEmailAddress?.emailAddress ?? "";
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-8">
@@ -192,7 +194,7 @@ export default function SettingsPage() {
             <p>
               Signed in as{" "}
               <span className="font-medium text-gray-900 dark:text-white">
-                {session?.user?.email}
+                {email || user.username || "—"}
               </span>
             </p>
           </div>

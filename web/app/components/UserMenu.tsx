@@ -1,24 +1,30 @@
 "use client";
 
-import { useSession, signOut } from "next-auth/react";
+import { useClerk, useUser } from "@clerk/nextjs";
 import Link from "next/link";
 import { useState } from "react";
 
 export function UserMenu() {
-  const { data: session, status } = useSession();
+  const { user, isLoaded } = useUser();
+  const { signOut } = useClerk();
   const [isOpen, setIsOpen] = useState(false);
 
-  if (status === "loading") {
+  if (!isLoaded) {
     return (
       <div className="h-8 w-8 rounded-full bg-gray-200 dark:bg-gray-700 animate-pulse" />
     );
   }
 
-  if (!session?.user) {
+  if (!user) {
     return null;
   }
 
-  const { user } = session;
+  const email = user.primaryEmailAddress?.emailAddress ?? "";
+  const name =
+    [user.firstName, user.lastName].filter(Boolean).join(" ").trim() ||
+    user.username ||
+    email ||
+    "User";
 
   return (
     <div className="relative">
@@ -27,15 +33,15 @@ export function UserMenu() {
         className="flex items-center gap-2 rounded-full p-1 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
         aria-label="User menu"
       >
-        {user.image ? (
+        {user.imageUrl ? (
           <img
-            src={user.image}
-            alt={user.name ?? "User"}
+            src={user.imageUrl}
+            alt={name}
             className="h-8 w-8 rounded-full"
           />
         ) : (
           <div className="h-8 w-8 rounded-full bg-blue-500 flex items-center justify-center text-white text-sm font-medium">
-            {user.name?.[0] ?? user.email?.[0] ?? "U"}
+            {name[0]?.toUpperCase() ?? "U"}
           </div>
         )}
       </button>
@@ -50,11 +56,13 @@ export function UserMenu() {
             <div className="py-1">
               <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700">
                 <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
-                  {user.name}
+                  {name}
                 </p>
-                <p className="text-sm text-gray-500 dark:text-gray-400 truncate">
-                  {user.email}
-                </p>
+                {email ? (
+                  <p className="text-sm text-gray-500 dark:text-gray-400 truncate">
+                    {email}
+                  </p>
+                ) : null}
               </div>
               <Link
                 href="/settings"
@@ -71,7 +79,10 @@ export function UserMenu() {
                 Linked Accounts
               </Link>
               <button
-                onClick={() => signOut({ callbackUrl: "/login" })}
+                type="button"
+                onClick={() =>
+                  void signOut({ redirectUrl: "/login" })
+                }
                 className="block w-full text-left px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-700"
               >
                 Sign out
