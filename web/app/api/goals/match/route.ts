@@ -7,6 +7,7 @@ import {
   recordGoalProgress,
   recalculateGoalProgress,
 } from "@/lib/db-unified";
+import { withTenantSupabaseForApi } from "@/lib/with-tenant-supabase";
 
 // Minimal types for matching - compatible with both Turso and Supabase
 interface MatchableEvent {
@@ -214,13 +215,8 @@ function processBatchMatches(events: MatchableEvent[], goals: MatchableGoal[]): 
  *   - autoRecord?: boolean - If true, automatically record high-confidence matches (default: false)
  */
 export async function POST(request: NextRequest) {
-  // Require authentication (skipped in local mode)
   const authResult = await requireAuthUnlessLocal();
-  if (!authResult.authorized) {
-    return authResult.response;
-  }
-  const { userId } = authResult;
-
+  return withTenantSupabaseForApi(authResult, async ({ userId }) => {
   try {
     const body = await request.json();
     const { weekId, autoRecord = false } = body;
@@ -288,4 +284,5 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
+  });
 }

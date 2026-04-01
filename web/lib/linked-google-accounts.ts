@@ -1,16 +1,23 @@
 /**
  * CRUD for linked_google_accounts with encrypted tokens.
  *
- * Rows are populated by mirroring OAuth tokens from `next_auth.accounts` (Auth.js adapter).
- * We avoid a NextAuth `signIn` callback so `lib/auth.ts` stays safe for proxy (no token-crypto in that bundle).
+ * Web: rows are created by `/api/google/link/*` (Clerk session + Google OAuth, no login conflation).
+ * Legacy: `mirrorLinkedGoogleFromNextAuthIfNeeded` copies from `next_auth.accounts` (mobile / old flows).
  */
 
 import "server-only";
-import { createServerClient, createNextAuthSchemaClient } from "./supabase-server";
+import type { Credentials } from "google-auth-library";
+import {
+  createServerClient,
+  createNextAuthSchemaClient,
+  getTenantSupabaseOrServiceRole,
+} from "./supabase-server";
 import { encryptToken, decryptToken } from "./token-crypto";
 import type { LinkedGoogleAccount, LinkedGoogleAccountInsert } from "./database.types";
+import { GOOGLE_MOBILE_OAUTH_SCOPE } from "./mobile-google-oauth";
+import type { GoogleUserProfile } from "./mobile-google-oauth";
 
-/** Stable row id: next_auth user + Google subject (providerAccountId). */
+/** Stable row id: MeOS tenant user id + Google subject (`sub`). */
 export function makeLinkedGoogleAccountId(userId: string, googleSubject: string): string {
   return `${userId}:${googleSubject}`;
 }
@@ -24,6 +31,7 @@ async function upsertEncryptedLinkedRow(params: {
   refreshToken: string | null;
   expiresAtSeconds: number | null;
   scopes: string;
+  accountLabel?: string;
 }): Promise<void> {
   const id = makeLinkedGoogleAccountId(params.userId, params.googleSubject);
   const accessEnc = encryptToken(params.accessToken);
@@ -40,14 +48,14 @@ async function upsertEncryptedLinkedRow(params: {
     google_email: params.googleEmail,
     google_user_id: params.googleSubject,
     display_name: params.displayName,
-    account_label: "primary",
+    account_label: params.accountLabel ?? "primary",
     access_token: accessEnc,
     refresh_token: refreshEnc,
     token_expiry: tokenExpiry,
     scopes: params.scopes,
   };
 
-  const supabase = createServerClient();
+  const supabase = getTenantSupabaseOrServiceRole();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { error } = await (supabase.from("linked_google_accounts") as any).upsert(row, {
     onConflict: "id",
@@ -58,9 +66,36 @@ async function upsertEncryptedLinkedRow(params: {
   }
 }
 
+/** Persist tokens from web “Connect Google Calendar” OAuth (Clerk `public.users.id` as `user_id`). */
+export async function upsertLinkedGoogleFromWebOAuth(params: {
+  userId: string;
+  tokens: Credentials;
+  profile: GoogleUserProfile;
+}): Promise<void> {
+  const access = params.tokens.access_token;
+  if (!access) {
+    throw new Error("upsertLinkedGoogleFromWebOAuth: missing access_token");
+  }
+  const expSeconds =
+    params.tokens.expiry_date != null
+      ? Math.floor(params.tokens.expiry_date / 1000)
+      : null;
+  await upsertEncryptedLinkedRow({
+    userId: params.userId,
+    googleSubject: params.profile.sub,
+    googleEmail: params.profile.email,
+    displayName: params.profile.name ?? null,
+    accessToken: access,
+    refreshToken: params.tokens.refresh_token ?? null,
+    expiresAtSeconds: expSeconds,
+    scopes: GOOGLE_MOBILE_OAUTH_SCOPE,
+    accountLabel: "calendar",
+  });
+}
+
 /**
  * Copy Google tokens from Auth.js `next_auth.accounts` into `linked_google_accounts` (encrypted).
- * Best-effort: logs and returns on failure (e.g. schema not exposed, no Google account row yet).
+ * Used by mobile OAuth completion; best-effort on failure.
  */
 export async function mirrorLinkedGoogleFromNextAuthIfNeeded(userId: string): Promise<void> {
   if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
@@ -89,7 +124,7 @@ export async function mirrorLinkedGoogleFromNextAuthIfNeeded(userId: string): Pr
     const scopes =
       typeof data.scope === "string" && data.scope.length > 0
         ? data.scope
-        : "openid email profile https://www.googleapis.com/auth/calendar.readonly";
+        : GOOGLE_MOBILE_OAUTH_SCOPE;
 
     await upsertEncryptedLinkedRow({
       userId,
@@ -100,6 +135,7 @@ export async function mirrorLinkedGoogleFromNextAuthIfNeeded(userId: string): Pr
       refreshToken: data.refresh_token ?? null,
       expiresAtSeconds: data.expires_at ?? null,
       scopes,
+      accountLabel: "primary",
     });
   } catch (e) {
     console.error("[linked-google] mirror from next_auth failed:", e);
@@ -107,9 +143,7 @@ export async function mirrorLinkedGoogleFromNextAuthIfNeeded(userId: string): Pr
 }
 
 export async function getLinkedAccountsForUser(userId: string): Promise<LinkedGoogleAccount[]> {
-  await mirrorLinkedGoogleFromNextAuthIfNeeded(userId);
-
-  const supabase = createServerClient();
+  const supabase = getTenantSupabaseOrServiceRole();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data, error } = await (supabase.from("linked_google_accounts") as any)
     .select("*")
@@ -126,9 +160,7 @@ export async function getLinkedAccountById(
   userId: string,
   id: string
 ): Promise<LinkedGoogleAccount | null> {
-  await mirrorLinkedGoogleFromNextAuthIfNeeded(userId);
-
-  const supabase = createServerClient();
+  const supabase = getTenantSupabaseOrServiceRole();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data, error } = await (supabase.from("linked_google_accounts") as any)
     .select("*")
@@ -140,6 +172,22 @@ export async function getLinkedAccountById(
     throw new Error(`Failed to load linked account: ${error.message}`);
   }
   return data as LinkedGoogleAccount | null;
+}
+
+export async function deleteLinkedGoogleAccountForUser(
+  userId: string,
+  id: string
+): Promise<void> {
+  const supabase = getTenantSupabaseOrServiceRole();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (supabase.from("linked_google_accounts") as any)
+    .delete()
+    .eq("user_id", userId)
+    .eq("id", id);
+
+  if (error) {
+    throw new Error(`Failed to delete linked Google account: ${error.message}`);
+  }
 }
 
 export type DecryptedLinkedAccount = LinkedGoogleAccount & {
@@ -169,7 +217,7 @@ export async function updateLinkedAccountTokens(
   const tokenExpiry =
     tokens.expires_at != null ? new Date(tokens.expires_at * 1000).toISOString() : null;
 
-  const supabase = createServerClient();
+  const supabase = getTenantSupabaseOrServiceRole();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { error } = await (supabase.from("linked_google_accounts") as any)
     .update({

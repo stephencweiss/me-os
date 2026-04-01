@@ -6,6 +6,11 @@ export const dynamic = "force-dynamic";
 /**
  * Lazy bootstrap: call after Clerk sign-in if the webhook has not run yet (or JWT lacks `app_user_id`).
  * Client may POST once, then refresh the session so Supabase receives the updated claim.
+ *
+ * Intentionally does **not** use `withTenantSupabaseForApi`: first-time users may not have
+ * `app_user_id` in the Clerk JWT yet, so anon+JWT Supabase would fail RLS. `bootstrapAppUserFromClerk`
+ * upserts `public.users` with the **service role** client (same as webhooks), then writes
+ * `publicMetadata.app_user_id` so subsequent requests can use tenant-scoped Supabase.
  */
 export async function POST() {
   const { userId } = await auth();

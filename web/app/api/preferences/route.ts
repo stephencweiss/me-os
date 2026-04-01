@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuthUnlessLocal } from "@/lib/auth-helpers";
 import { getPreference, setPreference, getAllPreferences } from "@/lib/db-unified";
+import { withTenantSupabaseForApi } from "@/lib/with-tenant-supabase";
 
 /**
  * GET /api/preferences
@@ -9,13 +10,8 @@ import { getPreference, setPreference, getAllPreferences } from "@/lib/db-unifie
  *   - key: Specific preference key (optional, returns all if not specified)
  */
 export async function GET(request: NextRequest) {
-  // Require authentication (skipped in local mode)
   const authResult = await requireAuthUnlessLocal();
-  if (!authResult.authorized) {
-    return authResult.response;
-  }
-  const { userId } = authResult;
-
+  return withTenantSupabaseForApi(authResult, async ({ userId }) => {
   const searchParams = request.nextUrl.searchParams;
   const key = searchParams.get("key");
 
@@ -40,6 +36,7 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
+  });
 }
 
 /**
@@ -50,13 +47,8 @@ export async function GET(request: NextRequest) {
  *   - value: Preference value (will be JSON stringified if object)
  */
 export async function PUT(request: NextRequest) {
-  // Require authentication (skipped in local mode)
   const authResult = await requireAuthUnlessLocal();
-  if (!authResult.authorized) {
-    return authResult.response;
-  }
-  const { userId } = authResult;
-
+  return withTenantSupabaseForApi(authResult, async ({ userId }) => {
   try {
     const body = await request.json();
     const { key, value } = body;
@@ -86,4 +78,5 @@ export async function PUT(request: NextRequest) {
       { status: 500 }
     );
   }
+  });
 }

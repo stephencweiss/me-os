@@ -11,7 +11,7 @@ import "server-only";
 import { google } from "googleapis";
 import { OAuth2Client, type Credentials } from "google-auth-library";
 import type { calendar_v3 } from "googleapis";
-import { createServerClient } from "./supabase-server";
+import { getTenantSupabaseOrServiceRole } from "./supabase-server";
 import {
   COLOR_DEFINITIONS,
   reconcileDailySummariesForDateRange,
@@ -230,7 +230,7 @@ async function loadExistingIdsForCalendarWindow(
   startDate: string,
   endDate: string
 ): Promise<string[]> {
-  const supabase = createServerClient();
+  const supabase = getTenantSupabaseOrServiceRole();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data, error } = await (supabase.from("events") as any)
     .select("id")
@@ -249,7 +249,7 @@ async function loadExistingIdsForCalendarWindow(
 
 async function markEventsRemoved(ids: string[], userId: string): Promise<number> {
   if (ids.length === 0) return 0;
-  const supabase = createServerClient();
+  const supabase = getTenantSupabaseOrServiceRole();
   const now = new Date().toISOString();
   let n = 0;
   const chunk = 80;
@@ -272,7 +272,7 @@ async function markEventsRemoved(ids: string[], userId: string): Promise<number>
 
 async function upsertEventRows(rows: EventInsert[]): Promise<number> {
   if (rows.length === 0) return 0;
-  const supabase = createServerClient();
+  const supabase = getTenantSupabaseOrServiceRole();
   let n = 0;
   const chunk = 100;
   for (let i = 0; i < rows.length; i += chunk) {

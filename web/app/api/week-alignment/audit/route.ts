@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAuthUnlessLocal, isLocalMode } from "@/lib/auth-helpers";
 import { applyWeeklyAuditAction } from "@/lib/db-unified";
 import type { WeeklyAuditAction } from "@/lib/db-supabase";
+import { withTenantSupabaseForApi } from "@/lib/with-tenant-supabase";
 
 const WEEK_RE = /^\d{4}-W\d{2}$/;
 const ACTIONS: WeeklyAuditAction[] = ["dismiss", "snooze", "seen"];
@@ -13,11 +14,7 @@ const ACTIONS: WeeklyAuditAction[] = ["dismiss", "snooze", "seen"];
  */
 export async function POST(request: NextRequest) {
   const authResult = await requireAuthUnlessLocal();
-  if (!authResult.authorized) {
-    return authResult.response;
-  }
-  const { userId } = authResult;
-
+  return withTenantSupabaseForApi(authResult, async ({ userId }) => {
   if (!isLocalMode() && !userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
@@ -71,4 +68,5 @@ export async function POST(request: NextRequest) {
     console.error("week-alignment audit POST:", error);
     return NextResponse.json({ error: "Failed to update audit state" }, { status: 500 });
   }
+  });
 }

@@ -33,3 +33,23 @@ export function getMobileGoogleOAuthCallbackUrl(): string {
   const base = getAuthDeploymentUrl().replace(/\/+$/, "");
   return `${base}/api/auth/mobile/google/callback`;
 }
+
+/** Web “connect Google Calendar” OAuth callback (Clerk session + PKCE cookie). */
+export function getWebGoogleLinkCallbackUrl(): string {
+  const base = getAuthDeploymentUrl().replace(/\/+$/, "");
+  return `${base}/api/google/link/callback`;
+}
+
+/** Absolute URL for post-OAuth redirects (honors `AUTH_URL` / `NEXTAUTH_URL` path prefix). */
+export function appAbsoluteUrl(
+  pathname: string,
+  searchParams?: Record<string, string>
+): string {
+  const base = getAuthDeploymentUrl().replace(/\/$/, "");
+  const path = pathname.startsWith("/") ? pathname : `/${pathname}`;
+  const q =
+    searchParams && Object.keys(searchParams).length > 0
+      ? `?${new URLSearchParams(searchParams).toString()}`
+      : "";
+  return `${base}${path}${q}`;
+}

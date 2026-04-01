@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAuthUnlessLocal } from "@/lib/auth-helpers";
 import { updateEventColor, getEventById, COLOR_DEFINITIONS } from "@/lib/db-unified";
 import { updateGoogleEventColor, isGoogleSyncConfigured } from "@/lib/google-calendar-client";
+import { withTenantSupabaseForApi } from "@/lib/with-tenant-supabase";
 
 /**
  * PATCH /api/events/color
@@ -14,13 +15,8 @@ import { updateGoogleEventColor, isGoogleSyncConfigured } from "@/lib/google-cal
  * If Google sync fails, the local change is preserved and a warning is returned.
  */
 export async function PATCH(request: NextRequest) {
-  // Require authentication (skipped in local mode)
   const authResult = await requireAuthUnlessLocal();
-  if (!authResult.authorized) {
-    return authResult.response;
-  }
-  const { userId } = authResult;
-
+  return withTenantSupabaseForApi(authResult, async ({ userId }) => {
   try {
     const body = await request.json();
     const { eventId, colorId } = body;
@@ -96,4 +92,5 @@ export async function PATCH(request: NextRequest) {
       { status: 500 }
     );
   }
+  });
 }

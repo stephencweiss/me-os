@@ -3,6 +3,7 @@ import { requireAuth } from "@/lib/auth-helpers";
 import { runCalendarSync } from "@/lib/calendar-sync-supabase";
 import { getLinkedAccountsForUser } from "@/lib/linked-google-accounts";
 import { withCalendarSyncLock } from "@/lib/sync-lock";
+import { withTenantSupabaseForApi } from "@/lib/with-tenant-supabase";
 
 function utcDateString(d: Date): string {
   return d.toISOString().slice(0, 10);
@@ -33,10 +34,10 @@ function isIsoDate(s: string): boolean {
  */
 export async function POST(request: NextRequest) {
   const authResult = await requireAuth();
-  if (!authResult.authorized) {
-    return authResult.response;
+  return withTenantSupabaseForApi(authResult, async ({ userId }) => {
+  if (!userId) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  const { userId } = authResult;
 
   let body: {
     start?: string;
@@ -70,7 +71,7 @@ export async function POST(request: NextRequest) {
       {
         ok: false,
         error:
-          "No linked Google account with tokens. Sign out and sign in again with Google (consent includes Calendar).",
+          "No linked Google account with Calendar tokens. In Settings → Linked Accounts, use “Connect Google Calendar” and complete consent (offline access).",
       },
       { status: 400 }
     );
@@ -109,4 +110,5 @@ export async function POST(request: NextRequest) {
     },
     { status: 200 }
   );
+  });
 }

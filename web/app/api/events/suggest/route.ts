@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuthUnlessLocal } from "@/lib/auth-helpers";
 import { getEventById } from "@/lib/db-unified";
+import { withTenantSupabaseForApi } from "@/lib/with-tenant-supabase";
 
 // Minimal event type needed for category suggestion
 interface EventForSuggestion {
@@ -237,13 +238,8 @@ function suggestCategory(event: EventForSuggestion): CategorySuggestion {
  *   - suggestions: Array<{ eventId, colorId, colorName, colorMeaning, confidence }>
  */
 export async function POST(request: NextRequest) {
-  // Require authentication (skipped in local mode)
   const authResult = await requireAuthUnlessLocal();
-  if (!authResult.authorized) {
-    return authResult.response;
-  }
-  const { userId } = authResult;
-
+  return withTenantSupabaseForApi(authResult, async ({ userId }) => {
   try {
     const body = await request.json();
     const { eventIds } = body;
@@ -286,4 +282,5 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
+  });
 }

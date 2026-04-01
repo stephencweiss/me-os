@@ -7,6 +7,7 @@
 
 import { createClient } from "@supabase/supabase-js";
 import { Database } from "./database.types";
+import { tryGetTenantSupabase } from "./supabase-tenant-context";
 
 // Re-export the typed client type for convenience
 export type TypedSupabaseClient = ReturnType<typeof createClient<Database>>;
@@ -126,6 +127,16 @@ export function createServerClient(): TypedSupabaseClient {
   }
 
   return serverClient;
+}
+
+/**
+ * Prefer AsyncLocalStorage tenant client (Clerk JWT + anon key, RLS enforced);
+ * otherwise service role (webhooks, bootstrap, legacy NextAuth, tests).
+ */
+export function getTenantSupabaseOrServiceRole(): TypedSupabaseClient {
+  const tenant = tryGetTenantSupabase();
+  if (tenant) return tenant;
+  return createServerClient();
 }
 
 // Re-export types for convenience

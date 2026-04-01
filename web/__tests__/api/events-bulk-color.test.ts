@@ -1,6 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
 
+vi.mock("@clerk/nextjs/server", () => ({
+  auth: vi.fn().mockResolvedValue({ userId: null }),
+}));
+
 vi.mock("@/lib/auth-helpers", () => ({
   requireAuthUnlessLocal: vi.fn().mockResolvedValue({
     authorized: true,
