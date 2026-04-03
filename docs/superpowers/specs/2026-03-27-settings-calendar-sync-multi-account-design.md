@@ -15,104 +15,112 @@ After Clerk, **there is no implicit “first Google account” from login.** Cal
 | Layer | Behavior |
 |--------|----------|
 | **Auth** | Clerk session; `requireAuth()` → `public.users.id` via `publicMetadata.app_user_id`. |
-| **Linking** | `GET /api/google/link/start` → Google → `GET /api/google/link/callback`; PKCE + cookie binds OAuth to Clerk user. |
-| **Storage** | `linked_google_accounts`: one row per MeOS user × Google `sub`; `account_label` defaults to `"primary"` on first web upsert. |
+| **Linking (API)** | `GET /api/google/link/start` → Google → `GET /api/google/link/callback`; PKCE + cookie binds OAuth to Clerk user. **Implemented and callable** for anyone who hits that URL with a valid Clerk session. |
+| **Linking (UI)** | **Not reachable from the app today.** No button, link, or route in `web/app` navigates to `/api/google/link/start` (only API routes and libs reference it). Copy on Settings → Linked Accounts *talks* about “Connect Google Calendar” but does not provide a working CTA — users cannot complete linking through the UI without manually opening the API URL. |
+| **Storage** | `linked_google_accounts`: one row per MeOS user × Google `sub`; `account_label` defaults to `"primary"` in code when not supplied (should become **email-backed default** per §5.2). |
 | **List / remove** | `GET /api/calendar/linked` returns metadata; `DELETE /api/calendar/linked?id=` removes one link. |
 | **Sync** | `POST /api/calendar/sync` accepts optional `{ linkedAccountId?, start?, end? }`. If omitted, **`linkedAccountId` defaults to the first linked row** (order-dependent). |
-| **UI** | `web/app/settings/accounts/page.tsx`: sync button calls sync with **no body** (always default account). “Link another Google account” is **disabled** (“coming soon”). Copy references “Connect Google Calendar” but **a first-class connect CTA may be missing or easy to miss** — verify when implementing. |
+| **UI** | `web/app/settings/accounts/page.tsx`: sync button calls sync with **no body** (always default account). “Link another Google account” is **disabled** (“coming soon”). |
 
-**Implication:** Backend is already close to multi-account; the gap is mostly **product UX**, **deterministic ordering**, and **passing `account_label`** (or equivalent) into the link flow for second and later accounts.
+**Implication:** Backend is close to multi-account; the critical gap is **a real Settings UI** (connect CTA + card layout) plus **label/email rules**, **deterministic ordering**, and **sync** behavior for multiple links.
 
 ## 3. Goals
 
 1. **Clarity:** User understands: MeOS sign-in (Clerk) ≠ Google Calendar (linked OAuth).
-2. **Connect path:** Obvious entry to `/api/google/link/start` after sign-in; optional short explanation of scopes/consent.
-3. **Multiple links:** User can add another Google account without breaking the first; labels are human-meaningful (e.g. work / personal).
-4. **Sync:** User can **sync one** linked account, **sync all** (sequential or parallel with clear progress), or set a **default** for the big “Sync now” button.
-5. **Safety:** Revoking a link (`DELETE`) leaves UI and sync list consistent; no orphaned expectations.
+2. **Connect path:** Obvious, in-app entry to `/api/google/link/start` after sign-in; short explanation of scopes/consent.
+3. **Multiple links:** User can add another Google account without breaking the first; optional **friendly label**; **Google email always visible** on every account row (whether or not a label is set).
+4. **Sync:** Per-account and global “sync all” with clear progress; resilience and rate limits per §7.
+5. **Safety:** Revoking a link (`DELETE`) leaves UI and sync list consistent.
 
 **Non-goals (for this design):** Changing Clerk strategies; replacing PKCE/cookie flow; full Capacitor parity (tracked separately).
 
-## 4. Approaches
+## 4. Approach
 
-### A — Minimal: enable second link + pass label in OAuth state
+**Chosen: B — Account-centric page (cards).** Implement directly in this shape; do not stage a separate “minimal list” milestone first.
 
-- **UX:** Re-enable “Link another Google account” as a button that hits `/api/google/link/start?label=…` (or `intent=additional` + modal for label). Show each row with email + label; per-row “Sync this account”.
-- **API:** Extend `link/start` and callback cookie payload to carry **`account_label`** (validated: non-empty, max length, allowed charset). Upsert already sets `account_label`.
-- **Sync:** Settings calls `POST /api/calendar/sync` with `linkedAccountId` when user clicks per-account sync; optional “Sync all” loops client-side or new `syncAll` server endpoint.
-- **Pros:** Smallest change; matches existing schema and sync API.  
-- **Cons:** Default “first row” ordering can surprise users unless we add **explicit default** or **sort order** in API.
+**Alternatives considered (not selected):**
 
-### B — Account-centric page: each link is a card
+- **A — Minimal list + second link:** Faster to ship but would be thrown away when moving to cards.
+- **C — Add-account wizard:** Extra friction; card layout + inline label field before OAuth is enough.
 
-- **UX:** One card per linked account: email, label (editable inline or in modal), last sync time (if tracked), actions [Sync] [Disconnect]. Single primary “Add Google account” at top. Global “Sync all” at top.
-- **Pros:** Scales to 3+ accounts; clear mental model.  
-- **Cons:** More UI work; may need **last_sync_at** (or reuse event stats) for usefulness.
+**B — Account-centric page:** One **card** per linked Google account. Each card shows:
 
-### C — Wizard for “add account” only
+- **Google email** (always visible, primary identifier in the UI).
+- **Optional label** (e.g. “Work”) when the user provided one; editing inline or via modal is fine.
+- Actions: **Sync this account**, **Disconnect** (calls `DELETE`).
+- Global header area: **Add Google account** (same OAuth entry as first link), **Sync all** when multiple links exist.
+- Optional **last sync** time when we have data (event stats or a future `last_sync_at`).
 
-- **UX:** First connect stays one-click; “Add another” opens a 2-step wizard (choose label → OAuth).  
-- **Pros:** Reduces mistakes when naming accounts.  
-- **Cons:** Heavier for a rare action; still need A or B for ongoing management.
+---
 
-**Recommendation:** **A now, evolve toward B** as the page grows. Ship: label in link flow + disabled ordering fix + per-account sync + optional “sync all” + visible Connect CTA. Add card layout and last-sync later if needed.
-
-## 5. Design (approved sections)
+## 5. Design
 
 ### 5.1 Information architecture
 
-1. **Section: Sign-in context (short)** — One line: “You’re signed in to MeOS with email/password or your chosen Clerk method. Google Calendar is connected separately.”
-2. **Section: Calendar sync** — Date range (future): optional; for MVP keep single range for all syncs. Buttons: **Sync all linked accounts** (if `linked.length > 1`) and/or per-account actions in list.
-3. **Section: Linked Google accounts** — List of links with email + `account_label`; primary actions **Connect / Add another** (same OAuth entry point with different label), **Remove** (calls `DELETE`).
-4. **Section: Synced calendar data** — Existing “Synced Accounts” aggregate from `/api/calendars` remains; clarify that it reflects **data already imported**, which may span multiple Google links.
+1. **Section: MeOS sign-in (short)** — Clerk sign-in is **email (and password) for now** — we do **not** offer social login yet. One line clarifying that MeOS account ≠ Google Calendar.
+2. **Section: Linked Google accounts (cards)** — Primary surface: one card per link (see §4). **Connect / Add Google account** must be a real control that navigates to `/api/google/link/start` (with base path).
+3. **Section: Calendar sync (global + per card)** — Date range (future): optional; MVP can keep one range for sync requests. **Sync all** at section or page level when `linked.length > 1`; each card has **Sync**.
+4. **Section: Synced calendar data** — Existing aggregate from `/api/calendars` (e.g. “Synced Accounts” list); clarify it reflects **imported** data and may combine multiple Google links.
 
-### 5.2 OAuth and `account_label`
+### 5.2 OAuth, labels, and email
 
-- **`GET /api/google/link/start?label=`** — Optional. If absent, behavior today: default `"primary"` for new `sub`, or upsert existing `sub`.
-- **First link:** Allow omitting label → `"primary"`.
-- **Additional link:** Require either a **user-supplied label** before redirect (modal or dedicated input) or a **default** like `"account-2"` with rename later (worse UX; prefer prompt).
-- **Cookie payload** (`google-link-state-cookie`): include `accountLabel` so callback can call `upsertLinkedGoogleFromWebOAuth` with the same label (see `linked-google-accounts.ts`).
+- **Display rule:** **Google account email** (e.g. `scweiss1@gmail.com`) is **always shown** on the card. If the user sets a **label**, show both (e.g. label as title or subtitle, email always visible — never hide email behind label alone).
+- **Stored `account_label`:**
+  - If the user provides a **non-empty label** after trim → save that string.
+  - If they **omit** a label → persist **`account_label` = Google account email** from the OAuth profile (same as we display). Avoid a generic `"primary"` default in UX unless we have no profile email (should not happen for a successful Google link).
+- **`GET /api/google/link/start`** — May accept optional `label=` for the cookie payload; **final email** is always known **after** callback from Google profile. Callback should set `account_label` to **user label if provided in state**, else **profile email**.
+- **Cookie payload** (`google-link-state-cookie`): include optional `accountLabel`; callback merges with profile email per rules above.
 
-**Validation:** Trim, length 1–64, no control characters; collision on label alone is OK (uniqueness is `id` = `userId:googleSub`).
+**Validation (when user types a label):** Trim, length 1–64, no control characters. Uniqueness remains `id` = `userId:googleSub`.
 
 ### 5.3 Sync behavior
 
 | User action | Behavior |
 |-------------|----------|
-| **Sync now** (primary) | If one link: sync that. If multiple: either sync **all** in sequence (clear aggregate message) or **last synced** / **default linked id** stored in `user_preferences` (future). **MVP recommendation:** If `linked.length > 1`, show chooser or default to **sync all** with combined stats. |
-| **Per-account sync** | `POST /api/calendar/sync` with `{ "linkedAccountId": "<id>" }`. |
-| **Sync all** | Option 1: client loops with N requests (reuse lock behavior — verify `withCalendarSyncLock` allows sequential calls). Option 2: `POST /api/calendar/sync` with `{ "all": true }` server-side loop. Prefer **server `all: true`** for one round-trip and consistent error aggregation. |
+| **Sync** on a card | `POST /api/calendar/sync` with `{ "linkedAccountId": "<id>" }`. |
+| **Sync all** | Prefer **`POST /api/calendar/sync` with `{ "all": true }`** (or equivalent) for one round-trip, **best-effort parallel** where safe: kick off work for each link; **if one fails, others may still succeed**; surface per-account errors. User can retry failed accounts. |
+| **Global “Sync now”** (single prominent control) | If one link: sync that. If multiple: **Sync all** semantics. |
 
-**Ordering:** `GET /api/calendar/linked` should return rows in a **stable order** (e.g. `updated_at DESC` or `account_label ASC`) and document it so “first” is predictable or UI never relies on implicit first.
+**Ordering:** `GET /api/calendar/linked` returns rows in a **stable, documented order** (e.g. `updated_at DESC` or `google_email ASC`) so defaults and tests are predictable.
 
-### 5.4 Edge cases
+### 5.4 Rate limiting & “skip” feedback (sync)
 
-- **Same Google user re-links:** Upsert by `userId` + `sub` replaces tokens; label can be updated from new flow if we allow.
-- **Revoke in Google:** Sync errors surface per account; UI shows re-connect CTA for that row.
-- **Clerk user, zero Google links:** Block sync with existing copy; show **Connect** prominently.
+- **Sync all** is **best effort**; partial failure is acceptable; user retries as needed.
+- **Backoff:** If the user triggers sync **too often**, skip redundant work and **tell them**. Simple rule: if this linked account (or whole-user sync) **already completed successfully within the last minute**, **skip** and show feedback (“Skipped — last sync less than a minute ago”). Tune later (e.g. max **5 syncs per hour** per user) if abuse appears; start with **1 / minute** gate for simplicity.
+- **Future:** Parallel per-`linkedAccountId` sync may warrant **per-account locks** instead of only per-user — revisit if we parallelize heavily.
 
-### 5.5 Testing
+### 5.5 Edge cases
 
-- Unit: link state cookie round-trip includes `accountLabel`.
-- API: `POST /api/calendar/sync` with invalid `linkedAccountId`; `all: true` with 0 or 2+ links.
-- UI: multi-link list, disabled states, delete refresh.
+- **Same Google user re-links:** Upsert by `userId` + `sub` replaces tokens; label can be updated from a new flow.
+- **Revoke in Google:** Sync errors surface per card; show re-connect for that row.
+- **Clerk user, zero Google links:** Disable or explain sync; show **Add Google account** prominently.
+
+### 5.6 Testing
+
+- Unit: link state cookie round-trip includes optional `accountLabel`; default to profile email when absent.
+- API: `POST /api/calendar/sync` invalid `linkedAccountId`; `all: true` with 0 or 2+ links; skip path when inside backoff window.
+- UI: cards, email always visible, label optional, delete refresh, connect CTA reaches `/api/google/link/start`.
 
 ---
 
 ## 6. Phased delivery (suggested PRs)
 
-1. **UX honesty:** Add visible **Connect Google Calendar** (`<a href={withBasePath("/api/google/link/start")}>` or `router.push` via location) and fix contradictory “above/below” copy.
-2. **Labels in OAuth:** `label` query + cookie + callback; enable **Link another** with small modal for label.
-3. **Sync:** Per-account buttons; optional **`syncAll`** API + primary button behavior when `linked.length > 1`.
-4. **Polish:** Card layout (approach B), preferences for default account, last sync time.
+1. **Reachable linking + cards v1:** Add **Connect / Add Google account** CTA (`withBasePath("/api/google/link/start")`); implement **card layout** (approach B) for 0…N links; fix contradictory copy; wire **Disconnect** and **per-card Sync**.
+2. **Labels + cookie:** Optional label before OAuth; callback persists label or email; list API order documented.
+3. **Sync all + backoff:** Server-side `all: true` (or client loop if blocked), parallel best-effort, **1/minute** skip with user-visible message; optional stricter cap later.
+4. **Polish:** Inline label edit, last sync time, `user_preferences` default account if needed.
 
 ---
 
-## 7. Open questions
+## 7. Decisions (resolved)
 
-1. Should **Google Cloud Console** use **one** OAuth client for all links (same redirect URI) — **yes, recommended** — with `account_label` only in MeOS state?
-2. Max number of linked accounts per user (soft limit in UI)?
-3. Does **sync lock** need to be per `linkedAccountId` instead of per user if we parallelize in the future? (Sequential `sync all` avoids this for MVP.)
+1. **OAuth client:** Use **one** Google Cloud OAuth client for all links; same redirect URI; `account_label` / intent lives only in MeOS state — **yes.**
+
+2. **Max linked accounts:** Soft limit **5** in UI, with an **escape hatch** (e.g. “Need more?” contact or advanced path). **Product interest:** we want to **learn when and why** users ask for more than five (instrument or feedback hook).
+
+3. **Sync all failure model:** **Best-effort / parallel attempt** — start work for each link; **one failure does not cancel the others**; user can retry. **Backoff:** if last successful sync for that scope was **within the last minute**, **skip** and show clear feedback (“Skipped — synced less than a minute ago”). Optionally tighten later (e.g. **5/hour**); MVP prefers **1/minute** simplicity.
+
+4. **API vs UI for linking:** Linking is **fully implemented in the API** but **not exposed in the UI** until we ship the CTAs in §6 — confirmed.
 
 ---
 
