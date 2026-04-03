@@ -7,7 +7,6 @@ const publicPrefixes = [
   "/sign-up",
   "/privacy",
   "/terms",
-  "/api/auth",
   "/api/health",
   "/api/webhooks/clerk",
   "/api/meos/ensure-user",

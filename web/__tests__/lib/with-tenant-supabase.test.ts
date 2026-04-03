@@ -72,11 +72,11 @@ describe("withTenantSupabaseForApi", () => {
     expect(tryGetTenantSupabase()).toBeUndefined();
   });
 
-  it("uses legacy NextAuth path when Clerk auth has no userId", async () => {
+  it("skips tenant JWT when Clerk auth has no userId (service-role data path)", async () => {
     authMock.mockResolvedValue({ userId: null });
     const fn = vi.fn().mockResolvedValue("legacy");
     const out = await withTenantSupabaseForApi(
-      { authorized: true, userId: "legacy-app-user", email: "x@y.com" },
+      { authorized: true, userId: "app-user-from-session", email: "x@y.com" },
       fn
     );
     expect(out).toBe("legacy");

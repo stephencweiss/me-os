@@ -209,8 +209,9 @@ export default function AccountsPage() {
           </Button>
           {linked.length === 0 && !syncMessage && (
             <p className="mt-3 text-sm text-amber-700 dark:text-amber-400">
-              No linked row listed yet — you can still run sync; the server will try to mirror
-              tokens from your Google sign-in.
+              Connect Google Calendar below first — sync needs encrypted tokens in{" "}
+              <code className="text-xs">linked_google_accounts</code> (MeOS sign-in is Clerk, not
+              Google).
             </p>
           )}
           {syncMessage && (
@@ -298,16 +299,17 @@ export default function AccountsPage() {
         <div className="mt-6 bg-white dark:bg-gray-800 rounded-lg shadow p-4 space-y-4">
           <div>
             <h2 className="font-medium text-gray-900 dark:text-white mb-2">
-              Google link (NextAuth)
+              Google Calendar link
             </h2>
             <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">
-              OAuth tokens live in <code className="text-xs">next_auth.accounts</code>; MeOS mirrors
-              them into encrypted <code className="text-xs">linked_google_accounts</code> when you open
-              this page or run sync. Re-consent in Google if you added Calendar scope.
+              OAuth tokens are stored encrypted in{" "}
+              <code className="text-xs">linked_google_accounts</code> after you use “Connect Google
+              Calendar” (Settings → Linked Accounts flow). Re-consent in Google if you added Calendar
+              scope.
             </p>
             {linked.length === 0 ? (
               <p className="text-sm text-amber-700 dark:text-amber-400">
-                No linked row yet — complete a Google sign-in after deploying migrations and{" "}
+                No linked account yet — use Connect Google Calendar above after deploying migrations and{" "}
                 <code className="text-xs bg-gray-100 dark:bg-gray-900 px-1 rounded">TOKEN_ENCRYPTION_KEY</code>.
               </p>
             ) : (

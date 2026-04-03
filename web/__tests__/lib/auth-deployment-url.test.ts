@@ -22,17 +22,14 @@ describe("getAuthDeploymentUrl", () => {
     expect(() => getAuthDeploymentUrl()).toThrow(/http:/);
   });
 
-  it("preserves path in AUTH_URL for mobile OAuth callback", async () => {
-    vi.stubEnv(
-      "AUTH_URL",
-      "https://example.com/app/me-os"
-    );
+  it("preserves path in AUTH_URL for Google link OAuth callback", async () => {
+    vi.stubEnv("AUTH_URL", "https://example.com/app/me-os");
     vi.stubEnv("NEXTAUTH_URL", "");
-    const { getMobileGoogleOAuthCallbackUrl } = await import(
+    const { getWebGoogleLinkCallbackUrl } = await import(
       "@/lib/auth-deployment-url"
     );
-    expect(getMobileGoogleOAuthCallbackUrl()).toBe(
-      "https://example.com/app/me-os/api/auth/mobile/google/callback"
+    expect(getWebGoogleLinkCallbackUrl()).toBe(
+      "https://example.com/app/me-os/api/google/link/callback"
     );
   });
 });

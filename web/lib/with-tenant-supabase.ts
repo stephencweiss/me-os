@@ -26,7 +26,7 @@ export type TenantApiAuthContext = {
 
 /**
  * For authenticated API handlers: use Clerk JWT + anon Supabase when the user is a Clerk session;
- * otherwise (local mode or legacy NextAuth) keep the existing service-role path via ALS unset.
+ * otherwise (local mode or non-Clerk session) keep the service-role path via ALS unset.
  */
 export async function withTenantSupabaseForApi<T>(
   authResult: RequireAuthUnlessLocalResult | RequireAuthResult,

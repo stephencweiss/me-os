@@ -4,9 +4,8 @@
  * Connects to Supabase Postgres for reading/writing calendar and goals data.
  * All functions require userId parameter for multi-tenant data isolation.
  *
- * Note: While Postgres has RLS policies configured, we use service role key
- * with explicit user_id filtering since NextAuth manages auth separately
- * from Supabase Auth. This provides defense-in-depth.
+ * Note: With Clerk + tenant JWT, RLS applies; service-role fallback may be used
+ * when no tenant client is in context. All functions still take explicit userId.
  */
 
 import { getTenantSupabaseOrServiceRole } from "./supabase-server";

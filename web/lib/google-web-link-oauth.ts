@@ -4,7 +4,7 @@ import { OAuth2Client } from "google-auth-library";
 import { getWebGoogleLinkCallbackUrl } from "./auth-deployment-url";
 import { GOOGLE_MOBILE_OAUTH_SCOPE } from "./mobile-google-oauth";
 
-/** Same scopes as mobile / legacy NextAuth Google (Calendar read-only + OIDC profile). */
+/** Same scopes as Google Calendar link OAuth (read-only + OIDC profile). */
 export const GOOGLE_WEB_LINK_SCOPE = GOOGLE_MOBILE_OAUTH_SCOPE;
 
 export function buildWebGoogleLinkAuthorizationUrl(params: {

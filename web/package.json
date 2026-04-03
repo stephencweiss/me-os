@@ -20,7 +20,6 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.78.0",
-    "@auth/supabase-adapter": "^1.11.1",
     "@capacitor/app": "^8.0.1",
     "@capacitor/browser": "^8.0.2",
     "@capacitor/core": "^8.2.0",
@@ -33,7 +32,6 @@
     "google-auth-library": "^10.6.1",
     "googleapis": "^171.4.0",
     "next": "16.1.6",
-    "next-auth": "^5.0.0-beta.30",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "recharts": "^3.7.0",

@@ -1,7 +1,6 @@
 "use client";
 
 import { ClerkProvider } from "@clerk/nextjs";
-import { SessionProvider } from "next-auth/react";
 import type { ReactNode } from "react";
 import { CapacitorAuthBridge } from "@/app/components/capacitor-auth-bridge";
 import { ClerkBootstrapSession } from "@/app/components/clerk-bootstrap-session";
@@ -18,10 +17,8 @@ export function Providers({
   return (
     <ClerkProvider signInUrl={clerkSignInUrl} signUpUrl={clerkSignUpUrl}>
       <ClerkBootstrapSession />
-      <SessionProvider>
-        <CapacitorAuthBridge />
-        {children}
-      </SessionProvider>
+      <CapacitorAuthBridge />
+      {children}
     </ClerkProvider>
   );
 }
