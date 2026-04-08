@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuthUnlessLocal, isLocalMode } from "@/lib/auth-helpers";
 import { loadWeekAlignmentMobileV1 } from "@/lib/week-alignment";
+import { withTenantSupabaseForApi } from "@/lib/with-tenant-supabase";
 
 const WEEK_RE = /^\d{4}-W\d{2}$/;
 
@@ -11,11 +12,7 @@ const WEEK_RE = /^\d{4}-W\d{2}$/;
  */
 export async function GET(request: NextRequest) {
   const authResult = await requireAuthUnlessLocal();
-  if (!authResult.authorized) {
-    return authResult.response;
-  }
-  const { userId } = authResult;
-
+  return withTenantSupabaseForApi(authResult, async ({ userId }) => {
   if (!isLocalMode() && !userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
@@ -42,4 +39,5 @@ export async function GET(request: NextRequest) {
     console.error("week-alignment GET:", error);
     return NextResponse.json({ error: "Failed to load week alignment" }, { status: 500 });
   }
+  });
 }

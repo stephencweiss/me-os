@@ -48,24 +48,3 @@ describe("pathnameWithinBasePath", () => {
     );
   });
 });
-
-describe("getAuthJsBasePath", () => {
-  beforeEach(() => {
-    vi.resetModules();
-  });
-  afterEach(() => {
-    vi.unstubAllEnvs();
-  });
-
-  it("returns /api/auth when no Next base path", async () => {
-    vi.unstubAllEnvs();
-    const { getAuthJsBasePath } = await import("@/lib/base-path");
-    expect(getAuthJsBasePath()).toBe("/api/auth");
-  });
-
-  it("prefixes api/auth under Next basePath", async () => {
-    vi.stubEnv("NEXT_PUBLIC_BASE_PATH", "/app/me-os");
-    const { getAuthJsBasePath } = await import("@/lib/base-path");
-    expect(getAuthJsBasePath()).toBe("/app/me-os/api/auth");
-  });
-});

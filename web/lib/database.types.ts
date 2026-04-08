@@ -334,6 +334,7 @@ export type Database = {
           google_email: string
           google_user_id: string
           id: string
+          last_sync_completed_at: string | null
           refresh_token: string | null
           scopes: string
           token_expiry: string | null
@@ -348,6 +349,7 @@ export type Database = {
           google_email: string
           google_user_id: string
           id: string
+          last_sync_completed_at?: string | null
           refresh_token?: string | null
           scopes: string
           token_expiry?: string | null
@@ -362,6 +364,7 @@ export type Database = {
           google_email?: string
           google_user_id?: string
           id?: string
+          last_sync_completed_at?: string | null
           refresh_token?: string | null
           scopes?: string
           token_expiry?: string | null
@@ -514,6 +517,33 @@ export type Database = {
           updated_at?: string
           user_id?: string
           value?: string
+        }
+        Relationships: []
+      }
+      users: {
+        Row: {
+          clerk_user_id: string
+          created_at: string
+          display_name: string | null
+          email: string | null
+          id: string
+          updated_at: string
+        }
+        Insert: {
+          clerk_user_id: string
+          created_at?: string
+          display_name?: string | null
+          email?: string | null
+          id?: string
+          updated_at?: string
+        }
+        Update: {
+          clerk_user_id?: string
+          created_at?: string
+          display_name?: string | null
+          email?: string | null
+          id?: string
+          updated_at?: string
         }
         Relationships: []
       }
@@ -751,6 +781,10 @@ export type DailySummaryInsert = PublicInsert<"daily_summaries">;
 export type WeeklyGoal = PublicRow<"weekly_goals">;
 export type WeeklyGoalInsert = PublicInsert<"weekly_goals">;
 export type WeeklyGoalUpdate = PublicUpdate<"weekly_goals">;
+
+export type AppUser = PublicRow<"users">;
+export type AppUserInsert = PublicInsert<"users">;
+export type AppUserUpdate = PublicUpdate<"users">;
 
 export type WeeklyAuditState = PublicRow<"weekly_audit_state">;
 

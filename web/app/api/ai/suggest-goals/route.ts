@@ -11,6 +11,7 @@ import {
   incrementRateLimit,
   rateLimitHeaders,
 } from "@/lib/rate-limit";
+import { withTenantSupabaseForApi } from "@/lib/with-tenant-supabase";
 
 /**
  * POST /api/ai/suggest-goals
@@ -22,13 +23,11 @@ import {
  *   - lookbackWeeks: Number of weeks to analyze for patterns (default: 2)
  */
 export async function POST(request: NextRequest) {
-  // Require authentication
   const authResult = await requireAuth();
-  if (!authResult.authorized) {
-    return authResult.response;
+  return withTenantSupabaseForApi(authResult, async ({ userId }) => {
+  if (!userId) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  const { userId } = authResult;
-
   // Check rate limit
   const rateLimit = await checkRateLimit(userId);
   if (!rateLimit.allowed) {
@@ -128,4 +127,5 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
+  });
 }

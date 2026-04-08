@@ -7,6 +7,7 @@
 
 import { createClient } from "@supabase/supabase-js";
 import { Database } from "./database.types";
+import { tryGetTenantSupabase } from "./supabase-tenant-context";
 
 // Re-export the typed client type for convenience
 export type TypedSupabaseClient = ReturnType<typeof createClient<Database>>;
@@ -77,37 +78,9 @@ export function createUserClient(userId: string): TypedSupabaseClient {
 }
 
 /**
- * Create a Supabase client for API routes
- *
- * In a multi-tenant setup, we use the service role key but execute
- * queries with explicit user_id filtering since the NextAuth session
- * provides the user context rather than Supabase Auth.
- *
- * Note: Since we're using NextAuth instead of Supabase Auth, RLS policies
- * based on auth.uid() won't work directly. We have two options:
- *
- * 1. Use service role + manual user_id filtering (simpler, what we do here)
- * 2. Set up a custom RLS context via headers (more complex)
- *
- * For security, all db-supabase functions require userId parameter
- * and include user_id in all queries.
+ * Default server client (service role). Prefer `getTenantSupabaseOrServiceRole()` in API code
+ * so Clerk JWT + anon RLS applies when `runWithTenantSupabase` is active.
  */
-/**
- * Client scoped to the `next_auth` schema (Auth.js Supabase adapter tables).
- * Use service role only on the server.
- */
-export function createNextAuthSchemaClient() {
-  if (!supabaseUrl || !supabaseServiceKey) {
-    throw new Error(
-      "SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required for next_auth schema client"
-    );
-  }
-  return createClient(supabaseUrl, supabaseServiceKey, {
-    db: { schema: "next_auth" },
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
-}
-
 export function createServerClient(): TypedSupabaseClient {
   if (!supabaseUrl || !supabaseServiceKey) {
     throw new Error(
@@ -126,6 +99,16 @@ export function createServerClient(): TypedSupabaseClient {
   }
 
   return serverClient;
+}
+
+/**
+ * Prefer AsyncLocalStorage tenant client (Clerk JWT + anon key, RLS enforced);
+ * otherwise service role (webhooks, bootstrap, tests).
+ */
+export function getTenantSupabaseOrServiceRole(): TypedSupabaseClient {
+  const tenant = tryGetTenantSupabase();
+  if (tenant) return tenant;
+  return createServerClient();
 }
 
 // Re-export types for convenience

@@ -5,6 +5,7 @@ import {
   computeSummariesFromEvents,
   type Category,
 } from "@/lib/db-unified";
+import { withTenantSupabaseForApi } from "@/lib/with-tenant-supabase";
 
 /**
  * Parsed daily summary with categories
@@ -33,13 +34,8 @@ interface ParsedDailySummary {
  * Without filters, pre-computed summaries from daily_summaries table are used.
  */
 export async function GET(request: NextRequest) {
-  // Require authentication (skipped in local mode)
   const authResult = await requireAuthUnlessLocal();
-  if (!authResult.authorized) {
-    return authResult.response;
-  }
-  const { userId } = authResult;
-
+  return withTenantSupabaseForApi(authResult, async ({ userId }) => {
   const searchParams = request.nextUrl.searchParams;
 
   const start = searchParams.get("start");
@@ -164,4 +160,5 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
+  });
 }

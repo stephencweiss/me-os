@@ -9,6 +9,7 @@ import {
   NON_GOAL_STATUS,
   type NonGoalStatus,
 } from "@/lib/db-unified";
+import { withTenantSupabaseForApi } from "@/lib/with-tenant-supabase";
 
 /**
  * GET /api/non-goals
@@ -18,13 +19,8 @@ import {
  *   - includeAlerts: Include unacknowledged alerts (default: true)
  */
 export async function GET(request: NextRequest) {
-  // Require authentication (skipped in local mode)
   const authResult = await requireAuthUnlessLocal();
-  if (!authResult.authorized) {
-    return authResult.response;
-  }
-  const { userId } = authResult;
-
+  return withTenantSupabaseForApi(authResult, async ({ userId }) => {
   const searchParams = request.nextUrl.searchParams;
   const week = searchParams.get("week");
   const includeAlerts = searchParams.get("includeAlerts") !== "false";
@@ -67,6 +63,7 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
+  });
 }
 
 /**
@@ -77,13 +74,8 @@ export async function GET(request: NextRequest) {
  *   - nonGoalId + status: Update non-goal status (0=active, 1=completed, 2=missed, 3=abandoned)
  */
 export async function PATCH(request: NextRequest) {
-  // Require authentication (skipped in local mode)
   const authResult = await requireAuthUnlessLocal();
-  if (!authResult.authorized) {
-    return authResult.response;
-  }
-  const { userId } = authResult;
-
+  return withTenantSupabaseForApi(authResult, async ({ userId }) => {
   try {
     const body = await request.json();
     const { alertId, nonGoalId, status } = body;
@@ -155,6 +147,7 @@ export async function PATCH(request: NextRequest) {
       { status: 500 }
     );
   }
+  });
 }
 
 /**
@@ -170,13 +163,8 @@ export async function PATCH(request: NextRequest) {
  *   - reason?: Why this should be avoided
  */
 export async function POST(request: NextRequest) {
-  // Require authentication (skipped in local mode)
   const authResult = await requireAuthUnlessLocal();
-  if (!authResult.authorized) {
-    return authResult.response;
-  }
-  const { userId } = authResult;
-
+  return withTenantSupabaseForApi(authResult, async ({ userId }) => {
   try {
     const body = await request.json();
     const { weekId, title, pattern, colorId, reason } = body;
@@ -251,4 +239,5 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
+  });
 }

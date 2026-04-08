@@ -9,6 +9,7 @@ import {
   createGoal,
   updateGoal,
 } from "@/lib/db-unified";
+import { withTenantSupabaseForApi } from "@/lib/with-tenant-supabase";
 
 /**
  * GET /api/goals
@@ -17,13 +18,8 @@ import {
  *   - week: Week ID in ISO format (YYYY-WWW) - required
  */
 export async function GET(request: NextRequest) {
-  // Require authentication (skipped in local mode)
   const authResult = await requireAuthUnlessLocal();
-  if (!authResult.authorized) {
-    return authResult.response;
-  }
-  const { userId } = authResult;
-
+  return withTenantSupabaseForApi(authResult, async ({ userId }) => {
   const searchParams = request.nextUrl.searchParams;
   const week = searchParams.get("week");
 
@@ -69,6 +65,7 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
+  });
 }
 
 /**
@@ -80,13 +77,8 @@ export async function GET(request: NextRequest) {
  *   - status?: "active" | "completed" | "cancelled"
  */
 export async function PATCH(request: NextRequest) {
-  // Require authentication (skipped in local mode)
   const authResult = await requireAuthUnlessLocal();
-  if (!authResult.authorized) {
-    return authResult.response;
-  }
-  const { userId } = authResult;
-
+  return withTenantSupabaseForApi(authResult, async ({ userId }) => {
   try {
     const body = await request.json();
     const { goalId, progressPercent, status } = body;
@@ -143,6 +135,7 @@ export async function PATCH(request: NextRequest) {
       { status: 500 }
     );
   }
+  });
 }
 
 /**
@@ -159,13 +152,8 @@ export async function PATCH(request: NextRequest) {
  *   - goalType?: "time" | "outcome" | "habit" (default: "outcome")
  */
 export async function POST(request: NextRequest) {
-  // Require authentication (skipped in local mode)
   const authResult = await requireAuthUnlessLocal();
-  if (!authResult.authorized) {
-    return authResult.response;
-  }
-  const { userId } = authResult;
-
+  return withTenantSupabaseForApi(authResult, async ({ userId }) => {
   try {
     const body = await request.json();
     const { weekId, title, colorId, estimatedMinutes, notes, goalType } = body;
@@ -243,6 +231,7 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
+  });
 }
 
 /**
@@ -259,13 +248,8 @@ export async function POST(request: NextRequest) {
  *   - colorId?: New color ID (or null to clear)
  */
 export async function PUT(request: NextRequest) {
-  // Require authentication (skipped in local mode)
   const authResult = await requireAuthUnlessLocal();
-  if (!authResult.authorized) {
-    return authResult.response;
-  }
-  const { userId } = authResult;
-
+  return withTenantSupabaseForApi(authResult, async ({ userId }) => {
   try {
     const body = await request.json();
     const { goalId, title, notes, estimatedMinutes, goalType, colorId } = body;
@@ -344,4 +328,5 @@ export async function PUT(request: NextRequest) {
       { status: 500 }
     );
   }
+  });
 }

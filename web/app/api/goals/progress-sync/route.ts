@@ -9,6 +9,7 @@ import {
   getProgressRecordsForGoal,
   getGoalById,
 } from "@/lib/db-unified";
+import { withTenantSupabaseForApi } from "@/lib/with-tenant-supabase";
 
 // Minimal types for matching - compatible with both Turso and Supabase
 interface SyncableEvent {
@@ -375,13 +376,8 @@ async function syncProgressForWeek(
  *   - forceRematch?: boolean - If true, re-match even events that already have progress
  */
 export async function POST(request: NextRequest) {
-  // Require authentication (skipped in local mode)
   const authResult = await requireAuthUnlessLocal();
-  if (!authResult.authorized) {
-    return authResult.response;
-  }
-  const { userId } = authResult;
-
+  return withTenantSupabaseForApi(authResult, async ({ userId }) => {
   try {
     const body = await request.json();
     const { weekId, dryRun = false, forceRematch = false } = body;
@@ -421,4 +417,5 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
+  });
 }

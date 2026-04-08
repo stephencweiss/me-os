@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuthUnlessLocal } from "@/lib/auth-helpers";
 import { getEvents, updateAttendance } from "@/lib/db-unified";
+import { withTenantSupabaseForApi } from "@/lib/with-tenant-supabase";
 
 /**
  * GET /api/events
@@ -14,13 +15,8 @@ import { getEvents, updateAttendance } from "@/lib/db-unified";
  *   - uncategorized: "true" to filter only uncategorized events (optional)
  */
 export async function GET(request: NextRequest) {
-  // Require authentication (skipped in local mode)
   const authResult = await requireAuthUnlessLocal();
-  if (!authResult.authorized) {
-    return authResult.response;
-  }
-  const { userId } = authResult;
-
+  return withTenantSupabaseForApi(authResult, async ({ userId }) => {
   const searchParams = request.nextUrl.searchParams;
 
   const start = searchParams.get("start");
@@ -84,6 +80,7 @@ export async function GET(request: NextRequest) {
     console.error("Error fetching events:", error);
     return NextResponse.json({ error: "Failed to fetch events" }, { status: 500 });
   }
+  });
 }
 
 /**
@@ -94,13 +91,8 @@ export async function GET(request: NextRequest) {
  *   - attended: "attended" | "skipped" | "unknown"
  */
 export async function PATCH(request: NextRequest) {
-  // Require authentication (skipped in local mode)
   const authResult = await requireAuthUnlessLocal();
-  if (!authResult.authorized) {
-    return authResult.response;
-  }
-  const { userId } = authResult;
-
+  return withTenantSupabaseForApi(authResult, async ({ userId }) => {
   try {
     const body = await request.json();
     const { eventId, attended } = body;
@@ -130,4 +122,5 @@ export async function PATCH(request: NextRequest) {
     console.error("Error updating event:", error);
     return NextResponse.json({ error: "Failed to update event" }, { status: 500 });
   }
+  });
 }

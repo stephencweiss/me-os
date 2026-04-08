@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuthUnlessLocal } from "@/lib/auth-helpers";
 import { getGoalsForWeek, createGoal, updateGoalStatus } from "@/lib/db-unified";
-import { createServerClient } from "@/lib/supabase-server";
+import { getTenantSupabaseOrServiceRole } from "@/lib/supabase-server";
+import { withTenantSupabaseForApi } from "@/lib/with-tenant-supabase";
 
 // Local type for goal creation params (matches db-unified createGoal signature)
 interface GoalCreateParams {
@@ -120,13 +121,8 @@ function parseEstimatedMinutes(text: string): number | null {
  *   - weekId?: string - Optional week to filter to (e.g., "2026-W10")
  */
 export async function POST(request: NextRequest) {
-  // Require authentication (skipped in local mode)
   const authResult = await requireAuthUnlessLocal();
-  if (!authResult.authorized) {
-    return authResult.response;
-  }
-  const { userId } = authResult;
-
+  return withTenantSupabaseForApi(authResult, async ({ userId }) => {
   try {
     const body = await request.json();
     const { todos, weekId: targetWeekId } = body;
@@ -150,7 +146,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const supabase = createServerClient();
+    const supabase = getTenantSupabaseOrServiceRole();
     const now = new Date().toISOString();
 
     const result: SyncResult = {
@@ -261,4 +257,5 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
+  });
 }

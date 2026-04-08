@@ -4,12 +4,11 @@
  * Connects to Supabase Postgres for reading/writing calendar and goals data.
  * All functions require userId parameter for multi-tenant data isolation.
  *
- * Note: While Postgres has RLS policies configured, we use service role key
- * with explicit user_id filtering since NextAuth manages auth separately
- * from Supabase Auth. This provides defense-in-depth.
+ * Note: With Clerk + tenant JWT, RLS applies; service-role fallback may be used
+ * when no tenant client is in context. All functions still take explicit userId.
  */
 
-import { createServerClient } from "./supabase-server";
+import { getTenantSupabaseOrServiceRole } from "./supabase-server";
 import type {
   Database,
   Event,
@@ -100,7 +99,7 @@ export async function getEvents(
     uncategorized?: boolean;
   }
 ): Promise<Event[]> {
-  const supabase = createServerClient();
+  const supabase = getTenantSupabaseOrServiceRole();
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let query = (supabase.from("events") as any)
@@ -139,7 +138,7 @@ export async function getEvents(
  * Get a single event by ID
  */
 export async function getEventById(userId: string, eventId: string): Promise<Event | null> {
-  const supabase = createServerClient();
+  const supabase = getTenantSupabaseOrServiceRole();
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data, error } = await (supabase.from("events") as any)
@@ -165,7 +164,7 @@ export async function updateAttendance(
   eventId: string,
   attended: "attended" | "skipped" | "unknown"
 ): Promise<void> {
-  const supabase = createServerClient();
+  const supabase = getTenantSupabaseOrServiceRole();
 
   const updateData: EventUpdate = {
     attended,
@@ -197,7 +196,7 @@ export async function updateEventColor(
     throw new Error(`Invalid color ID: ${colorId}`);
   }
 
-  const supabase = createServerClient();
+  const supabase = getTenantSupabaseOrServiceRole();
 
   const updateData: EventUpdate = {
     color_id: colorId,
@@ -230,7 +229,7 @@ export async function updateEventColor(
 export async function getCalendars(
   userId: string
 ): Promise<{ calendar_name: string; account: string }[]> {
-  const supabase = createServerClient();
+  const supabase = getTenantSupabaseOrServiceRole();
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data, error } = await (supabase.from("events") as any)
@@ -263,7 +262,7 @@ export async function getCalendars(
  * Get distinct accounts
  */
 export async function getAccounts(userId: string): Promise<string[]> {
-  const supabase = createServerClient();
+  const supabase = getTenantSupabaseOrServiceRole();
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data, error } = await (supabase.from("events") as any)
@@ -292,7 +291,7 @@ export async function getDailySummaries(
   startDate: string,
   endDate: string
 ): Promise<DailySummary[]> {
-  const supabase = createServerClient();
+  const supabase = getTenantSupabaseOrServiceRole();
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data, error } = await (supabase.from("daily_summaries") as any)
@@ -408,7 +407,7 @@ export async function reconcileDailySummariesForDateRange(
   endDate: string,
   options?: { accounts?: string[]; calendars?: string[] }
 ): Promise<void> {
-  const supabase = createServerClient();
+  const supabase = getTenantSupabaseOrServiceRole();
   const now = new Date().toISOString();
 
   for (const date of eachIsoDateInclusive(startDate, endDate)) {
@@ -488,7 +487,7 @@ export async function reconcileDailySummariesForDateRange(
  * Get user preference
  */
 export async function getPreference(userId: string, key: string): Promise<string | null> {
-  const supabase = createServerClient();
+  const supabase = getTenantSupabaseOrServiceRole();
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data, error } = await (supabase.from("user_preferences") as any)
@@ -512,7 +511,7 @@ export async function setPreference(
   key: string,
   value: string
 ): Promise<void> {
-  const supabase = createServerClient();
+  const supabase = getTenantSupabaseOrServiceRole();
 
   const upsertData: UserPreferenceInsert = {
     user_id: userId,
@@ -534,7 +533,7 @@ export async function setPreference(
  * Get all preferences
  */
 export async function getAllPreferences(userId: string): Promise<Record<string, string>> {
-  const supabase = createServerClient();
+  const supabase = getTenantSupabaseOrServiceRole();
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data, error } = await (supabase.from("user_preferences") as any)
@@ -561,7 +560,7 @@ export async function getAllPreferences(userId: string): Promise<Record<string, 
  * Get goals for a week
  */
 export async function getGoalsForWeek(userId: string, weekId: string): Promise<WeeklyGoal[]> {
-  const supabase = createServerClient();
+  const supabase = getTenantSupabaseOrServiceRole();
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data, error } = await (supabase.from("weekly_goals") as any)
@@ -581,7 +580,7 @@ export async function getGoalsForWeek(userId: string, weekId: string): Promise<W
  * Get a single goal by ID
  */
 export async function getGoalById(userId: string, goalId: string): Promise<WeeklyGoal | null> {
-  const supabase = createServerClient();
+  const supabase = getTenantSupabaseOrServiceRole();
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data, error } = await (supabase.from("weekly_goals") as any)
@@ -605,7 +604,7 @@ export async function updateGoalProgress(
   goalId: string,
   progressPercent: number
 ): Promise<void> {
-  const supabase = createServerClient();
+  const supabase = getTenantSupabaseOrServiceRole();
 
   const updateData: WeeklyGoalUpdate = {
     progress_percent: progressPercent,
@@ -631,7 +630,7 @@ export async function updateGoalStatus(
   goalId: string,
   status: "active" | "completed" | "cancelled"
 ): Promise<void> {
-  const supabase = createServerClient();
+  const supabase = getTenantSupabaseOrServiceRole();
   const now = new Date().toISOString();
 
   const updateData: WeeklyGoalUpdate = {
@@ -670,7 +669,7 @@ export async function createGoal(
   userId: string,
   params: CreateGoalParams
 ): Promise<WeeklyGoal> {
-  const supabase = createServerClient();
+  const supabase = getTenantSupabaseOrServiceRole();
   const now = new Date().toISOString();
   const randomSuffix = Math.random().toString(36).slice(2, 8);
   const id = `goal-${params.weekId}-${Date.now()}-${randomSuffix}`;
@@ -723,7 +722,7 @@ export async function updateGoal(
   goalId: string,
   updates: UpdateGoalParams
 ): Promise<WeeklyGoal> {
-  const supabase = createServerClient();
+  const supabase = getTenantSupabaseOrServiceRole();
 
   // Verify goal exists
   const existing = await getGoalById(userId, goalId);
@@ -798,7 +797,7 @@ export const NON_GOAL_STATUS_LABELS: Record<NonGoalStatus, string> = {
  * Get non-goals for a week
  */
 export async function getNonGoalsForWeek(userId: string, weekId: string): Promise<NonGoal[]> {
-  const supabase = createServerClient();
+  const supabase = getTenantSupabaseOrServiceRole();
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data, error } = await (supabase.from("non_goals") as any)
@@ -822,7 +821,7 @@ export async function getNonGoalById(
   userId: string,
   nonGoalId: string
 ): Promise<NonGoal | null> {
-  const supabase = createServerClient();
+  const supabase = getTenantSupabaseOrServiceRole();
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data, error } = await (supabase.from("non_goals") as any)
@@ -856,7 +855,7 @@ export async function createNonGoal(
   userId: string,
   params: CreateNonGoalParams
 ): Promise<NonGoal> {
-  const supabase = createServerClient();
+  const supabase = getTenantSupabaseOrServiceRole();
   const now = new Date().toISOString();
   const randomSuffix = Math.random().toString(36).slice(2, 8);
   const id = `ng-${params.weekId}-${Date.now()}-${randomSuffix}`;
@@ -894,7 +893,7 @@ export async function updateNonGoalStatus(
   nonGoalId: string,
   status: NonGoalStatus
 ): Promise<NonGoal | null> {
-  const supabase = createServerClient();
+  const supabase = getTenantSupabaseOrServiceRole();
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { error } = await (supabase.from("non_goals") as any)
@@ -920,7 +919,7 @@ export async function getUnacknowledgedAlerts(
   userId: string,
   weekId: string
 ): Promise<NonGoalAlert[]> {
-  const supabase = createServerClient();
+  const supabase = getTenantSupabaseOrServiceRole();
 
   // First get non-goal IDs for this week
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -959,7 +958,7 @@ export async function getUnacknowledgedAlerts(
  * Acknowledge an alert
  */
 export async function acknowledgeAlert(userId: string, alertId: number): Promise<void> {
-  const supabase = createServerClient();
+  const supabase = getTenantSupabaseOrServiceRole();
 
   const updateData: NonGoalAlertUpdate = {
     acknowledged: true,
@@ -984,7 +983,7 @@ export async function acknowledgeAlert(userId: string, alertId: number): Promise
  * Get total progress minutes for a goal
  */
 export async function getGoalProgressMinutes(userId: string, goalId: string): Promise<number> {
-  const supabase = createServerClient();
+  const supabase = getTenantSupabaseOrServiceRole();
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data, error } = await (supabase.from("goal_progress") as any)
@@ -1011,7 +1010,7 @@ export async function getGoalProgressMinutesBatch(
     return {};
   }
 
-  const supabase = createServerClient();
+  const supabase = getTenantSupabaseOrServiceRole();
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data, error } = await (supabase.from("goal_progress") as any)
@@ -1061,7 +1060,7 @@ export async function getWeeklyAuditState(
   userId: string,
   weekId: string
 ): Promise<WeeklyAuditState | null> {
-  const supabase = createServerClient();
+  const supabase = getTenantSupabaseOrServiceRole();
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data, error } = await (supabase.from("weekly_audit_state") as any)
@@ -1092,7 +1091,7 @@ export async function applyWeeklyAuditAction(
   action: WeeklyAuditAction,
   options?: { snoozedUntil?: string }
 ): Promise<WeeklyAuditState> {
-  const supabase = createServerClient();
+  const supabase = getTenantSupabaseOrServiceRole();
   const now = new Date().toISOString();
 
   const existing = await getWeeklyAuditState(userId, weekId);
@@ -1152,7 +1151,7 @@ export async function recordGoalProgress(
     minutesContributed: number;
   }
 ): Promise<GoalProgress> {
-  const supabase = createServerClient();
+  const supabase = getTenantSupabaseOrServiceRole();
   const now = new Date().toISOString();
 
   const upsertData: GoalProgressInsert = {
@@ -1187,7 +1186,7 @@ export async function getProgressRecordsForGoal(
   userId: string,
   goalId: string
 ): Promise<GoalProgress[]> {
-  const supabase = createServerClient();
+  const supabase = getTenantSupabaseOrServiceRole();
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data, error } = await (supabase.from("goal_progress") as any)

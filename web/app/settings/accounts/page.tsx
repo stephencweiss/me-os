@@ -1,10 +1,14 @@
 "use client";
 
-import { useSession } from "next-auth/react";
+import { useAuth } from "@clerk/nextjs";
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import Button from "@/app/components/Button";
 import { withBasePath } from "@/lib/base-path";
+
+const LINKED_ACCOUNT_LIMIT = 5;
+const NEED_MORE_ACCOUNTS_URL =
+  "https://github.com/stephencweiss/me-os/issues/new?title=MeOS%3A%20more%20than%205%20Google%20accounts&body=Describe%20why%20you%20need%20more%20linked%20Google%20accounts.";
 
 interface Account {
   account: string;
@@ -18,15 +22,113 @@ interface LinkedMeta {
   updated_at: string;
 }
 
+function googleLinkStartUrl(label?: string): string {
+  const base = withBasePath("/api/google/link/start");
+  if (label?.trim()) {
+    return `${base}?label=${encodeURIComponent(label.trim())}`;
+  }
+  return base;
+}
+
+function formatSyncResponse(data: Record<string, unknown>): {
+  message: string;
+  detail: string | null;
+} {
+  if (data.skipped === true) {
+    return {
+      message:
+        (data.message as string) ||
+        "Skipped — synced less than a minute ago.",
+      detail: null,
+    };
+  }
+
+  const stats = data.stats as
+    | {
+        fetched?: number;
+        upserted?: number;
+        markedRemoved?: number;
+      }
+    | undefined;
+  const errors = data.errors as
+    | { calendarSummary: string; message: string }[]
+    | undefined;
+  const accounts = data.accounts as
+    | {
+        linkedAccountId: string;
+        googleEmail?: string;
+        skipped?: boolean;
+        message?: string;
+        fatalError?: string;
+        stats?: { fetched?: number; upserted?: number };
+        errors?: { calendarSummary: string; message: string }[];
+      }[]
+    | undefined;
+
+  if (accounts && accounts.length > 0) {
+    let skippedN = 0;
+    const summaries: string[] = [];
+    for (const a of accounts) {
+      if (a.skipped) {
+        skippedN += 1;
+      } else if (a.fatalError) {
+        summaries.push(`${a.googleEmail || a.linkedAccountId}: ${a.fatalError}`);
+      } else if (a.stats) {
+        summaries.push(
+          `${a.googleEmail || "Account"}: fetched ${a.stats.fetched ?? 0}, upserted ${a.stats.upserted ?? 0}.`
+        );
+      }
+    }
+    const mergedDetail =
+      errors && errors.length > 0
+        ? errors.map((e) => `${e.calendarSummary}: ${e.message}`).join("\n")
+        : accounts
+            .flatMap((a) => a.errors || [])
+            .map((e) => `${e.calendarSummary}: ${e.message}`)
+            .join("\n") || null;
+    const tail =
+      skippedN > 0
+        ? `${skippedN} account(s) skipped (synced less than a minute ago).`
+        : "";
+    return {
+      message:
+        [summaries.join(" "), tail].filter(Boolean).join(" ").trim() ||
+        "Sync finished.",
+      detail: mergedDetail || null,
+    };
+  }
+
+  const parts = [
+    `Fetched ${stats?.fetched ?? 0} events, upserted ${stats?.upserted ?? 0}, removed ${stats?.markedRemoved ?? 0}.`,
+  ];
+  if (errors?.length) {
+    parts.push(`${errors.length} calendar(s) had errors.`);
+  }
+  return {
+    message: parts.join(" "),
+    detail:
+      errors && errors.length > 0
+        ? errors
+            .map((e) => `${e.calendarSummary}: ${e.message}`)
+            .join("\n")
+        : null,
+  };
+}
+
 export default function AccountsPage() {
-  const { status } = useSession();
+  const { isSignedIn, isLoaded } = useAuth();
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [linked, setLinked] = useState<LinkedMeta[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
+  const [syncingId, setSyncingId] = useState<string | null>(null);
+  const [disconnectingId, setDisconnectingId] = useState<string | null>(null);
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
   const [syncDetail, setSyncDetail] = useState<string | null>(null);
+  const [banner, setBanner] = useState<string | null>(null);
+  const [showLabelModal, setShowLabelModal] = useState(false);
+  const [labelDraft, setLabelDraft] = useState("");
 
   const refreshData = useCallback(async () => {
     const [calRes, linkedRes] = await Promise.all([
@@ -68,51 +170,89 @@ export default function AccountsPage() {
       }
     }
 
-    if (status === "authenticated") {
-      load();
-    } else if (status === "unauthenticated") {
+    if (!isLoaded) return;
+    if (isSignedIn) {
+      void load();
+    } else {
       setLoading(false);
     }
-  }, [status, refreshData]);
+  }, [isLoaded, isSignedIn, refreshData]);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || loading) return;
+    const params = new URLSearchParams(window.location.search);
+    const linkedOk = params.get("google_linked");
+    const linkErr = params.get("google_link");
+    if (linkedOk === "1") {
+      setBanner("Google Calendar connected successfully.");
+    } else if (linkErr) {
+      const detail = params.get("detail");
+      const labels: Record<string, string> = {
+        auth: "Sign in to MeOS first, then try connecting again.",
+        denied: "Google consent was denied or cancelled.",
+        bad_request: "Missing OAuth parameters. Try Connect again.",
+        state: "Security check failed (OAuth state). Try Connect again.",
+        user_mismatch: "Signed-in user did not match the link session. Try again.",
+        exchange: "Could not complete Google token exchange.",
+      };
+      setBanner(
+        `${labels[linkErr] || "Could not complete Google link."}${detail ? ` (${detail})` : ""}`
+      );
+    }
+    if (linkedOk || linkErr) {
+      window.history.replaceState(
+        {},
+        "",
+        `${window.location.pathname}${window.location.hash}`
+      );
+    }
+  }, [loading]);
 
   useEffect(() => {
     if (typeof window === "undefined" || loading) return;
     if (window.location.hash === "#calendar-sync") {
-      document.getElementById("calendar-sync")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      document
+        .getElementById("calendar-sync")
+        ?.scrollIntoView({ behavior: "smooth", block: "start" });
     }
   }, [loading]);
 
-  async function runSync() {
+  async function postSync(body: Record<string, unknown>) {
+    const res = await fetch(withBasePath("/api/calendar/sync"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const data = (await res.json().catch(() => ({}))) as Record<
+      string,
+      unknown
+    >;
+    if (!res.ok) {
+      return {
+        ok: false as const,
+        message: (data.error as string) || `Sync failed (${res.status})`,
+        detail: null as string | null,
+      };
+    }
+    const { message, detail } = formatSyncResponse(data);
+    return { ok: true as const, message, detail };
+  }
+
+  async function runSyncAll() {
     setSyncing(true);
     setSyncMessage(null);
     setSyncDetail(null);
     setError(null);
     try {
-      const res = await fetch(withBasePath("/api/calendar/sync"), {
-        method: "POST",
-        body: "{}",
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setSyncMessage(data.error || `Sync failed (${res.status})`);
+      const body =
+        linked.length > 1 ? { all: true } : { linkedAccountId: linked[0]?.id };
+      const r = await postSync(body);
+      if (!r.ok) {
+        setSyncMessage(r.message);
         return;
       }
-      const { stats, errors } = data;
-      const parts = [
-        `Fetched ${stats?.fetched ?? 0} events, upserted ${stats?.upserted ?? 0}, removed ${stats?.markedRemoved ?? 0}.`,
-      ];
-      if (errors?.length) {
-        parts.push(`${errors.length} calendar(s) had errors.`);
-        setSyncDetail(
-          errors
-            .map(
-              (e: { calendarSummary: string; message: string }) =>
-                `${e.calendarSummary}: ${e.message}`
-            )
-            .join("\n")
-        );
-      }
-      setSyncMessage(parts.join(" "));
+      setSyncMessage(r.message);
+      setSyncDetail(r.detail);
       await refreshData();
     } catch (err) {
       setSyncMessage(err instanceof Error ? err.message : "Sync failed");
@@ -121,7 +261,60 @@ export default function AccountsPage() {
     }
   }
 
-  if (status === "loading" || loading) {
+  async function runSyncOne(linkedAccountId: string) {
+    setSyncingId(linkedAccountId);
+    setSyncMessage(null);
+    setSyncDetail(null);
+    setError(null);
+    try {
+      const r = await postSync({ linkedAccountId });
+      if (!r.ok) {
+        setSyncMessage(r.message);
+        return;
+      }
+      setSyncMessage(r.message);
+      setSyncDetail(r.detail);
+      await refreshData();
+    } catch (err) {
+      setSyncMessage(err instanceof Error ? err.message : "Sync failed");
+    } finally {
+      setSyncingId(null);
+    }
+  }
+
+  async function disconnect(id: string) {
+    if (!confirm("Disconnect this Google account from MeOS?")) return;
+    setDisconnectingId(id);
+    setError(null);
+    try {
+      const res = await fetch(
+        `${withBasePath("/api/calendar/linked")}?id=${encodeURIComponent(id)}`,
+        { method: "DELETE" }
+      );
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError((data.error as string) || "Failed to disconnect");
+        return;
+      }
+      await refreshData();
+      setSyncMessage(null);
+      setSyncDetail(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Disconnect failed");
+    } finally {
+      setDisconnectingId(null);
+    }
+  }
+
+  function confirmAddWithLabel() {
+    setShowLabelModal(false);
+    window.location.href = googleLinkStartUrl(labelDraft);
+    setLabelDraft("");
+  }
+
+  const atLinkedLimit = linked.length >= LINKED_ACCOUNT_LIMIT;
+
+  if (!isLoaded || loading) {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-8">
         <div className="max-w-2xl mx-auto">
@@ -138,7 +331,7 @@ export default function AccountsPage() {
     );
   }
 
-  if (status === "unauthenticated") {
+  if (!isSignedIn) {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-8">
         <div className="max-w-2xl mx-auto text-center">
@@ -149,7 +342,7 @@ export default function AccountsPage() {
             Please sign in to manage your linked accounts.
           </p>
           <Link
-            href="/login"
+            href={withBasePath("/login")}
             className="inline-block px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
           >
             Sign in
@@ -164,7 +357,7 @@ export default function AccountsPage() {
       <div className="max-w-2xl mx-auto">
         <div className="mb-8">
           <Link
-            href="/today"
+            href={withBasePath("/today")}
             className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
           >
             &larr; Back to Today
@@ -174,13 +367,120 @@ export default function AccountsPage() {
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
           Linked Accounts
         </h1>
-        <p className="text-gray-600 dark:text-gray-400 mb-8">
-          Manage your connected Google Calendar accounts.
+        <p className="text-gray-600 dark:text-gray-400 mb-2">
+          You sign in to MeOS with <strong>email</strong> (Clerk). Google
+          Calendar is connected separately — it is not your MeOS login.
         </p>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mb-8">
+          Connect one or more Google accounts to sync calendar data into MeOS.
+        </p>
+
+        {banner && (
+          <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+            <p className="text-sm text-blue-800 dark:text-blue-200">{banner}</p>
+          </div>
+        )}
 
         {error && (
           <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
             <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+          </div>
+        )}
+
+        <div className="mb-6 space-y-4">
+          <div className="flex flex-col sm:flex-row gap-3 flex-wrap">
+            {linked.length === 0 ? (
+              <a
+                href={googleLinkStartUrl()}
+                className="inline-flex items-center justify-center px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium"
+              >
+                Connect Google Calendar
+              </a>
+            ) : (
+              <>
+                <a
+                  href={googleLinkStartUrl()}
+                  className="inline-flex items-center justify-center px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium"
+                >
+                  Connect Google Calendar
+                </a>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="md"
+                  disabled={atLinkedLimit}
+                  onClick={() => setShowLabelModal(true)}
+                >
+                  Add Google account (optional label)
+                </Button>
+              </>
+            )}
+          </div>
+          {atLinkedLimit && (
+            <p className="text-sm text-amber-700 dark:text-amber-400">
+              You have reached the usual limit of {LINKED_ACCOUNT_LIMIT} linked
+              accounts.{" "}
+              <a
+                href={NEED_MORE_ACCOUNTS_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline font-medium text-amber-800 dark:text-amber-300"
+              >
+                Open a GitHub issue
+              </a>{" "}
+              if you need more — we want to understand your use case.
+            </p>
+          )}
+        </div>
+
+        {showLabelModal && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="label-modal-title"
+          >
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg max-w-md w-full p-5 border border-gray-200 dark:border-gray-700">
+              <h2
+                id="label-modal-title"
+                className="text-lg font-semibold text-gray-900 dark:text-white mb-2"
+              >
+                Optional label
+              </h2>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
+                Leave blank to use your Google email as the display name. Max 64
+                characters.
+              </p>
+              <input
+                type="text"
+                value={labelDraft}
+                onChange={(e) => setLabelDraft(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white text-sm mb-4"
+                placeholder="e.g. Work"
+                maxLength={64}
+              />
+              <div className="flex gap-2 justify-end">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="md"
+                  onClick={() => {
+                    setShowLabelModal(false);
+                    setLabelDraft("");
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  variant="primary"
+                  size="md"
+                  onClick={() => void confirmAddWithLabel()}
+                >
+                  Continue to Google
+                </Button>
+              </div>
+            </div>
           </div>
         )}
 
@@ -192,9 +492,8 @@ export default function AccountsPage() {
             Sync calendar
           </h2>
           <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-            Pull Google Calendar into MeOS (default: last 30 days through next 30 days, UTC). If
-            this fails, check the error — you may need Google sign-in, Calendar scope, or{" "}
-            <code className="text-xs bg-gray-100 dark:bg-gray-900 px-1 rounded">TOKEN_ENCRYPTION_KEY</code>.
+            Pull Google Calendar into MeOS (default: last 30 days through next 30
+            days, UTC). Accounts skipped if synced less than a minute ago.
           </p>
           <Button
             type="button"
@@ -202,18 +501,21 @@ export default function AccountsPage() {
             size="lg"
             className="w-full sm:w-auto"
             isLoading={syncing}
-            onClick={() => void runSync()}
+            disabled={linked.length === 0}
+            onClick={() => void runSyncAll()}
           >
-            Sync calendar now
+            {linked.length > 1 ? "Sync all Google accounts" : "Sync calendar now"}
           </Button>
           {linked.length === 0 && !syncMessage && (
             <p className="mt-3 text-sm text-amber-700 dark:text-amber-400">
-              No linked row listed yet — you can still run sync; the server will try to mirror
-              tokens from your Google sign-in.
+              Connect Google Calendar above first — sync needs OAuth tokens in{" "}
+              <code className="text-xs">linked_google_accounts</code>.
             </p>
           )}
           {syncMessage && (
-            <p className="mt-3 text-sm text-gray-700 dark:text-gray-300">{syncMessage}</p>
+            <p className="mt-3 text-sm text-gray-700 dark:text-gray-300">
+              {syncMessage}
+            </p>
           )}
           {syncDetail && (
             <pre className="mt-2 text-xs text-red-700 dark:text-red-300 whitespace-pre-wrap bg-red-50 dark:bg-red-900/20 p-2 rounded">
@@ -222,13 +524,78 @@ export default function AccountsPage() {
           )}
         </div>
 
+        <div className="mb-6 space-y-4">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+            Linked Google accounts
+          </h2>
+          {linked.length === 0 ? (
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              No Google accounts linked yet. Use{" "}
+              <strong>Connect Google Calendar</strong> to add one (requires{" "}
+              <code className="text-xs">TOKEN_ENCRYPTION_KEY</code> on the
+              server).
+            </p>
+          ) : (
+            <ul className="space-y-3">
+              {linked.map((l) => {
+                const labelDiffers =
+                  l.account_label.trim().toLowerCase() !==
+                  l.google_email.trim().toLowerCase();
+                return (
+                  <li
+                    key={l.id}
+                    className="bg-white dark:bg-gray-800 rounded-lg shadow border border-gray-200 dark:border-gray-700 p-4"
+                  >
+                    <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+                      <div>
+                        <p className="font-medium text-gray-900 dark:text-white">
+                          {l.google_email}
+                        </p>
+                        {labelDiffers && (
+                          <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+                            Label: {l.account_label}
+                          </p>
+                        )}
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          size="sm"
+                          isLoading={syncingId === l.id}
+                          disabled={syncing || syncingId !== null || disconnectingId !== null}
+                          onClick={() => void runSyncOne(l.id)}
+                        >
+                          Sync this account
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="text-red-600 dark:text-red-400"
+                          isLoading={disconnectingId === l.id}
+                          disabled={disconnectingId !== null}
+                          onClick={() => void disconnect(l.id)}
+                        >
+                          Disconnect
+                        </Button>
+                      </div>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
           <div className="p-4 border-b border-gray-200 dark:border-gray-700">
             <h2 className="font-medium text-gray-900 dark:text-white">
-              Synced Accounts
+              Imported calendar data
             </h2>
             <p className="text-sm text-gray-500 dark:text-gray-400">
-              These accounts have calendar data synced to MeOS.
+              Calendars and events already stored in MeOS (may combine several
+              linked Google accounts).
             </p>
           </div>
 
@@ -253,7 +620,7 @@ export default function AccountsPage() {
                 No calendar accounts synced yet.
               </p>
               <p className="text-sm text-gray-500 dark:text-gray-500 mt-1">
-                Run the calendar sync to import your calendar data.
+                Run a sync above to import your calendar data.
               </p>
             </div>
           ) : (
@@ -281,62 +648,18 @@ export default function AccountsPage() {
                         {account.account}
                       </p>
                       <p className="text-sm text-gray-500 dark:text-gray-400">
-                        {account.eventCount} calendar{account.eventCount !== 1 ? "s" : ""} synced
+                        {account.eventCount} calendar
+                        {account.eventCount !== 1 ? "s" : ""} in MeOS
                       </p>
                     </div>
                   </div>
                   <span className="px-2 py-1 text-xs font-medium text-green-700 dark:text-green-400 bg-green-100 dark:bg-green-900/30 rounded">
-                    Connected
+                    Imported
                   </span>
                 </li>
               ))}
             </ul>
           )}
-        </div>
-
-        <div className="mt-6 bg-white dark:bg-gray-800 rounded-lg shadow p-4 space-y-4">
-          <div>
-            <h2 className="font-medium text-gray-900 dark:text-white mb-2">
-              Google link (NextAuth)
-            </h2>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">
-              OAuth tokens live in <code className="text-xs">next_auth.accounts</code>; MeOS mirrors
-              them into encrypted <code className="text-xs">linked_google_accounts</code> when you open
-              this page or run sync. Re-consent in Google if you added Calendar scope.
-            </p>
-            {linked.length === 0 ? (
-              <p className="text-sm text-amber-700 dark:text-amber-400">
-                No linked row yet — complete a Google sign-in after deploying migrations and{" "}
-                <code className="text-xs bg-gray-100 dark:bg-gray-900 px-1 rounded">TOKEN_ENCRYPTION_KEY</code>.
-              </p>
-            ) : (
-              <ul className="text-sm text-gray-700 dark:text-gray-300 space-y-1">
-                {linked.map((l) => (
-                  <li key={l.id}>
-                    <span className="font-medium">{l.google_email}</span>
-                    <span className="text-gray-500 dark:text-gray-400">
-                      {" "}
-                      ({l.account_label})
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-
-          <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
-            <h2 className="font-medium text-gray-900 dark:text-white mb-2">Add Account</h2>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-              Additional Google accounts (separate OAuth) can be added later.
-            </p>
-            <button
-              type="button"
-              disabled
-              className="w-full px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500 rounded-lg cursor-not-allowed flex items-center justify-center gap-2"
-            >
-              Link another Google account (coming soon)
-            </button>
-          </div>
         </div>
       </div>
     </div>

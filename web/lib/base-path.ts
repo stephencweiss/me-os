@@ -9,17 +9,6 @@ export function getBasePath(): string {
 }
 
 /**
- * Auth.js route prefix (matches `app/api/auth/[...nextauth]`). If unset, NextAuth
- * treats `AUTH_URL`'s pathname as `basePath`, which breaks subpath deploys:
- * OAuth `redirect_uri` becomes `{mount}/callback/google` instead of
- * `{mount}/api/auth/callback/google`.
- */
-export function getAuthJsBasePath(): string {
-  const bp = getBasePath();
-  return bp ? `${bp}/api/auth` : "/api/auth";
-}
-
-/**
  * Middleware and incoming requests use the full pathname including `basePath`
  * (e.g. `/app/me-os/login`). App routes and `next/navigation` redirects expect
  * paths relative to `basePath` (e.g. `/login`).

@@ -1,5 +1,6 @@
 /**
- * Canonical site URL for Auth.js and OAuth redirect_uri (must match Google Console).
+ * Canonical public URL of the Next app for OAuth (Google Calendar link flow).
+ * Must match Google Cloud "Authorized redirect URIs" for `/api/google/link/callback`.
  */
 export function getAuthDeploymentUrl(): string {
   let raw = (process.env.AUTH_URL ?? process.env.NEXTAUTH_URL ?? "").trim();
@@ -25,11 +26,22 @@ export function getAuthDeploymentUrl(): string {
   return path ? `${parsed.origin}${path}` : parsed.origin;
 }
 
-/**
- * OAuth redirect_uri must stay under the app's public path. Using `new URL("/api/...", base)`
- * strips a path prefix from `AUTH_URL` (e.g. `/app/me-os`), so join explicitly.
- */
-export function getMobileGoogleOAuthCallbackUrl(): string {
+/** Web “connect Google Calendar” OAuth callback (Clerk session + PKCE cookie). */
+export function getWebGoogleLinkCallbackUrl(): string {
   const base = getAuthDeploymentUrl().replace(/\/+$/, "");
-  return `${base}/api/auth/mobile/google/callback`;
+  return `${base}/api/google/link/callback`;
+}
+
+/** Absolute URL for post-OAuth redirects (honors `AUTH_URL` / `NEXTAUTH_URL` path prefix). */
+export function appAbsoluteUrl(
+  pathname: string,
+  searchParams?: Record<string, string>
+): string {
+  const base = getAuthDeploymentUrl().replace(/\/$/, "");
+  const path = pathname.startsWith("/") ? pathname : `/${pathname}`;
+  const q =
+    searchParams && Object.keys(searchParams).length > 0
+      ? `?${new URLSearchParams(searchParams).toString()}`
+      : "";
+  return `${base}${path}${q}`;
 }
