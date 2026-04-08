@@ -160,6 +160,88 @@
 
 ---
 
+## Subagent-driven execution (recommended)
+
+### Is this plan a good fit?
+
+**Yes, with sequencing.** `superpowers:subagent-driven-development` expects **fresh context per task** and **two-stage review** (spec compliance, then code quality) after each task. These tasks are **not** independent enough to run in parallel subagents (each wave depends on the previous), but they **are** bounded enough that one subagent per task works well: OAuth → persistence → ordering → DB → sync API → UI.
+
+**When to prefer inline execution:** If you want one human checkpoint across Tasks 4–6 together, use `executing-plans` instead. Subagents shine when you want **automated review between tasks** without holding the whole stack in one context window.
+
+### Task dependency graph (do not reorder)
+
+```text
+Task 1 (cookie + start)
+    → Task 2 (callback + upsert)
+    → Task 3 (list sort)     ← can land same commit as Task 2 if reviewer prefers, but separate subagents reduces drift
+Task 4 (migration + types)
+    → Task 5 (sync timestamp + skip + all)
+    → Task 6 (Settings UI + Task 7 escape hatch)
+```
+
+**Contract freeze:** Task 5 must end with a **written `POST /api/calendar/sync` response shape** (see appendix) copied into the task handoff for Task 6 so the UI subagent does not guess.
+
+### Per-task definition of done (subagent must prove)
+
+| Task | Done when |
+|------|-----------|
+| 1 | New tests green; invalid `label` rejected at start route; cookie parses old payloads without `accountLabel`. |
+| 2 | `upsertLinkedGoogleFromWebOAuth` never uses hardcoded `"calendar"`; label or email matches spec; web tests + build green. |
+| 3 | Order documented in JSDoc; stable across refreshes. |
+| 4 | Migration file committed; types match column (or documented manual patch if `db:types` not run in CI). |
+| 5 | Single + `all` + skip paths covered by tests; response JSON documented for UI; `pnpm --filter web build` green. |
+| 6+7 | Connect URL reachable from UI; cards show email + label rules; sync/skip/disconnect/cap-5 behave; manual smoke notes in PR. |
+
+### Subagent prompt pack (paste into each implementer dispatch)
+
+Each implementer subagent should receive **only**:
+
+1. **Task title** and **checkbox steps** from this plan (verbatim for that task).
+2. **Design spec** path: `docs/superpowers/specs/2026-03-27-settings-calendar-sync-multi-account-design.md` — cite **§5.2** for labels, **§5.3–5.4** for sync.
+3. **Exact file paths** from the file map (no “find the route”).
+4. **Commands to run before marking done:** `pnpm --filter web test:run` (and `pnpm test` if shared code touched), `pnpm --filter web build`.
+5. **Out of scope:** no Clerk Dashboard changes; no parallel per-account sync locks; no new feedback API unless Task 7 explicitly adds mailto only.
+
+**Model hint (from subagent-driven-development):** Tasks 1–3 → faster/cheaper model; Task 5–6 → standard or stronger (API + UI integration).
+
+### Review gates (after each task)
+
+1. **Spec reviewer:** Diff matches design spec + this plan for that task only.
+2. **Code quality reviewer:** MeOS patterns (Tailwind, `withBasePath`, tenant Supabase), no drive-by refactors, tests are real assertions not placeholders.
+
+If implementer returns **BLOCKED** or **NEEDS_CONTEXT**, fix the plan or provide credentials/context before re-dispatching; do not retry identical prompts.
+
+### Plan improvements applied below
+
+- Explicit **DAG** and **contract freeze** before UI work.
+- **Per-task DoD** so reviewers and subagents share the same bar.
+- **Appendix** for sync JSON shape (minimize UI guesswork).
+
+---
+
+## Appendix: `POST /api/calendar/sync` response extensions (Task 5 — finalize, then freeze)
+
+**Existing shape (keep):** `{ ok, stats, errors, dateRange }` on success path.
+
+**Skip (single account, inside 1-minute window):** Return **200** with body that UI can detect without breaking existing `ok` handling, for example:
+
+```json
+{
+  "ok": true,
+  "skipped": true,
+  "skipReason": "recent",
+  "message": "Skipped — synced less than a minute ago.",
+  "lastSyncCompletedAt": "2026-03-27T12:00:00.000Z",
+  "stats": { "fetched": 0, "upserted": 0, "markedRemoved": 0, "calendarsProcessed": 0, "autoCategorized": 0 },
+  "errors": [],
+  "dateRange": { "start": "…", "end": "…" }
+}
+```
+
+**`all: true`:** Return aggregated `{ ok, stats, errors, dateRange }` where `stats`/`errors` are **combined**, **or** add `accounts: [{ linkedAccountId, skipped?, stats, errors }]` — pick one approach in Task 5 and **document it in the route JSDoc**; Task 6 must only implement against that contract.
+
+---
+
 ## Verification checklist (before merge)
 
 - [ ] `pnpm test` (root) passes
