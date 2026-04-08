@@ -6,7 +6,10 @@ import {
 } from "@/lib/linked-google-accounts";
 import { withTenantSupabaseForApi } from "@/lib/with-tenant-supabase";
 
-/** GET /api/calendar/linked — metadata only (no tokens). */
+/**
+ * GET /api/calendar/linked — metadata only (no tokens).
+ * Rows are sorted by `google_email` ascending (stable).
+ */
 export async function GET() {
   const authResult = await requireAuth();
   return withTenantSupabaseForApi(authResult, async ({ userId }) => {

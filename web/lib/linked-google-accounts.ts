@@ -8,6 +8,7 @@ import "server-only";
 import type { Credentials } from "google-auth-library";
 import { createServerClient, getTenantSupabaseOrServiceRole } from "./supabase-server";
 import { encryptToken, decryptToken } from "./token-crypto";
+import { resolveLinkedGoogleAccountLabel } from "./account-label";
 import type { LinkedGoogleAccount, LinkedGoogleAccountInsert } from "./database.types";
 import { GOOGLE_MOBILE_OAUTH_SCOPE } from "./mobile-google-oauth";
 import type { GoogleUserProfile } from "./mobile-google-oauth";
@@ -26,7 +27,7 @@ async function upsertEncryptedLinkedRow(params: {
   refreshToken: string | null;
   expiresAtSeconds: number | null;
   scopes: string;
-  accountLabel?: string;
+  accountLabel: string;
 }): Promise<void> {
   const id = makeLinkedGoogleAccountId(params.userId, params.googleSubject);
   const accessEnc = encryptToken(params.accessToken);
@@ -43,7 +44,7 @@ async function upsertEncryptedLinkedRow(params: {
     google_email: params.googleEmail,
     google_user_id: params.googleSubject,
     display_name: params.displayName,
-    account_label: params.accountLabel ?? "primary",
+    account_label: params.accountLabel,
     access_token: accessEnc,
     refresh_token: refreshEnc,
     token_expiry: tokenExpiry,
@@ -66,6 +67,8 @@ export async function upsertLinkedGoogleFromWebOAuth(params: {
   userId: string;
   tokens: Credentials;
   profile: GoogleUserProfile;
+  /** From signed OAuth cookie when user passed `?label=`. */
+  preferredAccountLabel?: string;
 }): Promise<void> {
   const access = params.tokens.access_token;
   if (!access) {
@@ -75,6 +78,11 @@ export async function upsertLinkedGoogleFromWebOAuth(params: {
     params.tokens.expiry_date != null
       ? Math.floor(params.tokens.expiry_date / 1000)
       : null;
+  const accountLabel = resolveLinkedGoogleAccountLabel(
+    params.preferredAccountLabel,
+    params.profile.email,
+    params.profile.sub
+  );
   await upsertEncryptedLinkedRow({
     userId: params.userId,
     googleSubject: params.profile.sub,
@@ -84,7 +92,7 @@ export async function upsertLinkedGoogleFromWebOAuth(params: {
     refreshToken: params.tokens.refresh_token ?? null,
     expiresAtSeconds: expSeconds,
     scopes: GOOGLE_MOBILE_OAUTH_SCOPE,
-    accountLabel: "calendar",
+    accountLabel,
   });
 }
 
@@ -94,7 +102,7 @@ export async function getLinkedAccountsForUser(userId: string): Promise<LinkedGo
   const { data, error } = await (supabase.from("linked_google_accounts") as any)
     .select("*")
     .eq("user_id", userId)
-    .order("created_at", { ascending: true });
+    .order("google_email", { ascending: true });
 
   if (error) {
     throw new Error(`Failed to load linked Google accounts: ${error.message}`);
@@ -118,6 +126,25 @@ export async function getLinkedAccountById(
     throw new Error(`Failed to load linked account: ${error.message}`);
   }
   return data as LinkedGoogleAccount | null;
+}
+
+/** Record successful completion of `runCalendarSync` for backoff UX. */
+export async function setLinkedAccountLastSyncCompleted(
+  userId: string,
+  linkedAccountId: string,
+  completedAt: Date = new Date()
+): Promise<void> {
+  const supabase = getTenantSupabaseOrServiceRole();
+  const iso = completedAt.toISOString();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (supabase.from("linked_google_accounts") as any)
+    .update({ last_sync_completed_at: iso })
+    .eq("user_id", userId)
+    .eq("id", linkedAccountId);
+
+  if (error) {
+    throw new Error(`Failed to update last_sync_completed_at: ${error.message}`);
+  }
 }
 
 export async function deleteLinkedGoogleAccountForUser(

@@ -88,6 +88,7 @@ export async function GET(request: NextRequest) {
       userId,
       tokens,
       profile,
+      preferredAccountLabel: payload.accountLabel,
     });
     const res = redirectAccounts({ google_linked: "1" });
     clearLinkCookie(res);

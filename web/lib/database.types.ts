@@ -334,6 +334,7 @@ export type Database = {
           google_email: string
           google_user_id: string
           id: string
+          last_sync_completed_at: string | null
           refresh_token: string | null
           scopes: string
           token_expiry: string | null
@@ -348,6 +349,7 @@ export type Database = {
           google_email: string
           google_user_id: string
           id: string
+          last_sync_completed_at?: string | null
           refresh_token?: string | null
           scopes: string
           token_expiry?: string | null
@@ -362,6 +364,7 @@ export type Database = {
           google_email?: string
           google_user_id?: string
           id?: string
+          last_sync_completed_at?: string | null
           refresh_token?: string | null
           scopes?: string
           token_expiry?: string | null

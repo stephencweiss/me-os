@@ -20,6 +20,7 @@ import { suggestCategoryFromTitle } from "./calendar-suggest";
 import {
   decryptLinkedAccountTokens,
   getLinkedAccountById,
+  setLinkedAccountLastSyncCompleted,
   updateLinkedAccountTokens,
 } from "./linked-google-accounts";
 import { buildSupabaseEventId } from "./calendar-event-id";
@@ -396,6 +397,8 @@ export async function runCalendarSync(params: {
   }
 
   await reconcileDailySummariesForDateRange(userId, startDate, endDate);
+
+  await setLinkedAccountLastSyncCompleted(userId, linkedAccountId);
 
   return { stats, errors };
 }

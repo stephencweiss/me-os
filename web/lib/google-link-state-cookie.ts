@@ -2,6 +2,8 @@ import "server-only";
 
 import { createHmac, timingSafeEqual } from "crypto";
 
+import { isValidAccountLabelString } from "./account-label";
+
 export const GOOGLE_LINK_OAUTH_COOKIE = "meos_google_link_oauth";
 
 export type GoogleLinkStatePayload = {
@@ -10,6 +12,8 @@ export type GoogleLinkStatePayload = {
   state: string;
   codeVerifier: string;
   exp: number;
+  /** Optional user label from ?label=; omitted in older cookies. */
+  accountLabel?: string;
 };
 
 function signingSecret(): string {
@@ -65,6 +69,10 @@ export function parseGoogleLinkStateCookieValue(
       return null;
     }
     if (parsed.exp < Date.now()) return null;
+    if (parsed.accountLabel !== undefined) {
+      if (typeof parsed.accountLabel !== "string") return null;
+      if (!isValidAccountLabelString(parsed.accountLabel)) return null;
+    }
     return parsed;
   } catch {
     return null;
