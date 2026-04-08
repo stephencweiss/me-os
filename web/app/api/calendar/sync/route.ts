@@ -195,8 +195,11 @@ export async function POST(request: NextRequest) {
           accounts.length > 0 && accounts.every((a) => a.skipped);
         const anySuccess =
           mergedStats.calendarsProcessed > 0 || mergedStats.upserted > 0;
+        const anyFatal = accounts.some((a) => a.fatalError);
         const ok =
-          allSkipped || anySuccess || mergedErrors.length === 0;
+          allSkipped ||
+          anySuccess ||
+          (!anyFatal && mergedErrors.length === 0);
 
         return {
           accounts,
