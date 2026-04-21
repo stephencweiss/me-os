@@ -1,0 +1,45 @@
+{
+  "version": "1.0",
+  "goal": "Brief description of overall objective",
+  "created": "YYYY-MM-DDTHH:MM:SSZ",
+  "updated": "YYYY-MM-DDTHH:MM:SSZ",
+  "status": "planning",
+  "tasks": [
+    {
+      "id": "arch-001",
+      "description": "Design technical approach",
+      "persona": "architect",
+      "status": "pending",
+      "workspace": null,
+      "artifact": null,
+      "created": "YYYY-MM-DDTHH:MM:SSZ",
+      "completed": null,
+      "dependencies": [],
+      "metadata": {}
+    },
+    {
+      "id": "dev-001",
+      "description": "Implement per architecture",
+      "persona": "developer",
+      "status": "pending",
+      "workspace": "ai-feature-name",
+      "artifact": null,
+      "created": "YYYY-MM-DDTHH:MM:SSZ",
+      "completed": null,
+      "dependencies": ["arch-001"],
+      "metadata": {}
+    },
+    {
+      "id": "rev-staff-001",
+      "description": "Review implementation",
+      "persona": "staff-engineer",
+      "status": "pending",
+      "workspace": null,
+      "artifact": null,
+      "created": "YYYY-MM-DDTHH:MM:SSZ",
+      "completed": null,
+      "dependencies": ["dev-001"],
+      "metadata": {}
+    }
+  ]
+}

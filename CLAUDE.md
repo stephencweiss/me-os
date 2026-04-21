@@ -22,6 +22,8 @@ A skill is a set of local instructions stored in a `SKILL.md` file. Use these en
 - `weekly-goals`: Set, track, and review weekly goals in MeOS (database / web) with progress tracking and non-goal alerts. (file: `/Users/sweiss/code/me-os/.claude/skills/weekly-goals/SKILL.md`)
 - `time-report`: Weekly/daily time analysis with gap detection and interactive categorization. (file: `/Users/sweiss/code/me-os/.claude/skills/time-report/SKILL.md`)
 - `one-on-one`: Process and summarize 1:1 notes from voice, images, files, or text. (file: `/Users/sweiss/code/me-os/.claude/skills/one-on-one/SKILL.md`)
+- `jj-workspace`: Isolated jj workspace for parallel human or sub-agent workstreams; amend discipline and handoff. (file: `.claude/skills/jj-workspace/SKILL.md`)
+- `orchestrate`: Persona-based multi-agent flow with `.tasks/ledger.json`, review gate, and ledger shell helpers. (file: `.claude/skills/orchestrate/SKILL.md`)
 
 ### Skill trigger and usage rules
 
@@ -61,7 +63,12 @@ me-os/
 │   ├── calendar-manager/# Active conflict/category/flex management
 │   ├── calendar-optimizer/ # Goal-based optimization
 │   ├── time-report/    # Weekly time analysis and gap detection
-│   └── one-on-one/     # 1:1 note processing and reporting
+│   ├── one-on-one/     # 1:1 note processing and reporting
+│   ├── jj-workspace/   # Jujutsu workspace workflow for isolated work
+│   └── orchestrate/    # Persona orchestration + task ledger helpers
+├── .claude/personas/   # Role prompts for subagent orchestration
+├── .claude/workflows/  # planning.md, jj-workflow.md, orchestration.md
+├── .tasks/             # Optional ledger + gitignored artifacts for multi-agent runs
 ├── mcp/                # MCP server implementations
 │   └── google-calendar/# Google Calendar MCP server
 ├── docs/superpowers/
@@ -176,6 +183,18 @@ Requires `jj git init --colocate` at repo root (already done for this repo). Cre
 cd ../worktrees/me-os/<workspace-name>
 ```
 
+Sub-agent / parallel workstream (prefixes `ai-` automatically):
+
+```bash
+./scripts/jj-workspace-start.sh --agent <short-name>
+cd ../worktrees/me-os/ai-<short-name>
+jj new trunk() -m "Summary"
+```
+
+**Jj repo config (workspace names in log, `jj ls` / `jj stack` / `jj amend` aliases):** run once per clone: `./scripts/jj-setup-config.sh`
+
+**Full jj + agent rules:** `.claude/workflows/jj-workflow.md` — **isolated work skill:** `.claude/skills/jj-workspace/SKILL.md`
+
 When finished: `./scripts/jj-workspace-done.sh <workspace-name>`
 
 ### Publishing a jj workspace to GitHub (bookmark → PR)
@@ -194,6 +213,25 @@ For work you do mainly in a **jj workspace**, use a **jj bookmark** as the Git b
 If `jj git push` refuses, fetch and fix bookmark conflicts per [jj bookmark push safety](https://docs.jj-vcs.dev/latest/bookmarks/#pushing-bookmarks-safety-checks). After a rebase or history rewrite, the push may **move** the remote bookmark sideways (jj uses checks similar to `--force-with-lease`).
 
 *Example:* workspace `capacitor-ios` with bookmark `sw-capacitor-ios-phase1` for the native shell line—same pattern applies to any feature bookmark.
+
+## Multi-agent development (jj)
+
+When multiple agents (or you + agents) work in parallel, use **separate jj workspaces** so each has its own working copy. Agents should follow `.claude/skills/jj-workspace/SKILL.md`: `jj new trunk()`, `jj amend`, no bookmark/push unless you ask.
+
+**You monitor:** `lazyjj` or `watch -n 1 --color jj log` from your main checkout.
+
+**You harvest:** `jj new <agent-change-id>`, verify with `pnpm test`, then bookmark/PR as usual.
+
+**Cleanup:** `./scripts/jj-workspace-done.sh ai-<name>`
+
+## Subagent orchestration
+
+For persona-based multi-agent work (Architect → Developer → review gate → QA → Tester), use **`.claude/skills/orchestrate/SKILL.md`** and `.claude/workflows/orchestration.md`.
+
+- Initialize or update **`.tasks/ledger.json`**; shell helpers: `source .claude/skills/orchestrate/ledger-helpers.sh`
+- Outputs under **`.tasks/artifacts/`** (gitignored — see `.tasks/README.md`)
+- Pass **file paths** between steps, not inlined contents
+- **superpowers:subagent-driven-development** complements this repo’s personas under `.claude/personas/`
 
 ### Setting Up Local Testing
 
@@ -257,3 +295,50 @@ Skills are invoked via Claude Code:
 - `/calendar-optimizer` - Optimize schedule against goals
 - `/time-report` - Generate time analysis
 - `/one-on-one [name]` - Process 1:1 notes
+
+<!-- BEGIN BEADS INTEGRATION v:1 profile:minimal hash:ca08a54f -->
+## Beads Issue Tracker
+
+This project uses **bd (beads)** for issue tracking. Run `bd prime` to see full workflow context and commands.
+
+### Quick Reference
+
+```bash
+bd ready              # Find available work
+bd show <id>          # View issue details
+bd update <id> --claim  # Claim work
+bd close <id>         # Complete work
+```
+
+### Rules
+
+- Use `bd` for ALL task tracking — do NOT use TodoWrite, TaskCreate, or markdown TODO lists
+- Run `bd prime` for detailed command reference and session close protocol
+- Use `bd remember` for persistent knowledge — do NOT use MEMORY.md files
+
+## Session Completion
+
+**When ending a work session**, you MUST complete ALL steps below. Work is NOT complete until `git push` succeeds.
+
+**MANDATORY WORKFLOW:**
+
+1. **File issues for remaining work** - Create issues for anything that needs follow-up
+2. **Run quality gates** (if code changed) - Tests, linters, builds
+3. **Update issue status** - Close finished work, update in-progress items
+4. **PUSH TO REMOTE** - This is MANDATORY:
+   ```bash
+   git pull --rebase
+   bd dolt push
+   git push
+   git status  # MUST show "up to date with origin"
+   ```
+5. **Clean up** - Clear stashes, prune remote branches
+6. **Verify** - All changes committed AND pushed
+7. **Hand off** - Provide context for next session
+
+**CRITICAL RULES:**
+- Work is NOT complete until `git push` succeeds
+- NEVER stop before pushing - that leaves work stranded locally
+- NEVER say "ready to push when you are" - YOU must push
+- If push fails, resolve and retry until it succeeds
+<!-- END BEADS INTEGRATION -->
