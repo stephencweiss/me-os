@@ -6,6 +6,7 @@
 import type { NextAuthConfig } from "next-auth";
 import Google from "next-auth/providers/google";
 import { SupabaseAdapter } from "@auth/supabase-adapter";
+import { resolveAuthRedirectUrl } from "./auth-redirect";
 import { getAuthJsBasePath } from "./base-path";
 
 const supabaseUrl =
@@ -53,14 +54,7 @@ export const authConfig: NextAuthConfig = {
       return session;
     },
     async redirect({ url, baseUrl }) {
-      const base = baseUrl.replace(/\/$/, "");
-      if (url.startsWith("/")) return `${base}${url}`;
-      try {
-        if (new URL(url).origin === base) return url;
-      } catch {
-        return base;
-      }
-      return base;
+      return resolveAuthRedirectUrl(url, baseUrl);
     },
   },
   pages: {
