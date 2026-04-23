@@ -58,13 +58,13 @@ Architect → Design approach, identify tradeoffs
     ↓
 Developer → Implement per architecture
     ↓
-┌───────────────────────────────────────┐
-│ Review gate (parallel)                  │
-├─ Staff Engineer (always)              │
-├─ TypeScript Expert (TS / Next / React)│
-├─ DBA (schema / queries / Supabase)    │
-├─ Security Reviewer (auth / PII)         │
-└─ Performance Specialist (critical paths)│
+┌───────────────────────────────────────────┐
+│ Review gate (parallel)                    │
+├─ Staff Engineer (always)                  │
+├─ TypeScript Expert (TS / Next / React)    │
+├─ DBA (schema / queries / Supabase)        │
+├─ Security Reviewer (auth / PII)           │
+└─ Performance Specialist (critical paths)  │
     ↓
 QA Engineer → Design test strategy
     ↓
@@ -76,6 +76,8 @@ Ship!
 ```
 
 ## Usage with orchestration
+
+> **Note:** The `.tasks/` ledger, `.claude/skills/orchestrate/`, and `.claude/workflows/orchestration.md` referenced below ship in the two follow-up PRs in this stack. Until those land, personas can still be loaded manually — the orchestration wiring is the only thing deferred.
 
 ### Loading a persona
 

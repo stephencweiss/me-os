@@ -35,6 +35,5 @@ Your output naturally takes this form — the orchestrator may override format:
 
 ## Orchestrator Notes
 
-- Invoke after Product Manager, before Developer
-- Pass requirements doc or acceptance criteria as input
+- Invoke before Developer; consumes a requirements doc, spec, or acceptance criteria as input
 - Output feeds into: Developer, Staff Engineer (for review)
