@@ -1,0 +1,37 @@
+#:schema https://docs.jj-vcs.dev/latest/config-schema.json
+
+[revset-aliases]
+"trunk()" = "main@origin"
+
+[template-aliases]
+'format_id(id)' = 'id.shortest(6)'
+
+[templates]
+# Workspace-aware log: [workspace-name], bookmarks, author
+log = '''
+label(if(current_working_copy, "bold"),
+  format_id(change_id) ++ " " ++
+  if(bookmarks, bookmarks.join(", ") ++ " ") ++
+  if(working_copies, "[" ++ working_copies ++ "] ") ++
+  author.email() ++ " | " ++
+  description.first_line() ++
+  if(empty, label("italic", " (empty)")) ++
+  if(conflict, label("red", " (conflict)"))
+)
+'''
+
+[aliases]
+ls = ["log", "-r", "all()", "--no-graph"]
+stack = ["log", "-r", "trunk()..@"]
+amend = ["squash", "-r", "@"]
+
+[ui]
+color = "auto"
+pager = "cat"
+
+[colors]
+"working_copy" = "green"
+"bookmark" = "magenta"
+"workspace" = "cyan"
+"author" = "yellow"
+"conflict" = "red"
