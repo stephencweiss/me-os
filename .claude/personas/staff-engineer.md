@@ -37,5 +37,5 @@ Your output naturally takes this form — the orchestrator may override format:
 
 - Invoke after Developer, and optionally after Architect (for design review)
 - Pass implementation artifact and requirements/architecture as inputs
-- A `revise` or `reject` verdict should loop back to Developer before proceeding
+- A `concerns` or `blocking issues` verdict feeds back to Developer before proceeding
 - Output feeds into: Developer (if revisions needed), QA Engineer, release gate
