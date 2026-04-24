@@ -28,6 +28,9 @@ supabase/.temp/
 .DS_Store
 Thumbs.db
 
+# Multi-agent orchestration outputs (ledger may be tracked; artifacts are not)
+.tasks/artifacts/
+
 # Editor
 .vscode/
 .idea/
@@ -38,3 +41,8 @@ Thumbs.db
 *.log
 npm-debug.log*
 config/turso.json
+
+# Beads / Dolt files (added by bd init)
+.dolt/
+*.db
+.beads-credential-key
